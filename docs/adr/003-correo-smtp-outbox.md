@@ -4,4 +4,4 @@
 
 **Decisión.** SMTP propio vía `nodemailer` (credenciales en variables de Vercel). Cada notificación se escribe en `email_outbox`; se intenta el envío inmediato y un cron diario reintenta los pendientes.
 
-**Consecuencias.** Sin costo adicional y con el dominio del cliente. Dependemos de los límites del SMTP (Microsoft 365/Google). La bandeja in-app es la fuente de verdad; el correo es un aviso. Pendiente: definir qué cuenta SMTP se usa en la fase backend.
+**Consecuencias.** Sin costo adicional y con el dominio del cliente. Dependemos de los límites del SMTP (Microsoft 365/Google). La bandeja in-app es la fuente de verdad; el correo es un aviso. Cuenta: SMTP propio en Hostinger (smtp.hostinger.com:465, SSL). Revisar su límite de envíos diarios en la fase backend.
