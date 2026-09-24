@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { type InvitationLink, InvitationLinkDialog } from "@/components/admin/invitation-link-dialog"
 import { MemberEditDialog } from "@/components/admin/member-edit-dialog"
 import type { Option } from "@/components/admin/option-select"
 import { ConfirmDialog } from "@/components/admin/confirm-dialog"
@@ -20,14 +21,16 @@ export function MemberActions({ member, positions }: { member: Member; positions
   const router = useRouter()
   const [dialog, setDialog] = useState<DialogKind>(null)
   const [pending, startTransition] = useTransition()
+  const [shareLink, setShareLink] = useState<InvitationLink | null>(null)
   const name = member.fullName ?? member.email
   const active = member.status === "activo" || member.status === "invitado"
 
   function resend() {
     startTransition(async () => {
       const res = await resendInvitation(member.membershipId)
-      if (res.ok) toast.success(`Invitación reenviada a ${member.email}`)
-      else toast.error(res.error)
+      if (!res.ok) return void toast.error(res.error)
+      if (res.data.link) setShareLink({ email: member.email, link: res.data.link })
+      else toast.success(`Invitación reenviada a ${member.email}`)
     })
   }
 
@@ -96,6 +99,7 @@ export function MemberActions({ member, positions }: { member: Member; positions
         pending={pending}
         onConfirm={revoke}
       />
+      <InvitationLinkDialog invite={shareLink} onClose={() => setShareLink(null)} />
     </>
   )
 }

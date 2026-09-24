@@ -28,7 +28,7 @@ import {
 } from "@/lib/data/storage"
 import { DOCUMENT_STATUS_META, SIGNATURE_MEANING, segregationError } from "@/lib/domain/documents"
 import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
-import { flushOutbox } from "@/lib/email/outbox"
+import { flushOutbox, smtpConfigured } from "@/lib/email/outbox"
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format"
 import { createAdminClient, createClient, createEphemeralClient } from "@/lib/supabase/server"
 import type { Json } from "@/lib/supabase/database.types"
@@ -717,12 +717,18 @@ export async function addControl(
 
 const INVITATION_PREFIX = "inv_"
 
+/** Resultado de invitar: el enlace se devuelve solo si no hay SMTP (se comparte a mano). */
+export type InviteResult = Result<{ link: string | null }>
+
+const invitationLink = (token: string) => `${APP_URL()}/invitacion/${token}`
+const linkIfNoMail = (token: string) => (smtpConfigured() ? null : invitationLink(token))
+
 /** Crea la invitación (RLS: Admin o Líder SIG) y encola el correo con el enlace. */
 async function createInvitation(
   user: CurrentUser,
   org: { id: string; name: string },
   input: { email: string; positionId: string; isExternal: boolean; validUntil: string | null; isOrgAdmin: boolean }
-): Promise<Result> {
+): Promise<InviteResult> {
   const supabase = await createClient()
   const admin = createAdminClient()
   const email = input.email.trim().toLowerCase()
@@ -758,7 +764,7 @@ async function createInvitation(
   await enqueueInvitationEmail(org.id, org.name, input.positionId, email, token, inv.expires_at)
   await audit({ ...user, organization: org }, "invitar_usuario", "Membresía", inv.id, email, { externo: input.isExternal })
   sendMailLater()
-  return ok(undefined)
+  return ok({ link: linkIfNoMail(token) })
 }
 
 async function enqueueInvitationEmail(orgId: string, orgName: string, positionId: string, email: string, token: string, expiresAt: string) {
@@ -768,7 +774,7 @@ async function enqueueInvitationEmail(orgId: string, orgName: string, positionId
     organization_id: orgId,
     to_email: email,
     template: "invitacion",
-    payload: { organizacion: orgName, cargo: pos?.name ?? "", enlace: `${APP_URL()}/invitacion/${token}`, vence: expiresAt },
+    payload: { organizacion: orgName, cargo: pos?.name ?? "", enlace: invitationLink(token), vence: expiresAt },
   })
 }
 
@@ -786,7 +792,7 @@ export async function inviteUser(input: {
   isExternal: boolean
   validUntil: string | null
   isOrgAdmin: boolean
-}): Promise<Result> {
+}): Promise<InviteResult> {
   return guard(async () => {
     if (input.isExternal && !input.validUntil) return fail("Indica hasta cuándo tendrá acceso el usuario externo.")
     const parsed = inviteSchema.safeParse({ ...input, email: input.email.trim().toLowerCase(), validUntil: input.validUntil || null })
@@ -807,7 +813,7 @@ async function managedInvitation(memberId: string) {
   return data
 }
 
-export async function resendInvitation(membershipId: string): Promise<Result> {
+export async function resendInvitation(membershipId: string): Promise<InviteResult> {
   return guard(async () => {
     const inv = await managedInvitation(membershipId)
     if (!inv) return fail("Solo se reenvían invitaciones pendientes.")
@@ -819,10 +825,12 @@ export async function resendInvitation(membershipId: string): Promise<Result> {
       .update({ token_hash: sha256Hex(token), expires_at: expires })
       .eq("id", inv.id)
     if (error) return fail(dbMessage(error))
+    // El correo anterior lleva un token que ya no sirve.
+    await createAdminClient().from("email_outbox").delete().eq("to_email", inv.email).eq("template", "invitacion").eq("status", "pendiente")
     await enqueueInvitationEmail(inv.organization_id, user.organization.name, inv.position_id, inv.email, token, expires)
     await audit(user, "reenviar_invitacion", "Membresía", inv.id, inv.email)
     sendMailLater()
-    return ok(undefined)
+    return ok({ link: linkIfNoMail(token) })
   })
 }
 
@@ -1019,7 +1027,7 @@ export async function savePosition(input: {
 }
 
 /** Superadmin: crea la organización con un cargo "Administrador" e invita a su administrador. */
-export async function createOrganization(input: { name: string; nit: string; adminEmail: string }): Promise<Result> {
+export async function createOrganization(input: { name: string; nit: string; adminEmail: string }): Promise<InviteResult> {
   return guard(async () => {
     const nit = input.nit.trim()
     const name = input.name.trim()

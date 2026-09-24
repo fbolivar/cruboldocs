@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { type InvitationLink, InvitationLinkDialog } from "@/components/admin/invitation-link-dialog"
 import { FormSheet } from "@/components/admin/form-sheet"
 import { OptionSelect, type Option } from "@/components/admin/option-select"
 import { SwitchField } from "@/components/admin/switch-field"
@@ -25,6 +26,7 @@ export function InviteSheet({ positions, className }: { positions: Option[]; cla
   const [form, setForm] = useState(EMPTY)
   const [errors, setErrors] = useState<Errors>({})
   const [pending, startTransition] = useTransition()
+  const [shareLink, setShareLink] = useState<InvitationLink | null>(null)
   const set = (changes: Partial<typeof EMPTY>) => setForm((f) => ({ ...f, ...changes }))
 
   function submit() {
@@ -49,7 +51,8 @@ export function InviteSheet({ positions, className }: { positions: Option[]; cla
         else toast.error(res.error)
         return
       }
-      toast.success(`Invitación enviada a ${email}`)
+      if (res.data.link) setShareLink({ email, link: res.data.link })
+      else toast.success(`Invitación enviada a ${email}`)
       setForm(EMPTY)
       setOpen(false)
       router.refresh()
@@ -108,6 +111,7 @@ export function InviteSheet({ positions, className }: { positions: Option[]; cla
           onCheckedChange={(isOrgAdmin) => set({ isOrgAdmin })}
         />
       </FormSheet>
+      <InvitationLinkDialog invite={shareLink} onClose={() => setShareLink(null)} />
     </>
   )
 }

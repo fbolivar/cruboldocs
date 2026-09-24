@@ -46,11 +46,12 @@ backend — código completo (2026-09-24); falta la prueba de punta a punta con 
 
 ## Pendientes / próxima acción
 - **Fernando, para cerrar backend:**
-  1. Copiar en `.env.local` la clave secreta (Supabase > Project Settings > API Keys > `sb_secret_…`) → `SUPABASE_SECRET_KEY`, y las credenciales SMTP de Hostinger (`SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`).
-  2. `npm run superadmin -- <correo> "<nombre>"` (muestra una contraseña temporal una sola vez).
-  3. Supabase > Authentication: **desactivar el registro público** ("Allow new users to sign up"); Site URL y Redirect URLs con `http://localhost:3001/**` y el dominio de producción; SMTP propio (Hostinger) para los correos de recuperación (el de Supabase permite muy pocos por hora).
-  4. Prueba de punta a punta: crear organización → invitar → registrar documento → revisar → aprobar → confirmar lectura; identificar riesgo → evidencia.
-- Fase seguridad: `/fase seguridad` (auditoría obligatoria antes del deploy). Revisar además: bucket `evidencias` acepta cualquier tipo de archivo; FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
+  1. ✅ Clave secreta en `.env.local` (verificada 2026-09-24).
+  2. ✅ Superadmin creado: fbolivarb@gmail.com (Fernando Bolivar Buitrago). Cambiar la contraseña temporal al ingresar.
+  3. ✅ Registro público desactivado en Supabase Auth. Pendiente: Site URL y Redirect URLs (`http://localhost:3001/**` y el dominio de producción).
+  4. ✅ Organización CRUBOL TECHNOLOGY S.A.S creada; invitación a operaciones@crubol.com (enlace entregado a mano). Pendiente: prueba de punta a punta (invitar elaborador/revisor/aprobador → registrar → revisar → aprobar → confirmar lectura; riesgo → evidencia).
+- **Correo (SMTP) — pospuesto por decisión de Fernando (2026-09-24):** Titan (`smtp.titan.email`, contacto@crubol.com) rechaza la autenticación (535) en 465 y 587; la contraseña del buzón está mal o requiere clave de aplicación. `SMTP_PASSWORD` quedó comentada en `.env.local` para que los correos esperen en la cola sin agotar intentos. Mientras no haya SMTP, al invitar, reenviar o crear una organización la UI muestra el enlace para copiarlo y compartirlo a mano (`InvitationLinkDialog`). Recuperar contraseña tampoco envía correo hasta configurar el SMTP propio en Supabase Auth.
+- Fase seguridad: `/fase seguridad` (auditoría obligatoria antes del deploy). Revisar además: enlace de invitación visible al administrador cuando no hay SMTP; bucket `evidencias` acepta cualquier tipo de archivo; FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
 - Antes del deploy: completar datos de Crubol en `/tratamiento-de-datos` y revisión legal.
 - Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio) y `CRON_SECRET`.
 
