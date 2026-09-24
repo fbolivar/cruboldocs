@@ -3,7 +3,7 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar. Remediación: **bloque 1 (integridad) hecho** (migración 010; ALTA-01, MED-02, MED-05), **bloque 2 (identidad) hecho en código** (migración 011; ALTA-02, MED-06, BAJ-01/02/03; ALTA-03 cierra cuando Fernando active la configuración de Supabase Auth) y **bloque 3 (privilegios) hecho** (2026-09-24, migración 012; ALTA-04, ALTA-05, MED-01, MED-08, BAJ-05). Configuración de Supabase Auth hecha por Fernando (2026-09-24): CAPTCHA verificado en vivo, así que **ALTA-03 queda cerrado**; MFA del Superadmin registrado. **Los 5 altos están corregidos** (falta re-auditarlos). Siguen: activar la protección de contraseñas filtradas (MED-04; el linter la sigue viendo desactivada), bloque 4 y re-auditoría.
+seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar. Remediación: **bloque 1 (integridad) hecho** (migración 010; ALTA-01, MED-02, MED-05), **bloque 2 (identidad) hecho en código** (migración 011; ALTA-02, MED-06, BAJ-01/02/03; ALTA-03 cierra cuando Fernando active la configuración de Supabase Auth) y **bloque 3 (privilegios) hecho** (2026-09-24, migración 012; ALTA-04, ALTA-05, MED-01, MED-08, BAJ-05). Configuración de Supabase Auth hecha por Fernando (2026-09-24): CAPTCHA verificado en vivo, así que **ALTA-03 queda cerrado**; MFA del Superadmin registrado. **Los 5 altos están corregidos** (falta re-auditarlos). MED-04 cerrado (protección de contraseñas filtradas activa, verificada con el linter). Siguen: bloque 4 y re-auditoría.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
@@ -58,7 +58,7 @@ seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `
   - ~~ALTA-01~~ ✅ corregido en el bloque 1 (ver sección 5 del informe).
   - ~~ALTA-02~~ ✅ corregido en el bloque 2.
   - ~~ALTA-03~~ ✅ corregido (Upstash + Turnstile + `Sb-Forwarded-For`; CAPTCHA de Supabase Auth verificado en vivo el 2026-09-24).
-  - **Pendiente MED-04:** activar "Prevent use of leaked passwords" en Supabase Auth (el linter `auth_leaked_password_protection` sigue activo).
+  - ~~MED-04~~ ✅ política de contraseñas y protección de filtradas activas en Supabase Auth (2026-09-24).
   - ~~ALTA-04~~ ✅ corregido en el bloque 3 (Superadmin con MFA `aal2` y solo metadatos).
   - ~~ALTA-05~~ ✅ corregido en el bloque 3 (traza por triggers; nadie cambia los roles de su cargo).
   - ✅ MFA del Superadmin registrado (TOTP verificado, 2026-09-24).

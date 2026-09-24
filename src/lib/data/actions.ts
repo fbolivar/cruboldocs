@@ -125,7 +125,9 @@ export async function updatePassword(password: string): Promise<Result> {
     return fail(
       error.code === "same_password"
         ? "Usa una contraseña distinta a la anterior."
-        : "El enlace venció o ya fue usado. Solicita uno nuevo."
+        : error.code === "weak_password"
+          ? "Esa contraseña es débil o apareció en una filtración de datos. Usa otra más larga y difícil de adivinar."
+          : "El enlace venció o ya fue usado. Solicita uno nuevo."
     )
   }
   return ok(undefined)
@@ -172,7 +174,7 @@ export async function acceptInvitation(
       user_metadata: { full_name: fullName },
     })
     if (error || !data.user) {
-      return fail(error?.code === "weak_password" ? "La contraseña es muy débil. Usa una más larga y difícil de adivinar." : GENERIC)
+      return fail(error?.code === "weak_password" ? "Esa contraseña es débil o apareció en una filtración de datos. Usa otra más larga y difícil de adivinar." : GENERIC)
     }
     // Un solo uso y correo verificado en la base; si falla (p. ej. uso concurrente), la cuenta se descarta.
     const { error: aErr } = await admin.rpc("accept_invitation", { p_token_hash: tokenHash, p_user: data.user.id, p_full_name: fullName })
