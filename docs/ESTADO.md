@@ -3,7 +3,7 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar. Remediación: **bloque 1 (integridad) hecho** (2026-09-24, migración 010; ALTA-01, MED-02, MED-05 corregidos); quedan ALTA-02 a ALTA-05.
+seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar. Remediación: **bloque 1 (integridad) hecho** (migración 010; ALTA-01, MED-02, MED-05) y **bloque 2 (identidad) hecho en código** (2026-09-24, migración 011; ALTA-02, MED-06, BAJ-01/02/03 corregidos; ALTA-03 cierra cuando Fernando active la configuración de Supabase Auth). Quedan ALTA-04 y ALTA-05.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
@@ -13,6 +13,7 @@ seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `
 - seguridad (2026-09-24): auditoría con veredicto NO APTO (ver `docs/seguridad/AUD-20260924.md`); remediación pendiente
 
 ## Decisiones tomadas
+- Dependencias de seguridad (2026-09-24): `@upstash/ratelimit` + `@upstash/redis` para límites de intentos (decisión de Fernando: Upstash plan gratis).
 - Producto: CrubolDocs, SaaS de gestión de calidad (control documental + riesgos). Detalle en `docs/ARQUITECTURA.md`.
 - Sin cobro en v1; alta de organizaciones por Superadmin + invitación (ADR-005).
 - Roles asignados a cargos; vigencia, externos y recertificación en `memberships` (ADR-001).
@@ -55,18 +56,20 @@ seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `
 - **Correo (SMTP) — autenticación verificada (2026-09-24, segunda prueba):** `smtp.titan.email` 465 y 587 aceptan info@crubol.com (`nodemailer.verify()`, sin envío). `SMTP_PASSWORD` activada en `.env.local` y `SMTP_FROM` = info@crubol.com (mismo buzón). Envío real de prueba recibido por Fernando (2026-09-24). SMTP propio configurado por Fernando en Supabase Auth (recuperar contraseña). Variables `SMTP_*` en Vercel: se cargan en la fase deploy (aún no existe el proyecto en Vercel, por decisión de Fernando). Historial del primer intento: Titan (`smtp.titan.email`; MX y SPF de crubol.com confirmados en Titan) rechaza la autenticación de info@crubol.com por SMTP (465/587) e IMAP aunque el webmail abre: contraseña distinta (webmail abierto por SSO de Hostinger), plan sin acceso para apps externas o clave de aplicación. Al activarlo, `SMTP_FROM` debe usar el mismo buzón del usuario. `SMTP_PASSWORD` quedó comentada en `.env.local` para que los correos esperen en la cola sin agotar intentos. Mientras no haya SMTP, al invitar, reenviar o crear una organización la UI muestra el enlace para copiarlo y compartirlo a mano (`InvitationLinkDialog`). Recuperar contraseña tampoco envía correo hasta configurar el SMTP propio en Supabase Auth.
 - **Remediación de seguridad (bloquea el deploy)** — detalle y plan en `docs/seguridad/AUD-20260924.md`:
   - ~~ALTA-01~~ ✅ corregido en el bloque 1 (ver sección 5 del informe).
-  - ALTA-02 invitaciones insertables por REST con token elegido + cuenta confirmada sin probar el correo → pre-secuestro de cuentas entre organizaciones.
-  - ALTA-03 sin rate limiting (oráculo de contraseña en aceptar invitación; límite por IP de Supabase compartido por Vercel → DoS de login).
+  - ~~ALTA-02~~ ✅ corregido en el bloque 2.
+  - ALTA-03 ✅ en código (Upstash + Turnstile + `Sb-Forwarded-For`); **cierra al completar la configuración de Supabase de abajo**.
   - ALTA-04 Superadmin lee riesgos y documentos de todos los clientes, puede darse acceso total y no tiene MFA.
   - ALTA-05 Admin se asigna rol funcional por REST (evade "solo metadatos") y las escrituras de administración no se auditan en BD.
   - **Decisiones de Fernando (2026-09-24):** rate limiting con **Upstash Redis** (`@upstash/ratelimit`, plan gratis; por IP real y por correo/token); CAPTCHA **Cloudflare Turnstile** en login, recuperar contraseña y aceptar invitación (nativo en Supabase Auth); **MFA TOTP obligatoria solo para el Superadmin** (exigir `aal2` en sus acciones); el Superadmin ve **solo metadatos** (organizaciones, usuarios, cargos), nunca documentos ni riesgos.
-  - **Orden de trabajo (una sesión por bloque, con `/fase seguridad`):** ~~1) integridad (ALTA-01, MED-02, MED-05)~~ ✅ → 2) identidad (ALTA-02, ALTA-03, MED-04, MED-06, BAJ-02) → 3) privilegios (ALTA-04, ALTA-05, MED-01, MED-08) → 4) plataforma (MED-03, MED-07, BAJ-09) → 5) re-auditoría. Próximo: **bloque 2 (identidad)**.
+  - **Orden de trabajo (una sesión por bloque, con `/fase seguridad`):** ~~1) integridad (ALTA-01, MED-02, MED-05)~~ ✅ → ~~2) identidad (ALTA-02, ALTA-03, MED-04, MED-06, BAJ-02)~~ ✅ en código → 3) privilegios (ALTA-04, ALTA-05, MED-01, MED-08) → 4) plataforma (MED-03, MED-07, BAJ-09) → 5) re-auditoría. Próximo: **bloque 3 (privilegios)**.
   - Bloque 2, prerrequisitos listos (2026-09-24): Upstash Redis `beloved-finch-295937` (us-east-2, plan gratis; ping y escritura verificados) y widget Turnstile `CrubolDocs` (hostname `localhost`; secret verificada con siteverify). Claves en `.env.local`: `UPSTASH_REDIS_REST_URL/TOKEN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`. **Activar el CAPTCHA en Supabase Auth (Attack Protection) solo cuando la UI ya envíe el token**, o el login deja de funcionar. Al publicar: agregar el dominio de producción al widget.
   - Después: re-auditoría de los altos y pruebas RLS nuevas por cada corrección.
+  - **Fernando, para cerrar el bloque 2 (Supabase > Authentication):** (1) *Rate Limits > IP Address Forwarding*: activar. (2) *Attack Protection*: CAPTCHA Turnstile con `TURNSTILE_SECRET_KEY`; probar luego el login de la app (si falla, desactivar y avisar). (3) *Attack Protection*: protección de contraseñas filtradas. (4) *Providers > Email*: mínimo 10, requisitos de complejidad y *Secure password change* (MED-04). Probar de punta a punta: invitar a un alias nuevo (crea cuenta) y a un correo que ya tiene cuenta (pide ingresar y unirse).
+- Bloque 2 (2026-09-24): invitaciones solo por RPC de servidor (`create_invitation`, `reissue_invitation`, `accept_invitation`, con `p_actor`, traza en BD y aceptación atómica). **Si el correo ya tiene cuenta, se une con la sesión iniciada** (`/login?siguiente=/invitacion/<token>`), nunca escribiendo la contraseña en la invitación. El enlace manual de invitación solo en desarrollo sin SMTP. Solo un Admin invita administradores. Límites en `src/lib/security/rate-limit.ts`; Turnstile en `src/components/auth/turnstile.tsx` (sin dependencia) y verificación en `src/lib/security/turnstile.ts`; login y recuperar van por `createAuthClient(ip)` (clave secreta + `Sb-Forwarded-For`). Si Upstash cae, se permite el intento (residual bajo). CSP del bloque 4: permitir `challenges.cloudflare.com`.
 - Bloque 1 (2026-09-24): subida a `<base>/subida/<archivo>` con `upsert: false`; el servidor valida (tamaño, firma binaria) y escribe los mismos bytes en `<base>/<archivo>` (sin token). `set_version_files(p_actor, …)` y `register_evidence(p_actor, …)` solo `service_role`. `signVersion` compara el SHA-256 del PDF guardado antes de firmar. Tipos de archivo en `src/lib/domain/files.ts`. Residual bajo: limpiar temporales `*/subida/*` viejos (job diario).
 - Otros pendientes no de seguridad: FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
 - Antes del deploy: completar datos de Crubol en `/tratamiento-de-datos` y revisión legal.
-- Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio) y `CRON_SECRET`.
+- Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio), `CRON_SECRET`, `UPSTASH_*` y `*TURNSTILE*` (obligatorias en producción: sin ellas login y recuperar fallan a propósito).
 
 ## Notas para la próxima sesión
 - El modo demo y el mock se eliminaron: para ver la app hay que ingresar con un usuario real.
