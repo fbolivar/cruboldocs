@@ -1,26 +1,46 @@
+import { createServerClient } from "@supabase/ssr"
 import { type NextRequest, NextResponse } from "next/server"
 
-// ⚠️ SOLO DESARROLLO (MOCK): `?demo_usuario=u-carlos&demo_estado=vacio` fija las
-// cookies de demostración y redirige a la URL limpia. Permite revisar roles y
-// estados con un enlace. En la fase backend este archivo pasa a refrescar la
-// sesión de Supabase.
-const KEYS = ["demo_usuario", "demo_estado"] as const
+// Refresca la sesión de Supabase en cada navegación y hace la redirección optimista:
+// sin sesión no se entra a /app; con sesión, /login y / llevan a /app. La autorización
+// real la aplican getCurrentUser() y la RLS, no este archivo.
+export async function proxy(request: NextRequest) {
+  let response = NextResponse.next({ request })
 
-export function proxy(request: NextRequest) {
-  if (process.env.NODE_ENV === "production") return NextResponse.next()
-  const url = request.nextUrl
-  const present = KEYS.filter((k) => url.searchParams.has(k))
-  if (present.length === 0) return NextResponse.next()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (list, headers) => {
+          for (const { name, value } of list) request.cookies.set(name, value)
+          response = NextResponse.next({ request })
+          for (const { name, value, options } of list) response.cookies.set(name, value, options)
+          for (const [k, v] of Object.entries(headers)) response.headers.set(k, v)
+        },
+      },
+    }
+  )
 
-  const clean = url.clone()
-  for (const k of present) clean.searchParams.delete(k)
-  const res = NextResponse.redirect(clean)
-  for (const k of present) {
-    res.cookies.set(k, url.searchParams.get(k) ?? "", { httpOnly: true, sameSite: "lax", path: "/" })
+  const { data } = await supabase.auth.getClaims()
+  const signedIn = !!data?.claims?.sub
+  const { pathname } = request.nextUrl
+
+  const redirectTo = (path: string) => {
+    const url = request.nextUrl.clone()
+    url.pathname = path
+    url.search = ""
+    const res = NextResponse.redirect(url)
+    for (const c of response.cookies.getAll()) res.cookies.set(c)
+    return res
   }
-  return res
+
+  if (!signedIn && pathname.startsWith("/app")) return redirectTo("/login")
+  if (signedIn && (pathname === "/" || pathname === "/login")) return redirectTo("/app")
+  return response
 }
 
 export const config = {
-  matcher: ["/app/:path*"],
+  matcher: ["/", "/login", "/app/:path*"],
 }

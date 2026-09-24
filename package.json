@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rls": "node supabase/tests/rls.test.mjs"
+    "test:rls": "node supabase/tests/rls.test.mjs",
+    "superadmin": "node --env-file=.env.local scripts/crear-superadmin.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
