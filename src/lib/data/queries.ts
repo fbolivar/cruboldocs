@@ -73,23 +73,25 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
   const uid = auth?.claims?.sub
   if (!uid) redirect("/login")
 
-  const [{ data: profile }, { data: memberships }, { data: isPlatformAdmin }, { data: orgs }] = await Promise.all([
-    supabase.from("profiles").select("id, full_name, email, active_org").eq("id", uid).maybeSingle(),
+  const [{ data: profile }, { data: memberships }, { data: isPlatformAccount }, { data: orgs }] = await Promise.all([
+    supabase.from("profiles").select("id, full_name, active_org").eq("id", uid).maybeSingle(),
     supabase
       .from("memberships")
       .select("organization_id, position_id, is_org_admin, is_external, valid_from, valid_until, status")
       .eq("user_id", uid),
-    supabase.rpc("is_platform_admin"),
+    supabase.rpc("is_platform_admin_account"),
     supabase.from("organizations").select("id, name, status").order("name"),
   ])
+  // La cuenta Superadmin siempre entra con segundo factor; sin él la base no le da privilegios.
+  if (isPlatformAccount && auth.claims.aal !== "aal2") redirect("/mfa")
+  const isPlatformAdmin = !!isPlatformAccount
+  const email = String(auth.claims.email ?? "")
 
   const today = todayIsoDate()
   const valid = (memberships ?? []).filter(
     (m) => m.status === "activo" && m.valid_from <= today && (!m.valid_until || m.valid_until >= today)
   )
-  const available = (orgs ?? []).filter(
-    (o) => isPlatformAdmin || (o.status === "activa" && valid.some((m) => m.organization_id === o.id))
-  )
+  const available = (orgs ?? []).filter((o) => o.status === "activa" && valid.some((m) => m.organization_id === o.id))
   if (!profile || (!isPlatformAdmin && available.length === 0)) redirect("/sin-acceso")
 
   const org =
@@ -109,14 +111,14 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
 
   return {
     id: uid,
-    fullName: profile.full_name || profile.email,
-    email: profile.email,
+    fullName: profile.full_name || email,
+    email,
     positionId: m?.position_id ?? null,
     positionName,
     organization: { id: org.id, name: org.name },
     organizations: available.map((o) => ({ id: o.id, name: o.name })),
     isOrgAdmin: m?.is_org_admin ?? false,
-    isPlatformAdmin: !!isPlatformAdmin,
+    isPlatformAdmin,
     isExternal: m?.is_external ?? false,
     validUntil: m?.valid_until ?? null,
     roles,
@@ -759,6 +761,13 @@ export async function listAllRisks(f: RiskFilters): Promise<Risk[]> {
 
 // ---------- Administración ----------
 
+/** Nombre y correo de los miembros (solo Admin y Líder SIG; el correo no se lee por REST). */
+async function memberContacts(org: string, count: number) {
+  if (!count) return []
+  const { data } = await (await createClient()).rpc("member_contacts", { org })
+  return (data ?? []).map((c) => ({ id: c.user_id, full_name: c.full_name, email: c.email }))
+}
+
 export async function listMembers(): Promise<Member[]> {
   const s = await scope()
   if (!s) return []
@@ -768,9 +777,7 @@ export async function listMembers(): Promise<Member[]> {
     s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
   ])
   const ms = memberships ?? []
-  const { data: profiles } = ms.length
-    ? await s.supabase.from("profiles").select("id, full_name, email").in("id", ms.map((m) => m.user_id))
-    : { data: [] }
+  const profiles = await memberContacts(s.org, ms.length)
   const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
   const today = todayIsoDate()
 
@@ -820,8 +827,8 @@ export async function getRecertification(): Promise<RecertificationInfo> {
   const plus = (iso: string) => new Date(new Date(iso).getTime() + period * 86_400_000).toISOString()
   const base = last?.[0]?.at ?? org?.created_at ?? new Date().toISOString()
   const ms = members.data ?? []
-  const [{ data: profiles }, { data: positions }] = await Promise.all([
-    ms.length ? s.supabase.from("profiles").select("id, full_name, email").in("id", ms.map((m) => m.user_id)) : { data: [] },
+  const [profiles, { data: positions }] = await Promise.all([
+    memberContacts(s.org, ms.length),
     s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
   ])
   const items = ms
@@ -884,22 +891,19 @@ export async function listAuditLog(f: AuditFilters): Promise<AuditEntry[]> {
     .filter((e) => !f.actor || e.actorName === f.actor)
 }
 
-/** Solo Superadmin (la RLS devuelve únicamente las organizaciones propias al resto). */
+/** Solo Superadmin con MFA: organizaciones y conteo de usuarios (sin contenido de los clientes). */
 export async function listOrganizations(): Promise<Organization[]> {
   const user = await getCurrentUser()
   if (!user.isPlatformAdmin) return []
-  const supabase = await createClient()
-  const [{ data: orgs }, { data: members }] = await Promise.all([
-    supabase.from("organizations").select("id, name, nit, status, created_at").order("name"),
-    supabase.from("memberships").select("organization_id").eq("status", "activo"),
-  ])
-  return (orgs ?? []).map((o) => ({
+  const { data } = await (await createClient()).rpc("platform_organizations")
+  return (data ?? []).map((o) => ({
     id: o.id,
     name: o.name,
     nit: o.nit,
     status: o.status as Organization["status"],
-    userCount: (members ?? []).filter((m) => m.organization_id === o.id).length,
+    userCount: o.user_count,
     createdAt: o.created_at,
+    pendingAdminInvitationId: o.pending_admin_invitation,
   }))
 }
 

@@ -17,6 +17,7 @@ const RULES = {
   "invitacion:ip": { limit: 10, window: "15 m" },
   "invitacion:token": { limit: 10, window: "1 h" },
   "firma:usuario": { limit: 5, window: "15 m" },
+  "mfa:usuario": { limit: 5, window: "15 m" },
 } satisfies Record<string, Rule>
 
 export type LimitKey = keyof typeof RULES

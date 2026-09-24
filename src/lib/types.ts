@@ -56,6 +56,8 @@ export interface Organization {
   status: OrganizationStatus
   userCount: number
   createdAt: string
+  /** Invitación del administrador inicial aún sin aceptar (el Superadmin puede reenviarla). */
+  pendingAdminInvitationId: string | null
 }
 
 export type ProcessType = "estrategico" | "misional" | "apoyo" | "evaluacion"

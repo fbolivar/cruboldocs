@@ -28,12 +28,11 @@ export type AdminTab =
 
 /** Pestañas visibles de /app/admin según rol (spec-admin). */
 export function adminTabsFor(user: CurrentUser): AdminTab[] {
-  if (user.isPlatformAdmin) {
-    return ["organizaciones", "usuarios", "cargos", "procesos", "tipos", "recertificacion", "auditoria"]
-  }
+  // El Superadmin solo administra organizaciones; el resto, solo si además es miembro con ese rol.
+  const platform: AdminTab[] = user.isPlatformAdmin ? ["organizaciones"] : []
   if (user.isOrgAdmin || hasRole(user, "lider_sig")) {
-    return ["usuarios", "cargos", "procesos", "tipos", "recertificacion", "auditoria"]
+    return [...platform, "usuarios", "cargos", "procesos", "tipos", "recertificacion", "auditoria"]
   }
-  if (hasRole(user, "auditor")) return ["auditoria"]
-  return []
+  if (hasRole(user, "auditor")) return [...platform, "auditoria"]
+  return platform
 }

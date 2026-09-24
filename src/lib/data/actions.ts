@@ -2,8 +2,9 @@
 
 // Mutaciones (Server Actions). Escriben con la sesión del usuario: la RLS y las funciones
 // del flujo (security definer) validan rol, estado y segregación. La clave de servidor solo
-// se usa donde el diseño lo exige: firma tras reautenticación, invitaciones, Storage,
-// auditoría de acciones administrativas y outbox de correo.
+// se usa donde el diseño lo exige: firma tras reautenticación, invitaciones, alta de
+// organizaciones, Storage y outbox de correo. La traza de administración la escribe la base
+// (triggers), no la aplicación.
 
 import { randomUUID } from "node:crypto"
 import type { PostgrestError } from "@supabase/supabase-js"
@@ -79,19 +80,6 @@ async function guard<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
 /** Envía los correos encolados cuando la respuesta ya salió. */
 function sendMailLater() {
   after(() => flushOutbox().catch((e) => console.error("outbox", e)))
-}
-
-/** Registro de auditoría para acciones que no pasan por funciones del flujo. */
-async function audit(user: CurrentUser, action: string, entityType: string, entityId: string, label: string, diff: Record<string, unknown> = {}) {
-  await createAdminClient().rpc("log_event", {
-    org: user.organization.id,
-    p_action: action,
-    p_entity_type: entityType,
-    p_entity_id: entityId,
-    p_label: label,
-    p_diff: diff as Json,
-    p_actor: user.id,
-  })
 }
 
 const refresh = () => revalidatePath("/app", "layout")
@@ -214,7 +202,48 @@ export async function joinOrganization(token: string, input: { acceptsDataPolicy
   })
 }
 
-/** Cambia la organización activa (usuarios con varias membresías y Superadmin). */
+// ---------- Segundo factor (Superadmin, AUD-20260924 ALTA-04) ----------
+
+export interface MfaEnrollment {
+  factorId: string
+  /** SVG del código QR como data URI. */
+  qrCode: string
+  secret: string
+}
+
+/** Registra la app de autenticación (TOTP) de la cuenta Superadmin; descarta intentos sin verificar. */
+export async function startMfaEnrollment(): Promise<Result<MfaEnrollment>> {
+  return guard(async () => {
+    const supabase = await createClient()
+    const { data: isAccount } = await supabase.rpc("is_platform_admin_account")
+    if (!isAccount) return fail("No tienes permiso para esta acción.")
+    const { data: factors } = await supabase.auth.mfa.listFactors()
+    if (factors?.totp.length) return fail("Tu cuenta ya tiene una app de autenticación. Escribe el código que muestra.")
+    for (const f of factors?.all ?? []) {
+      if (f.factor_type === "totp" && f.status === "unverified") await supabase.auth.mfa.unenroll({ factorId: f.id })
+    }
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "CrubolDocs" })
+    if (error || !data) return fail(GENERIC)
+    return ok({ factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret })
+  })
+}
+
+/** Verifica el código de la app de autenticación: la sesión pasa a aal2. */
+export async function verifyMfa(factorId: string, code: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(factorId) || !/^\d{6}$/.test(code)) return fail("Escribe el código de 6 dígitos de tu app de autenticación.")
+    const supabase = await createClient()
+    const { data: auth } = await supabase.auth.getClaims()
+    const uid = auth?.claims?.sub
+    if (!uid) return fail("Tu sesión terminó. Ingresa de nuevo.")
+    if (!(await withinLimits([["mfa:usuario", uid]]))) return fail(TOO_MANY)
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code })
+    if (error) return fail("El código no es correcto o ya cambió. Escribe el código que muestra ahora tu app.")
+    return ok(undefined)
+  })
+}
+
+/** Cambia la organización activa (usuarios con varias membresías). */
 export async function setActiveOrganization(orgId: string): Promise<Result> {
   if (!isUuid(orgId)) return fail("Organización no válida.")
   const supabase = await createClient()
@@ -864,21 +893,20 @@ export async function resendInvitation(membershipId: string): Promise<InviteResu
 export async function revokeAccess(membershipId: string): Promise<Result> {
   return guard(async () => {
     const user = await getCurrentUser()
+    const supabase = await createClient()
     const inv = await managedInvitation(membershipId)
     if (inv) {
-      await createAdminClient().from("invitations").delete().eq("id", inv.id)
-      await audit(user, "cancelar_invitacion", "Membresía", inv.id, inv.email)
+      const { data, error } = await supabase.from("invitations").delete().eq("id", inv.id).select("id")
+      if (error || !data?.length) return fail(error ? dbMessage(error) : "No tienes permiso para esta acción.")
       refresh()
       return ok(undefined)
     }
     if (!isUuid(membershipId)) return fail("Membresía no válida.")
-    const supabase = await createClient()
     const { data: m } = await supabase.from("memberships").select("user_id").eq("id", membershipId).maybeSingle()
     if (!m) return fail("No encontramos este acceso.")
     if (m.user_id === user.id) return fail("No puedes revocar tu propio acceso.")
     const { data, error } = await supabase.from("memberships").update({ status: "revocado" }).eq("id", membershipId).select("id")
     if (error || !data?.length) return fail(error ? dbMessage(error) : "No tienes permiso para esta acción.")
-    await audit(user, "revocar_acceso", "Membresía", membershipId, m.user_id, { estado: { before: "activo", after: "revocado" } })
     refresh()
     return ok(undefined)
   })
@@ -895,19 +923,14 @@ export async function updateMembership(
       ...(changes.positionId !== undefined && { position_id: changes.positionId }),
       ...(changes.validUntil !== undefined && { valid_until: changes.validUntil || null }),
     }
-    const user = await getCurrentUser()
+    const supabase = await createClient()
     const inv = await managedInvitation(membershipId)
-    if (inv) {
-      const { error } = await createAdminClient().from("invitations").update(patch).eq("id", inv.id)
-      if (error) return fail(dbMessage(error))
-    } else {
-      if (!isUuid(membershipId)) return fail("Membresía no válida.")
-      const supabase = await createClient()
-      const { data, error } = await supabase.from("memberships").update(patch).eq("id", membershipId).select("id")
-      if (error) return fail(error.code === "23514" ? "Un usuario externo debe tener fecha de fin de acceso." : dbMessage(error))
-      if (!data?.length) return fail("No tienes permiso para esta acción.")
-    }
-    await audit(user, "editar_acceso", "Membresía", inv?.id ?? membershipId, inv?.email ?? membershipId, patch)
+    if (!inv && !isUuid(membershipId)) return fail("Membresía no válida.")
+    const { data, error } = inv
+      ? await supabase.from("invitations").update(patch).eq("id", inv.id).select("id")
+      : await supabase.from("memberships").update(patch).eq("id", membershipId).select("id")
+    if (error) return fail(error.code === "23514" ? "Un usuario externo debe tener fecha de fin de acceso." : dbMessage(error))
+    if (!data?.length) return fail("No tienes permiso para esta acción.")
     refresh()
     return ok(undefined)
   })
@@ -915,10 +938,13 @@ export async function updateMembership(
 
 export async function saveRecertDecisions(decisions: { membershipId: string; keep: boolean }[]): Promise<Result<{ count: number }>> {
   return guard(async () => {
-    const valid = decisions.filter((d) => isUuid(d.membershipId))
-    if (!valid.length) return fail("Marca al menos un acceso.")
     const user = await getCurrentUser()
     const supabase = await createClient()
+    const ids = decisions.map((d) => d.membershipId).filter(isUuid)
+    // Nadie recertifica su propio acceso (también lo impide la base).
+    const { data: own } = await supabase.from("memberships").select("id").in("id", ids).eq("user_id", user.id)
+    const valid = decisions.filter((d) => isUuid(d.membershipId) && !own?.some((o) => o.id === d.membershipId))
+    if (!valid.length) return fail("Marca al menos un acceso que no sea el tuyo.")
     const { error } = await supabase.from("access_recertifications").insert(
       valid.map((d) => ({
         organization_id: user.organization.id,
@@ -930,19 +956,17 @@ export async function saveRecertDecisions(decisions: { membershipId: string; kee
     if (error) return fail(dbMessage(error))
     const now = new Date().toISOString()
     const keep = valid.filter((d) => d.keep).map((d) => d.membershipId)
-    const revoke = valid.filter((d) => !d.keep && d.membershipId).map((d) => d.membershipId)
-    if (keep.length) await supabase.from("memberships").update({ last_recertified_at: now }).in("id", keep)
-    if (revoke.length) {
-      await supabase.from("memberships").update({ status: "revocado", last_recertified_at: now }).in("id", revoke).neq("user_id", user.id)
-    }
+    const revoke = valid.filter((d) => !d.keep).map((d) => d.membershipId)
+    const updates = await Promise.all([
+      keep.length ? supabase.from("memberships").update({ last_recertified_at: now }).in("id", keep) : null,
+      revoke.length ? supabase.from("memberships").update({ status: "revocado", last_recertified_at: now }).in("id", revoke) : null,
+    ])
+    const uErr = updates.find((u) => u?.error)?.error
+    if (uErr) return fail(dbMessage(uErr))
     await createAdminClient().rpc("complete_tasks", {
       p_type: "recertificar_accesos",
       p_entity_id: user.organization.id,
       p_actor: user.id,
-    })
-    await audit(user, "recertificar_accesos", "Organización", user.organization.id, user.organization.name, {
-      mantenidos: keep.length,
-      revocados: revoke.length,
     })
     refresh()
     return ok({ count: valid.length })
@@ -965,7 +989,6 @@ export async function saveProcess(input: { id?: string; code: string; name: stri
       : await supabase.from("processes").insert({ ...row, organization_id: user.organization.id }).select("id")
     if (error) return fail(error.code === "23505" ? `Ya existe un proceso con el código ${code}.` : dbMessage(error))
     if (!data?.length) return fail("No tienes permiso para esta acción.")
-    await audit(user, input.id ? "editar_proceso" : "crear_proceso", "Proceso", data[0].id, `${code} ${name}`)
     refresh()
     return ok(undefined)
   })
@@ -974,9 +997,8 @@ export async function saveProcess(input: { id?: string; code: string; name: stri
 export async function deleteProcess(processId: string): Promise<Result> {
   return guard(async () => {
     if (!isUuid(processId)) return fail("Proceso no válido.")
-    const user = await getCurrentUser()
     const supabase = await createClient()
-    const { data, error } = await supabase.from("processes").delete().eq("id", processId).select("code, name")
+    const { data, error } = await supabase.from("processes").delete().eq("id", processId).select("id")
     if (error) {
       return fail(
         error.code === "23503"
@@ -985,7 +1007,6 @@ export async function deleteProcess(processId: string): Promise<Result> {
       )
     }
     if (!data?.length) return fail("No tienes permiso para esta acción.")
-    await audit(user, "eliminar_proceso", "Proceso", processId, `${data[0].code} ${data[0].name}`)
     refresh()
     return ok(undefined)
   })
@@ -1003,7 +1024,6 @@ export async function saveDocumentType(input: { id?: string; code: string; name:
       : await supabase.from("document_types").insert({ code: input.code, name, organization_id: user.organization.id }).select("id")
     if (error) return fail(error.code === "23505" ? `Ya existe un tipo con el código ${input.code}.` : dbMessage(error))
     if (!data?.length) return fail("No tienes permiso para esta acción.")
-    await audit(user, input.id ? "editar_tipo" : "crear_tipo", "Tipo documental", data[0].id, `${input.code} ${name}`)
     refresh()
     return ok(undefined)
   })
@@ -1036,18 +1056,25 @@ export async function savePosition(input: {
     if (!data?.length) return fail("No tienes permiso para esta acción.")
     const positionId = data[0].id
 
-    const unique = [...new Map(roles.data.map((r) => [`${r.role}|${r.processId ?? ""}`, r])).values()]
-    const { error: dErr } = await supabase.from("position_roles").delete().eq("position_id", positionId)
-    if (dErr) return fail(dbMessage(dErr))
-    if (unique.length) {
+    // Solo se tocan los roles que cambian: así se puede renombrar el cargo propio, cuyos roles
+    // la base no deja cambiar.
+    const key = (r: { role: string; processId: string | null }) => `${r.role}|${r.processId ?? ""}`
+    const wanted = new Map(roles.data.map((r) => [key(r), r]))
+    const { data: current, error: cErr } = await supabase.from("position_roles").select("id, role, process_id").eq("position_id", positionId)
+    if (cErr) return fail(dbMessage(cErr))
+    const have = new Map((current ?? []).map((r) => [key({ role: r.role, processId: r.process_id }), r.id]))
+    const removed = [...have].filter(([k]) => !wanted.has(k)).map(([, id]) => id)
+    const added = [...wanted].filter(([k]) => !have.has(k)).map(([, r]) => r)
+    if (removed.length) {
+      const { error: dErr } = await supabase.from("position_roles").delete().in("id", removed)
+      if (dErr) return fail(dbMessage(dErr))
+    }
+    if (added.length) {
       const { error: iErr } = await supabase
         .from("position_roles")
-        .insert(unique.map((r) => ({ organization_id: org, position_id: positionId, role: r.role, process_id: r.processId })))
+        .insert(added.map((r) => ({ organization_id: org, position_id: positionId, role: r.role, process_id: r.processId })))
       if (iErr) return fail(dbMessage(iErr))
     }
-    await audit(user, input.id ? "editar_cargo" : "crear_cargo", "Cargo", positionId, name, {
-      roles: unique.map((r) => r.role).join(", "),
-    })
     refresh()
     return ok(undefined)
   })
@@ -1063,26 +1090,54 @@ export async function createOrganization(input: { name: string; nit: string; adm
     const email = z.email().safeParse(input.adminEmail.trim().toLowerCase())
     if (!email.success) return fail("Escribe un correo válido para el administrador.")
     const user = await getCurrentUser()
-    if (!user.isPlatformAdmin) return fail("No tienes permiso para esta acción.")
+    if (!(await platformAdminWithMfa())) return fail("No tienes permiso para esta acción.")
 
-    const supabase = await createClient()
-    const { data: org, error } = await supabase.from("organizations").insert({ name, nit }).select("id, name").single()
-    if (error || !org) return fail(error?.code === "23505" ? "Ya existe una organización con ese NIT." : dbMessage(error))
-    const { data: pos, error: pErr } = await supabase
-      .from("positions")
-      .insert({ organization_id: org.id, name: "Administrador" })
-      .select("id")
-      .single()
-    if (pErr || !pos) return fail(dbMessage(pErr))
-    await audit({ ...user, organization: org }, "crear_organizacion", "Organización", org.id, `${name} (${nit})`)
-    const res = await createInvitation(user, org, {
-      email: email.data,
-      positionId: pos.id,
-      isExternal: false,
-      validUntil: null,
-      isOrgAdmin: true,
+    const token = newToken()
+    const { data, error } = await createAdminClient().rpc("create_organization", {
+      p_actor: user.id,
+      p_name: name,
+      p_nit: nit,
+      p_admin_email: email.data,
+      p_token_hash: sha256Hex(token),
     })
+    const created = data?.[0]
+    if (error || !created) return fail(error?.code === "23505" ? "Ya existe una organización con ese NIT." : dbMessage(error))
+    await enqueueInvitationEmail(created.organization_id, name, created.position_id, email.data, token, created.expires_at)
+    sendMailLater()
     refresh()
-    return res
+    return ok({ link: linkIfNoMail(token) })
+  })
+}
+
+/**
+ * Superadmin con sesión de segundo factor, verificado por la base con el JWT del usuario
+ * (las RPC de servidor reciben el actor y no ven el nivel de la sesión).
+ */
+async function platformAdminWithMfa(): Promise<boolean> {
+  const { data } = await (await createClient()).rpc("is_platform_admin")
+  return data === true
+}
+
+/** Superadmin: reenvía la invitación del administrador inicial (organización sin administrador activo). */
+export async function resendAdminInvitation(invitationId: string): Promise<InviteResult> {
+  return guard(async () => {
+    if (!isUuid(invitationId)) return fail("Invitación no válida.")
+    const user = await getCurrentUser()
+    if (!(await platformAdminWithMfa())) return fail("No tienes permiso para esta acción.")
+    const token = newToken()
+    const admin = createAdminClient()
+    const { data: expires, error } = await admin.rpc("reissue_invitation", {
+      p_actor: user.id,
+      p_invitation: invitationId,
+      p_token_hash: sha256Hex(token),
+    })
+    if (error || !expires) return fail(dbMessage(error))
+    const { data: inv } = await admin.from("invitations").select("organization_id, position_id, email").eq("id", invitationId).single()
+    const { data: org } = inv ? await admin.from("organizations").select("name").eq("id", inv.organization_id).single() : { data: null }
+    if (!inv || !org) return fail(GENERIC)
+    await enqueueInvitationEmail(inv.organization_id, org.name, inv.position_id, inv.email, token, expires)
+    sendMailLater()
+    refresh()
+    return ok({ link: linkIfNoMail(token) })
   })
 }
