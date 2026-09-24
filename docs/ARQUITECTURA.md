@@ -28,7 +28,7 @@ Multi-tenant por `organization_id` en **toda** tabla de negocio, con RLS activo.
 | `invitations` | org_id, email, position_id, token_hash, expires_at | |
 | `access_recertifications` | membership_id, reviewed_by, decision (mantener/revocar), at | Periódica según `recert_period_days` |
 
-**Administrador de empresa = solo metadatos:** ve títulos, códigos, estados, usuarios y trazas, pero **no descarga ni visualiza archivos**, salvo que su cargo tenga además un rol funcional. Se aplica en las políticas de Storage y en las de las tablas de contenido.
+**Administrador de empresa = solo metadatos:** ve títulos, códigos, estados, usuarios y trazas, pero **no descarga ni visualiza archivos ni lee los comentarios de revisión** (describen el contenido), salvo que su cargo tenga además un rol funcional. Se aplica en las políticas de Storage y en las de las tablas de contenido (`review_comments` incluida; decisión de Fernando, 2026-09-23).
 
 ### Control documental
 | Entidad | Atributos clave | Notas |

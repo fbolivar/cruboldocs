@@ -3,6 +3,7 @@
 import { MenuIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import type * as React from "react"
 import { useState } from "react"
 
 import { NavIcon } from "@/components/shell/nav-icon"
@@ -13,7 +14,7 @@ import { cn } from "@/lib/utils"
 const tab = "relative flex flex-col items-center justify-center gap-0.5 text-caption font-medium tracking-normal"
 
 /** Barra inferior fija en móvil: Inicio, Documentos, Riesgos y "Más" (Administración y cuenta). */
-export function MobileTabBar({ items, taskCount }: { items: NavItem[]; taskCount: number | null }) {
+export function MobileTabBar({ items, taskBadge }: { items: NavItem[]; taskBadge: React.ReactNode }) {
   const pathname = usePathname()
   const [more, setMore] = useState(false)
   const primary = items.filter((i) => i.icon !== "admin")
@@ -37,12 +38,7 @@ export function MobileTabBar({ items, taskCount }: { items: NavItem[]; taskCount
           >
             <NavIcon name={item.icon} className="size-5" />
             {item.label}
-            {item.icon === "inicio" && !!taskCount && (
-              <span className="absolute top-1.5 left-1/2 ml-1.5 rounded-full bg-acento px-1.5 text-caption tracking-normal text-superficie">
-                {taskCount}
-                <span className="sr-only"> tareas pendientes</span>
-              </span>
-            )}
+            {item.icon === "inicio" && <span className="absolute top-1.5 left-1/2 ml-1.5 flex">{taskBadge}</span>}
           </Link>
         )
       })}

@@ -29,13 +29,19 @@ export function formatDateTime(iso: string): string {
   return dateTimeFmt.format(new Date(iso)).replace(",", "")
 }
 
-function startOfDay(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+const TZ = "America/Bogota"
+const isoDateFmt = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: TZ })
+const hourFmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: TZ })
+
+/** Fecha calendario AAAA-MM-DD en Bogotá, sin importar la zona horaria del servidor. */
+export function bogotaIsoDate(d: Date): string {
+  return isoDateFmt.format(d)
 }
 
-/** Días calendario entre hoy y la fecha (negativo = en el pasado). */
+/** Días calendario (en Bogotá) entre hoy y la fecha (negativo = en el pasado). */
 export function daysFromToday(iso: string, now: Date = new Date()): number {
-  return Math.round((startOfDay(new Date(iso)) - startOfDay(now)) / DAY_MS)
+  const day = (d: Date) => Date.parse(`${bogotaIsoDate(d)}T00:00:00Z`)
+  return Math.round((day(new Date(iso)) - day(now)) / DAY_MS)
 }
 
 /** "Vencida hace 2 días" · "Vence hoy" · "Vence mañana" · "Vence en 5 días" */
@@ -56,9 +62,9 @@ export function relativeDateTime(iso: string, now: Date = new Date()): string {
   return `${formatDate(iso).slice(0, 5)} ${time}`
 }
 
-/** Saludo según la hora local. */
+/** Saludo según la hora de Bogotá. */
 export function greeting(now: Date = new Date()): string {
-  const h = now.getHours()
+  const h = Number(hourFmt.format(now))
   if (h < 12) return "Buenos días"
   if (h < 19) return "Buenas tardes"
   return "Buenas noches"
@@ -75,6 +81,7 @@ export function shortHash(hash: string): string {
   return `${hash.slice(0, 6)}…${hash.slice(-5)}`
 }
 
+/** Hoy AAAA-MM-DD en Bogotá (para `<input type="date">` y nombres de archivo). */
 export function todayIsoDate(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10)
+  return bogotaIsoDate(now)
 }

@@ -138,8 +138,12 @@ export async function getDocument(id: string, user: CurrentUser): Promise<Docume
   if (!s) return null
   const detail = db.buildDocumentDetail(s)
   if (!isMetadataOnly(user)) return detail
-  // Admin solo metadatos: sin URLs de contenido (en backend lo garantiza la política de Storage).
-  return { ...detail, versions: detail.versions.map((v) => ({ ...v, pdfUrl: null, sourceUrl: null })) }
+  // Admin solo metadatos: sin URLs de contenido ni comentarios de revisión (describen el
+  // contenido). En backend lo garantizan las políticas de Storage y de review_comments.
+  return {
+    ...detail,
+    versions: detail.versions.map((v) => ({ ...v, pdfUrl: null, sourceUrl: null, comments: [] })),
+  }
 }
 
 // ---------- Riesgos ----------
@@ -173,9 +177,16 @@ function filterRisks(f: RiskFilters): Risk[] {
 export async function listRisks(f: RiskFilters & { page?: number }): Promise<Paginated<RiskSummaryRow>> {
   const empty = await simulate()
   const kind = f.kind ?? "residual"
+  const dir = (f.dir ?? (f.sort && f.sort !== "level" ? "asc" : "desc")) === "desc" ? -1 : 1
+  const compare = (a: RiskSummaryRow, b: RiskSummaryRow) =>
+    f.sort === "code"
+      ? a.code.localeCompare(b.code, "es", { numeric: true })
+      : f.sort === "process"
+        ? a.processName.localeCompare(b.processName, "es")
+        : assessmentOf(a, kind).score - assessmentOf(b, kind).score
   const rows = empty
     ? []
-    : filterRisks(f).sort((a, b) => assessmentOf(b, kind).score - assessmentOf(a, kind).score || a.code.localeCompare(b.code))
+    : filterRisks(f).sort((a, b) => compare(a, b) * dir || a.code.localeCompare(b.code, "es", { numeric: true }))
   const page = Math.max(1, f.page ?? 1)
   const items: RiskSummaryRow[] = rows
     .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)

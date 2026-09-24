@@ -13,7 +13,7 @@ import { listAllDocuments, listAllRisks, listAuditLog, searchDocuments } from "@
 import { DOCUMENT_STATUS_META, segregationError } from "@/lib/domain/documents"
 import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
 import { toCsv } from "@/lib/csv"
-import { formatDate, formatDateTime } from "@/lib/format"
+import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format"
 import type {
   AuditFilters,
   ControlType,
@@ -209,7 +209,7 @@ export async function registerEvidence(input: {
 }): Promise<Result> {
   await latency()
   if (!input.executedAt) return fail("Indica la fecha de ejecución.")
-  if (input.executedAt > new Date().toISOString().slice(0, 10)) return fail("La fecha de ejecución no puede ser futura.")
+  if (input.executedAt > todayIsoDate()) return fail("La fecha de ejecución no puede ser futura.")
   return ok(undefined)
 }
 
@@ -285,6 +285,15 @@ export async function saveRecertDecisions(decisions: { membershipId: string; kee
 export async function saveProcess(input: { id?: string; code: string; name: string; type: string; leaderPositionId: string | null }): Promise<Result> {
   await latency()
   if (!input.code.trim() || !input.name.trim()) return fail("Completa el código y el nombre del proceso.")
+  return ok(undefined)
+}
+
+/** Solo procesos sin documentos (en backend lo refuerza la FK de documents). */
+export async function deleteProcess(processId: string): Promise<Result> {
+  await latency()
+  if (documents.some((d) => d.processId === processId)) {
+    return fail("No puedes eliminar un proceso que tiene documentos. Reasígnalos primero.")
+  }
   return ok(undefined)
 }
 

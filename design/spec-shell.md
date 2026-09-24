@@ -29,11 +29,13 @@
 - **Topbar** (56px, `superficie`, borde inferior): breadcrumb (`small`, último nivel `texto`); buscador global de documentos por código o título (abre resultados en un popover, `sombra-md`); selector de organización **solo** si el usuario pertenece a más de una (o es Superadmin); menú de avatar: nombre, cargo, correo, "Cerrar sesión".
 - **Contenido:** fondo `fondo`, máx. 1280px centrado; full-width en la lista maestra y la matriz de riesgos.
 
-## 3. Comportamiento móvil (≤640px)
+## 3. Comportamiento móvil (<768px)
+
+> **Corte móvil/escritorio = 768px** (breakpoint `md` de Tailwind), decidido por Fernando el 2026-09-23. Aplica a todas las specs: donde dicen "móvil (≤640px)", léase "<768px".
 
 - Sidebar se reemplaza por **barra inferior fija** (56px + safe-area) con 4 ítems: Inicio (con contador), Documentos, Riesgos, Más (abre hoja con Administración y cuenta).
 - Topbar: logo hexagonal + título de la pantalla; el buscador se vuelve un ícono que abre una capa a pantalla completa. Breadcrumb se reduce a "‹ Volver".
-- Gutter 16. Tablet (641–1023): sidebar colapsado a 64px por defecto.
+- Gutter 16. Tablet (768–1023): sidebar visible; el usuario puede colapsarlo a 64px.
 
 ## 4. Estados
 

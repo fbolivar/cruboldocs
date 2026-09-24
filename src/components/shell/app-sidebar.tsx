@@ -3,6 +3,7 @@
 import { ChevronsLeftIcon, ChevronsRightIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import type * as React from "react"
 import { useState } from "react"
 
 import { NavIcon } from "@/components/shell/nav-icon"
@@ -15,12 +16,13 @@ export const SIDEBAR_COOKIE = "sidebar_colapsado"
 interface AppSidebarProps {
   items: NavItem[]
   organizationName: string
-  taskCount: number | null
+  /** Contador de tareas (server component en Suspense). */
+  taskBadge: React.ReactNode
   initialCollapsed: boolean
 }
 
 /** Sidebar de escritorio (≥ md): 240px, colapsable a 64px; estado en cookie. */
-export function AppSidebar({ items, organizationName, taskCount, initialCollapsed }: AppSidebarProps) {
+export function AppSidebar({ items, organizationName, taskBadge, initialCollapsed }: AppSidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(initialCollapsed)
 
@@ -51,7 +53,6 @@ export function AppSidebar({ items, organizationName, taskCount, initialCollapse
       <nav className="mt-6 flex flex-col gap-0.5">
         {items.map((item) => {
           const active = isActive(pathname, item.href)
-          const showCount = item.icon === "inicio" && !!taskCount
           return (
             <div key={item.href}>
               {item.separated && <hr className="mx-1 my-2 border-borde" />}
@@ -68,17 +69,7 @@ export function AppSidebar({ items, organizationName, taskCount, initialCollapse
                 {active && <span aria-hidden="true" className="absolute top-1.5 bottom-1.5 -left-3 w-0.75 rounded-r-sm bg-acento" />}
                 <NavIcon name={item.icon} className="size-5" />
                 {!collapsed && <span className="flex-1">{item.label}</span>}
-                {showCount && (
-                  <span
-                    className={cn(
-                      "rounded-full bg-acento px-1.5 text-caption font-semibold tracking-normal text-superficie",
-                      collapsed && "absolute top-1 right-1"
-                    )}
-                  >
-                    {taskCount}
-                    <span className="sr-only"> tareas pendientes</span>
-                  </span>
-                )}
+                {item.icon === "inicio" && <span className={cn("flex", collapsed && "absolute top-1 right-1")}>{taskBadge}</span>}
               </Link>
             </div>
           )

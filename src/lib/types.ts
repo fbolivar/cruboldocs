@@ -322,6 +322,9 @@ export interface RiskFilters {
   kind?: AssessmentKind
   /** Celda de la matriz seleccionada, formato "P-I" (p. ej. "3-4"). */
   cell?: string
+  /** Orden de la lista; por defecto nivel de la vista activa, descendente. */
+  sort?: "level" | "code" | "process"
+  dir?: "asc" | "desc"
 }
 
 export interface RiskMatrix {
