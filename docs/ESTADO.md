@@ -59,7 +59,9 @@ seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `
   - ALTA-03 sin rate limiting (oráculo de contraseña en aceptar invitación; límite por IP de Supabase compartido por Vercel → DoS de login).
   - ALTA-04 Superadmin lee riesgos y documentos de todos los clientes, puede darse acceso total y no tiene MFA.
   - ALTA-05 Admin se asigna rol funcional por REST (evade "solo metadatos") y las escrituras de administración no se auditan en BD.
-  - Decisiones de Fernando: proveedor de rate limiting (Vercel WAF vs. Upstash), CAPTCHA (Turnstile), MFA del Superadmin y qué debe ver el Superadmin.
+  - **Decisiones de Fernando (2026-09-24):** rate limiting con **Upstash Redis** (`@upstash/ratelimit`, plan gratis; por IP real y por correo/token); CAPTCHA **Cloudflare Turnstile** en login, recuperar contraseña y aceptar invitación (nativo en Supabase Auth); **MFA TOTP obligatoria solo para el Superadmin** (exigir `aal2` en sus acciones); el Superadmin ve **solo metadatos** (organizaciones, usuarios, cargos), nunca documentos ni riesgos.
+  - **Orden de trabajo (una sesión por bloque, con `/fase seguridad`):** 1) integridad (ALTA-01, MED-02, MED-05) → 2) identidad (ALTA-02, ALTA-03, MED-04, MED-06, BAJ-02) → 3) privilegios (ALTA-04, ALTA-05, MED-01, MED-08) → 4) plataforma (MED-03, MED-07, BAJ-09) → 5) re-auditoría. Próximo: **bloque 1**.
+  - Para el bloque 2, Fernando debe crear antes: base Upstash Redis (URL y token REST a `.env.local`) y sitio Turnstile en Cloudflare (site key y secret key; la secret también en Supabase Auth → Bot and Abuse Protection).
   - Después: re-auditoría de los altos y pruebas RLS nuevas por cada corrección.
 - Otros pendientes no de seguridad: FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
 - Antes del deploy: completar datos de Crubol en `/tratamiento-de-datos` y revisión legal.
