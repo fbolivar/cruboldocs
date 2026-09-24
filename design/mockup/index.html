@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrubolDocs Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== Tokens (design/tokens.md v1) ===== */
+:root{
+  --color-acento:#0B7285;--color-acento-hover:#095C6B;--color-acento-medio:#15AABF;--color-acento-claro:#63E6BE;--color-acento-suave:#E3F4F6;
+  --color-fondo:#F8FAFB;--color-superficie:#FFFFFF;--color-superficie-alt:#EEF2F4;--color-borde:#E3E8EC;--color-borde-fuerte:#C5CFD6;
+  --color-texto:#12232B;--color-texto-sec:#5C6F7A;
+  --color-exito:#2F9E6E;--color-exito-texto:#1B7A52;--color-exito-suave:#E6F4EE;
+  --color-advertencia:#E8A13C;--color-advertencia-texto:#8A5A0B;--color-advertencia-suave:#FDF3E3;
+  --color-error:#D64550;--color-error-texto:#B3303B;--color-error-suave:#FBEAEB;--color-info:#15AABF;
+  --color-riesgo-bajo:#8CE0B8;--color-riesgo-moderado:#F4C95D;--color-riesgo-alto:#F2994A;--color-riesgo-extremo:#C92A3A;
+  --radio-sm:6px;--radio-md:10px;--radio-lg:16px;
+  --sombra-sm:0 1px 2px rgba(18,35,43,.06);--sombra-md:0 4px 12px rgba(18,35,43,.08);--sombra-lg:0 12px 32px rgba(18,35,43,.12);
+  --f-display:'Space Grotesk',sans-serif;--f-sans:'IBM Plex Sans',sans-serif;--f-mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#DDE3E7}
+body{font-family:var(--f-sans);font-size:14px;line-height:22px;color:var(--color-texto)}
+button{font:inherit;cursor:pointer;color:inherit;background:none;border:0}
+input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-acento);outline-offset:2px}
+svg{flex-shrink:0}
+.mono{font-family:var(--f-mono);font-size:13px;line-height:20px}
+.sec{color:var(--color-texto-sec)}
+.small{font-size:13px;line-height:20px}
+.caption{font-size:12px;line-height:16px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--color-texto-sec)}
+h1{font-family:var(--f-display);font-size:28px;line-height:36px;font-weight:600}
+h2{font-family:var(--f-display);font-size:20px;line-height:28px;font-weight:600}
+h3{font-family:var(--f-display);font-size:16px;line-height:24px;font-weight:500}
+
+/* ===== Barra del revisor del mockup (no es parte del producto) ===== */
+.review{position:sticky;top:0;z-index:50;background:#12232B;color:#E8F1F4;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px;font-size:13px}
+.review strong{font-family:var(--f-display);margin-right:8px}
+.review button{padding:4px 10px;border-radius:var(--radio-sm);border:1px solid #1F3640;color:#E8F1F4}
+.review button[aria-pressed=true]{background:var(--color-acento-medio);border-color:var(--color-acento-medio);color:#12232B;font-weight:600}
+.review .sep{flex:1}
+.stage{padding:24px;display:flex;justify-content:center}
+.frame{width:100%;max-width:1440px;min-height:860px;background:var(--color-fondo);border-radius:var(--radio-md);overflow:hidden;box-shadow:var(--sombra-lg);container-type:inline-size;container-name:app;position:relative}
+.stage.movil .frame{max-width:390px;min-height:800px;border-radius:28px;border:8px solid #12232B}
+
+/* ===== Shell ===== */
+.shell{display:grid;grid-template-columns:240px 1fr;min-height:860px}
+.sidebar{background:var(--color-superficie);border-right:1px solid var(--color-borde);display:flex;flex-direction:column;padding:16px 12px}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 8px 4px}
+.brand .name{font-family:var(--f-display);font-weight:600;font-size:17px}
+.org{padding:0 8px 16px 46px;margin-top:-4px}
+.nav{display:flex;flex-direction:column;gap:2px;margin-top:8px}
+.nav a{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radio-sm);color:var(--color-texto);text-decoration:none;font-weight:500;position:relative;cursor:pointer}
+.nav a:hover{background:var(--color-superficie-alt)}
+.nav a.on{background:var(--color-acento-suave);color:var(--color-acento)}
+.nav a.on::before{content:"";position:absolute;left:-12px;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;background:var(--color-acento)}
+.nav .count{margin-left:auto;background:var(--color-acento);color:#fff;font-size:12px;line-height:18px;padding:0 7px;border-radius:9px;font-weight:600}
+.nav hr{border:0;border-top:1px solid var(--color-borde);margin:8px 4px}
+.collapse{margin-top:auto;padding:8px 12px;color:var(--color-texto-sec);display:flex;gap:8px;align-items:center}
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:56px;background:var(--color-superficie);border-bottom:1px solid var(--color-borde);display:flex;align-items:center;gap:16px;padding:0 32px}
+.crumb{font-size:13px;color:var(--color-texto-sec)} .crumb b{color:var(--color-texto);font-weight:500}
+.search{margin-left:auto;display:flex;align-items:center;gap:8px;width:320px;height:36px;padding:0 12px;border:1px solid var(--color-borde-fuerte);border-radius:var(--radio-sm);color:var(--color-texto-sec);background:var(--color-superficie)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--color-acento);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px}
+.content{padding:32px;max-width:1280px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.tabbar{display:none}
+.mtop{display:none}
+
+/* ===== Componentes ===== */
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px;border-radius:var(--radio-md);font-weight:500;border:1px solid transparent;transition:background .15s ease-out;white-space:nowrap}
+.btn-p{background:var(--color-acento);color:#fff}.btn-p:hover{background:var(--color-acento-hover)}
+.btn-s{background:var(--color-superficie);border-color:var(--color-borde-fuerte)}.btn-s:hover{background:var(--color-superficie-alt)}
+.btn-g{color:var(--color-acento)}.btn-g:hover{background:var(--color-acento-suave)}
+.btn-d{background:var(--color-error-texto);color:#fff}
+.btn-sm{height:32px;padding:0 12px;font-size:13px}
+.card{background:var(--color-superficie);border:1px solid var(--color-borde);border-radius:var(--radio-md)}
+.pad{padding:24px}
+.row{display:flex;align-items:center;gap:12px}
+.between{justify-content:space-between}
+.wrap{flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--radio-sm);font-size:12px;font-weight:500;white-space:nowrap}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--color-exito-texto);background:var(--color-exito-suave)}
+.b-warn{color:var(--color-advertencia-texto);background:var(--color-advertencia-suave)}
+.b-err{color:var(--color-error-texto);background:var(--color-error-suave)}
+.b-neu{color:var(--color-texto-sec);background:var(--color-superficie-alt)}
+.b-info{color:var(--color-acento);background:var(--color-acento-suave)}
+.chip{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:var(--radio-sm);background:var(--color-superficie-alt);font-size:12px;font-weight:500;color:var(--color-texto);white-space:nowrap}
+.hex{width:40px;height:40px;display:grid;place-items:center;color:var(--color-acento);position:relative}
+.hex svg.bg{position:absolute;inset:0}
+.hex > svg:not(.bg){position:relative}
+.input{height:36px;border:1px solid var(--color-borde-fuerte);border-radius:var(--radio-sm);padding:0 12px;background:var(--color-superficie);display:flex;align-items:center;gap:8px;color:var(--color-texto-sec);white-space:nowrap}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:500}
+.field .input{color:var(--color-texto)}
+.help{font-size:13px;color:var(--color-texto-sec)}
+.seg{display:inline-flex;background:var(--color-superficie-alt);border-radius:var(--radio-md);padding:3px;gap:2px}
+.seg button{padding:4px 12px;border-radius:var(--radio-sm);font-size:13px;font-weight:500;color:var(--color-texto-sec)}
+.seg button.on{background:var(--color-superficie);color:var(--color-texto);box-shadow:var(--sombra-sm)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-borde);overflow-x:auto}
+.tabs button{padding:10px 12px;font-weight:500;color:var(--color-texto-sec);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs button.on{color:var(--color-acento);border-color:var(--color-acento)}
+.tabs .n{font-size:12px;background:var(--color-superficie-alt);border-radius:9px;padding:0 6px;margin-left:4px}
+table{width:100%;border-collapse:collapse}
+th{background:var(--color-superficie-alt);text-align:left;font-size:13px;font-weight:500;color:var(--color-texto-sec);padding:10px 16px;white-space:nowrap}
+td{padding:12px 16px;border-top:1px solid var(--color-borde);vertical-align:middle}
+tbody tr{cursor:pointer;transition:background .15s ease-out}
+tbody tr:hover{background:var(--color-fondo)}
+.pager{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--color-borde);font-size:13px;color:var(--color-texto-sec)}
+.pager .pg{display:flex;gap:4px}.pager .pg span{min-width:28px;height:28px;display:grid;place-items:center;border-radius:var(--radio-sm)}
+.pager .pg .on{background:var(--color-acento-suave);color:var(--color-acento);font-weight:600}
+.mlist{display:none}
+.dim{opacity:.55}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border-radius:var(--radio-md);font-size:13px}
+.overlay{position:absolute;inset:0;background:rgba(18,35,43,.4);display:none;z-index:20}
+.overlay.open{display:flex}
+.drawer{margin-left:auto;width:560px;max-width:100%;height:100%;background:var(--color-superficie);box-shadow:var(--sombra-lg);display:flex;flex-direction:column;overflow:auto}
+.drawer .dh{padding:20px 24px;border-bottom:1px solid var(--color-borde);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;position:sticky;top:0;background:var(--color-superficie)}
+.drawer .db{padding:24px;display:flex;flex-direction:column;gap:24px}
+.modal{margin:auto;width:480px;max-width:calc(100% - 32px);background:var(--color-superficie);border-radius:var(--radio-lg);box-shadow:var(--sombra-lg);padding:24px;display:flex;flex-direction:column;gap:16px}
+.toast{position:absolute;right:24px;bottom:24px;background:var(--color-texto);color:#fff;padding:12px 16px;border-radius:var(--radio-md);box-shadow:var(--sombra-md);display:none;gap:10px;align-items:center;z-index:30;font-size:13px}
+.toast.show{display:flex}
+.x{width:32px;height:32px;display:grid;place-items:center;border-radius:var(--radio-sm);color:var(--color-texto-sec)}
+.x:hover{background:var(--color-superficie-alt)}
+.skel{background:var(--color-superficie-alt);border-radius:var(--radio-sm);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+.screen{display:none}.screen.on{display:block}
+
+/* ===== Inicio ===== */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.kpi{padding:16px;display:flex;gap:12px;align-items:center;cursor:pointer;transition:border-color .15s}
+.kpi:hover{border-color:var(--color-acento)}
+.kpi .v{font-family:var(--f-display);font-size:28px;line-height:32px;font-weight:600}
+.task{display:flex;align-items:center;gap:16px;padding:14px 24px;border-top:1px solid var(--color-borde);cursor:pointer}
+.task:hover{background:var(--color-fondo)}
+.task > .chip{min-width:132px;justify-content:center}
+.group{padding:12px 24px 4px;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%}
+
+/* ===== Documentos ===== */
+.pmap{display:grid;grid-template-columns:120px 1fr;gap:12px 16px;align-items:center}
+.pchip{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid var(--color-borde);border-radius:var(--radio-sm);background:var(--color-superficie);font-weight:500;font-size:13px;cursor:pointer}
+.pchip span{color:var(--color-texto-sec);font-weight:400}
+.pchip.on{background:var(--color-acento-suave);border-color:var(--color-acento);color:var(--color-acento)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ===== Ficha ===== */
+.actionbar{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:var(--radio-md);background:var(--color-acento-suave);border:1px solid #BFE3E9;flex-wrap:wrap}
+.fgrid{display:grid;grid-template-columns:1fr 320px;gap:16px}
+.viewer{display:flex;flex-direction:column;min-height:560px}
+.vtool{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-borde)}
+.vpage{flex:1;background:var(--color-superficie-alt);padding:24px;display:flex;justify-content:center}
+.paper{width:100%;max-width:520px;background:#fff;box-shadow:var(--sombra-md);padding:40px 44px;display:flex;flex-direction:column;gap:10px}
+.line{height:8px;border-radius:4px;background:#E6EBEE}
+.meta dt{font-size:13px;color:var(--color-texto-sec)}
+.meta dd{margin-bottom:12px}
+.tl{display:flex;flex-direction:column;gap:0}
+.tl .it{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--color-borde)}
+.tl .it:first-child{border-top:0}
+
+/* ===== Riesgos ===== */
+.rgrid{display:grid;grid-template-columns:1fr 280px;gap:16px}
+.heat{display:grid;grid-template-columns:28px repeat(5,64px);grid-template-rows:repeat(5,64px) 28px;gap:4px;align-items:center}
+.cell{width:64px;height:64px;border-radius:var(--radio-sm);display:grid;place-items:center;font-family:var(--f-display);font-weight:600;font-size:16px;color:var(--color-texto);border:2px solid transparent}
+.cell.e{opacity:.28}
+.cell.sel{border-color:var(--color-texto)}
+.lb{background:var(--color-riesgo-bajo)}.lm{background:var(--color-riesgo-moderado)}.la{background:var(--color-riesgo-alto)}.lx{background:var(--color-riesgo-extremo);color:#fff}
+.axis{font-size:12px;font-weight:500;color:var(--color-texto-sec);text-align:center}
+.rb{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--radio-sm);font-size:12px;font-weight:500;white-space:nowrap}
+.sw{width:12px;height:12px;border-radius:3px}
+.ctl{padding:16px;display:flex;flex-direction:column;gap:10px}
+
+/* ===== Login ===== */
+.login{display:grid;grid-template-columns:40% 1fr;min-height:860px}
+.brandp{background:linear-gradient(135deg,#0B7285,#15AABF,#63E6BE);color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+.brandp h2{font-size:28px;line-height:36px;max-width:340px;position:relative}
+.brandp .pat{position:absolute;inset:0;opacity:.08}
+.lform{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;gap:24px}
+.lcard{width:100%;max-width:400px;padding:32px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--sombra-sm)}
+
+/* ===== Estados ===== */
+.sgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;padding:40px 24px}
+.empty .hex{width:56px;height:56px}
+
+/* ===== Móvil (≤640px del contenedor) ===== */
+@container app (max-width:640px){
+  .shell{grid-template-columns:1fr}
+  .sidebar,.topbar{display:none}
+  .mtop{display:flex;align-items:center;gap:10px;height:56px;padding:0 16px;background:var(--color-superficie);border-bottom:1px solid var(--color-borde);position:sticky;top:0;z-index:5}
+  .mtop .t{font-family:var(--f-display);font-weight:600;font-size:17px;flex:1}
+  .content{padding:16px 16px 88px;gap:16px}
+  h1{font-size:24px;line-height:32px}
+  .tabbar{display:grid;grid-template-columns:repeat(4,1fr);position:absolute;left:0;right:0;bottom:0;height:64px;background:var(--color-superficie);border-top:1px solid var(--color-borde);z-index:10}
+  .tabbar a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:500;color:var(--color-texto-sec);position:relative;cursor:pointer}
+  .tabbar a.on{color:var(--color-acento)}
+  .tabbar .count{position:absolute;top:6px;left:calc(50% + 6px);background:var(--color-acento);color:#fff;font-size:10px;line-height:16px;padding:0 5px;border-radius:8px}
+  .kpis{grid-template-columns:1fr 1fr;gap:12px}
+  .kpi .v{font-size:24px}
+  .kpi .hex{display:none}
+  .task{flex-wrap:wrap;padding:14px 16px;gap:8px}
+  .task .btn{width:100%;justify-content:center;height:44px}
+  .task > .chip{min-width:0}
+  .task > .grow{flex-basis:100%}
+  .heatwrap{flex:1;max-width:360px}
+  .group{padding:12px 16px 4px}
+  .hide-m{display:none !important}
+  .dtable{display:none}
+  .mlist{display:flex;flex-direction:column}
+  .mlist .mi{padding:14px 16px;border-top:1px solid var(--color-borde);display:flex;flex-direction:column;gap:4px}
+  .mlist .mi:first-child{border-top:0}
+  .pmap{grid-template-columns:1fr;gap:6px}
+  .pmap .prow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;flex-wrap:nowrap !important}
+  .pchip{flex-shrink:0}
+  .fgrid,.rgrid{grid-template-columns:1fr}
+  .actionbar .btn{width:100%;justify-content:center;height:44px}
+  .actionbar .acts{width:100%;display:flex;flex-direction:column-reverse;gap:8px}
+  .vpage{padding:12px}.viewer{min-height:380px}.paper{padding:20px}
+  .heat{grid-template-columns:20px repeat(5,1fr);grid-template-rows:repeat(5,48px) 24px;gap:3px}
+  .cell{width:100%;height:48px;font-size:14px}
+  .login{grid-template-columns:1fr;min-height:780px}
+  .brandp{padding:24px 16px;min-height:120px}
+  .brandp h2,.brandp .foot{display:none}
+  .lform{justify-content:flex-start;padding:24px 16px}
+  .lcard{padding:0;border:0;box-shadow:none;background:transparent}
+  .lcard .input,.lcard .btn{height:44px}
+  .sgrid{grid-template-columns:1fr}
+  .drawer{width:100%}
+  .fab{display:inline-flex !important;position:absolute;right:16px;bottom:80px;z-index:9;box-shadow:var(--sombra-md);height:48px}
+  .card.pad{padding:16px}
+  .filters .input.grow{flex-basis:100%}
+}
+.fab{display:none !important}
+</style>
+</head>
+<body>
+
+<!-- Barra de revisión (no forma parte del producto) -->
+<div class="review" role="toolbar" aria-label="Controles del mockup">
+  <strong>CrubolDocs · Mockup v1</strong>
+  <button data-go="login">Login</button>
+  <button data-go="inicio" aria-pressed="true">Inicio</button>
+  <button data-go="documentos">Documentos</button>
+  <button data-go="ficha">Ficha</button>
+  <button data-go="riesgos">Riesgos</button>
+  <button data-go="admin">Administración</button>
+  <button data-go="estados">Estados</button>
+  <span class="sep"></span>
+  <button id="bDesk" aria-pressed="true">Escritorio</button>
+  <button id="bMob" aria-pressed="false">Móvil 390px</button>
+</div>
+
+<!-- SVG sprites -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B7285"/><stop offset=".55" stop-color="#15AABF"/><stop offset="1" stop-color="#63E6BE"/></linearGradient>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M8.5 13h7M8.5 17h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-risk" viewBox="0 0 24 24"><path d="M12 3.5 21.5 20h-19zM12 10v4.5M12 17.2v.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sign" viewBox="0 0 24 24"><path d="M4 20h16M6 16l9.5-9.5a2.1 2.1 0 0 1 3 3L9 19H6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5 21.5 20h-19zM12 10v4.5M12 17.2v.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m9 12 2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-hexbg" viewBox="0 0 40 40"><path d="M20 2.5 35.2 11.25v17.5L20 37.5 4.8 28.75v-17.5z" fill="currentColor"/></symbol>
+    <symbol id="i-logo" viewBox="0 0 32 32"><path d="M22.5 5.2 16 1.5 3.9 8.5v15L16 30.5l12.1-7" fill="none" stroke="url(#gm)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 12.5h10M11 16.5h10M11 20.5h6" stroke="#0B7285" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="stage" id="stage">
+<div class="frame" id="frame">
+
+<!-- ================= LOGIN ================= -->
+<section class="screen" id="s-login">
+  <div class="login">
+    <div class="brandp">
+      <svg class="pat" width="100%" height="100%" aria-hidden="true"><defs><pattern id="hp" width="56" height="48" patternUnits="userSpaceOnUse"><path d="M14 1 28 1 35 13 28 25 14 25 7 13Z M42 25 56 25 63 37 56 49 42 49 35 37Z" fill="none" stroke="#fff" stroke-width="1.5"/></pattern></defs><rect width="100%" height="100%" fill="url(#hp)"/></svg>
+      <div class="row" style="position:relative"><svg width="36" height="36" style="background:#fff;border-radius:8px;padding:4px"><use href="#i-logo"/></svg><span style="font-family:var(--f-display);font-weight:600;font-size:20px">CrubolDocs</span></div>
+      <h2>Documentos vigentes, riesgos bajo control.</h2>
+      <p class="small foot" style="position:relative;opacity:.9">Control documental y gestión de riesgos para tu sistema de gestión.</p>
+    </div>
+    <div class="lform">
+      <div class="card lcard">
+        <h1>Ingresa a CrubolDocs</h1>
+        <div class="field"><label for="le">Correo</label><div class="input" id="le">laura.gomez@acme.co</div></div>
+        <div class="field"><label for="lp">Contraseña</label><div class="input" id="lp" style="justify-content:space-between">•••••••••••• <span class="sec small">Mostrar</span></div></div>
+        <a class="small" style="color:var(--color-acento);font-weight:500">¿Olvidaste tu contraseña?</a>
+        <button class="btn btn-p" style="justify-content:center">Ingresar</button>
+      </div>
+      <p class="small sec">Crubol Technology S.A.S. · <a style="color:var(--color-acento)">Tratamiento de datos (Ley 1581)</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= APP SHELL ================= -->
+<div class="shell" id="shell">
+  <aside class="sidebar" aria-label="Navegación principal">
+    <div class="brand"><svg width="30" height="30"><use href="#i-logo"/></svg><span class="name">CrubolDocs</span></div>
+    <div class="org small sec">Acme S.A.S.</div>
+    <nav class="nav">
+      <a data-go="inicio"><svg width="18" height="18"><use href="#i-home"/></svg>Inicio<span class="count">7</span></a>
+      <a data-go="documentos"><svg width="18" height="18"><use href="#i-doc"/></svg>Documentos</a>
+      <a data-go="riesgos"><svg width="18" height="18"><use href="#i-risk"/></svg>Riesgos</a>
+      <hr>
+      <a data-go="admin"><svg width="18" height="18"><use href="#i-gear"/></svg>Administración</a>
+    </nav>
+    <div class="collapse small"><svg width="16" height="16"><use href="#i-left"/></svg>Colapsar</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb" id="crumb"><b>Inicio</b></div>
+      <div class="search"><svg width="16" height="16"><use href="#i-search"/></svg><span class="small">Buscar código o título</span><span class="mono small" style="margin-left:auto;font-size:11px">Ctrl K</span></div>
+      <div class="avatar" aria-label="Laura Gómez">LG</div>
+    </header>
+    <header class="mtop"><svg width="26" height="26"><use href="#i-logo"/></svg><span class="t" id="mtitle">Inicio</span><svg width="20" height="20" class="sec"><use href="#i-search"/></svg><div class="avatar" style="width:28px;height:28px;font-size:12px">LG</div></header>
+
+    <!-- ================= INICIO ================= -->
+    <section class="screen" id="s-inicio"><div class="content">
+      <div>
+        <h1>Buenos días, Laura</h1>
+        <p class="sec">Coordinadora de Calidad · Acme S.A.S.</p>
+      </div>
+      <div class="kpis">
+        <div class="card kpi"><div class="hex"><svg class="bg" width="40" height="40" style="color:var(--color-acento-suave)"><use href="#i-hexbg"/></svg><svg width="18" height="18"><use href="#i-check"/></svg></div><div><div class="v">7</div><div class="small sec">Tareas pendientes</div></div></div>
+        <div class="card kpi"><div class="hex" style="color:var(--color-error-texto)"><svg class="bg" width="40" height="40" style="color:var(--color-error-suave)"><use href="#i-hexbg"/></svg><svg width="18" height="18"><use href="#i-clock"/></svg></div><div><div class="v" style="color:var(--color-error-texto)">2</div><div class="small sec">Vencidas</div></div></div>
+        <div class="card kpi"><div class="hex"><svg class="bg" width="40" height="40" style="color:var(--color-acento-suave)"><use href="#i-hexbg"/></svg><svg width="18" height="18"><use href="#i-doc"/></svg></div><div><div class="v">5</div><div class="small sec">Docs. por revisar (30 días)</div></div></div>
+        <div class="card kpi"><div class="hex"><svg class="bg" width="40" height="40" style="color:var(--color-acento-suave)"><use href="#i-hexbg"/></svg><svg width="18" height="18"><use href="#i-shield"/></svg></div><div><div class="v">3</div><div class="small sec">Controles pendientes</div></div></div>
+      </div>
+
+      <div class="card">
+        <div class="row between wrap" style="padding:20px 24px 8px">
+          <h2>Mis tareas</h2>
+          <div class="seg hide-m" role="tablist"><button class="on">Todas 7</button><button>Documentos 5</button><button>Riesgos 1</button><button>Accesos 1</button></div>
+        </div>
+        <div class="group"><span class="dot" style="background:var(--color-error)"></span><span class="caption" style="color:var(--color-error-texto)">Vencidas</span></div>
+        <div class="task" data-go="ficha">
+          <span class="chip">Aprobar</span>
+          <div class="grow"><div><span class="mono">PR-GC-003</span> · <b style="font-weight:500">Control de documentos</b> <span class="sec">v4</span></div><div class="small sec">Vencida hace 2 días · Asignada a Gerente General · Envió Juan Pérez</div></div>
+          <button class="btn btn-p btn-sm">Aprobar</button>
+        </div>
+        <div class="task">
+          <span class="chip">Recertificar accesos</span>
+          <div class="grow"><div><b style="font-weight:500">Recertificación semestral</b> <span class="sec">· 12 accesos</span></div><div class="small sec">Vencida hace 1 día · Asignada a Coordinador de Calidad</div></div>
+          <button class="btn btn-s btn-sm">Recertificar</button>
+        </div>
+        <div class="group"><span class="dot" style="background:var(--color-advertencia)"></span><span class="caption" style="color:var(--color-advertencia-texto)">Hoy</span></div>
+        <div class="task">
+          <span class="chip">Revisar</span>
+          <div class="grow"><div><span class="mono">FO-CO-012</span> · <b style="font-weight:500">Evaluación de proveedores</b> <span class="sec">v2</span></div><div class="small sec">Vence hoy · Asignada a Líder SIG · Envió Marta Díaz</div></div>
+          <button class="btn btn-s btn-sm">Revisar</button>
+        </div>
+        <div class="group"><span class="caption">Próximas</span></div>
+        <div class="task">
+          <span class="chip">Confirmar lectura</span>
+          <div class="grow"><div><span class="mono">MA-SIG-001</span> · <b style="font-weight:500">Manual del SIG</b> <span class="sec">v7</span></div><div class="small sec">Vence en 5 días · Distribuido a Coordinador de Calidad</div></div>
+          <button class="btn btn-s btn-sm">Leer</button>
+        </div>
+        <div class="task" data-go="riesgos">
+          <span class="chip">Ejecutar control</span>
+          <div class="grow"><div><span class="mono">R-07</span> · <b style="font-weight:500">Verificación mensual de copias de respaldo</b></div><div class="small sec">Vence en 8 días · Asignada a Coordinador de TI</div></div>
+          <button class="btn btn-s btn-sm">Registrar evidencia</button>
+        </div>
+        <div class="task">
+          <span class="chip">Atender solicitud</span>
+          <div class="grow"><div><span class="mono">IN-TI-004</span> · <b style="font-weight:500">Gestión de contraseñas</b> <span class="sec">v2</span></div><div class="small sec">Vence en 12 días · Solicitó Carlos Rojas</div></div>
+          <button class="btn btn-s btn-sm">Atender solicitud</button>
+        </div>
+        <div style="padding:12px 24px;border-top:1px solid var(--color-borde)"><button class="btn btn-g btn-sm">Ver más tareas</button></div>
+      </div>
+
+      <div class="card pad hide-m">
+        <h3 style="margin-bottom:8px">Actividad reciente</h3>
+        <div class="tl small">
+          <div class="it"><span class="sec" style="width:90px">Ayer 16:40</span><span><b style="font-weight:500">Carlos Rojas</b> aprobó <span class="mono">IN-TI-004</span> v2</span></div>
+          <div class="it"><span class="sec" style="width:90px">Ayer 11:02</span><span><b style="font-weight:500">Marta Díaz</b> envió a revisión <span class="mono">FO-CO-012</span> v2</span></div>
+          <div class="it"><span class="sec" style="width:90px">22/09 09:15</span><span><b style="font-weight:500">Andrés Ruiz</b> registró evidencia en <span class="mono">R-03</span> · Efectivo</span></div>
+        </div>
+      </div>
+    </div></section>
+
+    <!-- ================= DOCUMENTOS ================= -->
+    <section class="screen" id="s-documentos"><div class="content" style="max-width:none">
+      <div class="head">
+        <h1>Documentos</h1>
+        <div class="row hide-m"><button class="btn btn-s"><svg width="16" height="16"><use href="#i-dl"/></svg>Exportar CSV</button><button class="btn btn-p" data-open="dReg"><svg width="16" height="16"><use href="#i-plus"/></svg>Registrar documento</button></div>
+      </div>
+      <button class="btn btn-p fab" data-open="dReg"><svg width="18" height="18"><use href="#i-plus"/></svg>Registrar</button>
+
+      <div class="card pad">
+        <div class="row between" style="margin-bottom:16px"><h3>Mapa de procesos</h3><button class="btn btn-g btn-sm">Ocultar<svg width="14" height="14"><use href="#i-down"/></svg></button></div>
+        <div class="pmap">
+          <span class="caption">Estratégicos</span><div class="prow row wrap" style="gap:8px"><span class="pchip">Dirección <span>12</span></span><span class="pchip on">Gestión SIG <span>18</span></span></div>
+          <span class="caption">Misionales</span><div class="prow row wrap" style="gap:8px"><span class="pchip">Comercial <span>9</span></span><span class="pchip">Operaciones <span>24</span></span><span class="pchip">Compras <span>7</span></span></div>
+          <span class="caption">Apoyo</span><div class="prow row wrap" style="gap:8px"><span class="pchip">Talento humano <span>11</span></span><span class="pchip">TI <span>8</span></span><span class="pchip">Financiera <span>6</span></span></div>
+          <span class="caption">Evaluación</span><div class="prow row wrap" style="gap:8px"><span class="pchip">Auditoría interna <span>5</span></span><span class="pchip">Mejora <span>4</span></span></div>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="input grow" style="max-width:320px"><svg width="16" height="16"><use href="#i-search"/></svg>Código o título</div>
+        <div class="input" style="color:var(--color-acento);border-color:var(--color-acento);background:var(--color-acento-suave)">Proceso: Gestión SIG<svg width="14" height="14"><use href="#i-x"/></svg></div>
+        <div class="input hide-m">Tipo<svg width="14" height="14"><use href="#i-down"/></svg></div>
+        <div class="input hide-m">Estado<svg width="14" height="14"><use href="#i-down"/></svg></div>
+        <label class="row small hide-m" style="gap:6px"><input type="checkbox"> Revisión vencida</label>
+        <button class="btn btn-g btn-sm hide-m">Limpiar</button>
+        <button class="btn btn-s btn-sm" style="display:none" id="mfilt">Filtros (1)</button>
+      </div>
+
+      <div class="card" style="overflow:hidden">
+        <table class="dtable">
+          <thead><tr><th>Código ↑</th><th>Título</th><th>Proceso</th><th>Versión</th><th>Estado</th><th>Próxima revisión</th><th style="width:48px"></th></tr></thead>
+          <tbody>
+            <tr data-go="ficha"><td class="mono">MA-SIG-001</td><td>Manual del Sistema Integrado de Gestión</td><td>Gestión SIG</td><td>v7</td><td><span class="badge b-ok">Vigente</span></td><td style="color:var(--color-error-texto)"><span class="row" style="gap:6px"><svg width="14" height="14"><use href="#i-warn"/></svg>02/09/2026</span></td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr data-go="ficha"><td class="mono">PR-GC-001</td><td>Auditorías internas</td><td>Gestión SIG</td><td>v3</td><td><span class="badge b-ok">Vigente</span></td><td>10/01/2027</td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr data-go="ficha"><td class="mono">PR-GC-002</td><td>Acciones correctivas y de mejora</td><td>Gestión SIG</td><td>v5</td><td><span class="badge b-ok">Vigente</span></td><td>28/02/2027</td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr data-go="ficha"><td class="mono">PR-GC-003</td><td>Control de documentos y registros</td><td>Gestión SIG</td><td>v4</td><td><span class="badge b-warn">En aprobación</span></td><td>15/03/2027</td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr data-go="ficha"><td class="mono">PR-GC-004</td><td>Revisión por la dirección</td><td>Gestión SIG</td><td>v1</td><td><span class="badge b-warn">En revisión</span></td><td>—</td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr data-go="ficha"><td class="mono">FO-GC-010</td><td>Formato de solicitud de cambio documental</td><td>Gestión SIG</td><td>v2</td><td><span class="badge b-neu">Borrador</span></td><td>—</td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr data-go="ficha"><td class="mono">IN-GC-002</td><td>Instructivo de codificación de documentos</td><td>Gestión SIG</td><td>v2</td><td><span class="badge b-ok">Vigente</span></td><td>30/11/2026</td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr class="dim" data-go="ficha"><td class="mono">PR-GC-009</td><td>Gestión de quejas (derogado)</td><td>Gestión SIG</td><td>v2</td><td><span class="badge b-neu">Obsoleto</span></td><td>—</td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+          </tbody>
+        </table>
+        <div class="mlist">
+          <div class="mi" data-go="ficha"><div class="row between"><span class="mono">MA-SIG-001</span><span class="badge b-ok">Vigente</span></div><b style="font-weight:500">Manual del Sistema Integrado de Gestión</b><span class="small sec">Gestión SIG · v7 · <span style="color:var(--color-error-texto)">Revisión vencida 02/09/2026</span></span></div>
+          <div class="mi" data-go="ficha"><div class="row between"><span class="mono">PR-GC-003</span><span class="badge b-warn">En aprobación</span></div><b style="font-weight:500">Control de documentos y registros</b><span class="small sec">Gestión SIG · v4 · Revisión 15/03/2027</span></div>
+          <div class="mi" data-go="ficha"><div class="row between"><span class="mono">PR-GC-004</span><span class="badge b-warn">En revisión</span></div><b style="font-weight:500">Revisión por la dirección</b><span class="small sec">Gestión SIG · v1</span></div>
+          <div class="mi" data-go="ficha"><div class="row between"><span class="mono">FO-GC-010</span><span class="badge b-neu">Borrador</span></div><b style="font-weight:500">Formato de solicitud de cambio documental</b><span class="small sec">Gestión SIG · v2</span></div>
+        </div>
+        <div class="pager"><span>1–8 de 18</span><div class="pg"><span><svg width="14" height="14"><use href="#i-left"/></svg></span><span class="on">1</span><span>2</span><span><svg width="14" height="14"><use href="#i-right"/></svg></span></div></div>
+      </div>
+    </div></section>
+
+    <!-- ================= FICHA ================= -->
+    <section class="screen" id="s-ficha"><div class="content">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="row wrap" style="gap:8px"><span class="mono sec">PR-GC-003</span><span class="badge b-warn">En aprobación</span><span class="chip">v4</span></div>
+        <h1>Control de documentos y registros</h1>
+      </div>
+
+      <div class="actionbar">
+        <div class="hex" style="width:36px;height:36px"><svg class="bg" width="36" height="36" style="color:#fff"><use href="#i-hexbg"/></svg><svg width="18" height="18"><use href="#i-sign"/></svg></div>
+        <div class="grow"><b style="font-weight:600">Tienes esta tarea: aprobar la versión 4</b><div class="small sec">Vence el 25/09/2026 · Revisada y firmada por Laura Gómez (Líder SIG) el 21/09/2026</div></div>
+        <div class="acts row"><button class="btn btn-s">Rechazar</button><button class="btn btn-p" data-open="mSign"><svg width="16" height="16"><use href="#i-sign"/></svg>Firmar aprobación</button></div>
+      </div>
+
+      <div class="fgrid">
+        <div class="card viewer" style="overflow:hidden">
+          <div class="vtool">
+            <span class="x"><svg width="16" height="16"><use href="#i-left"/></svg></span><span class="small">3 / 12</span><span class="x"><svg width="16" height="16"><use href="#i-right"/></svg></span>
+            <span class="small sec hide-m" style="margin-left:8px">− 100 % +</span>
+            <span class="grow"></span>
+            <button class="btn btn-g btn-sm"><svg width="16" height="16"><use href="#i-dl"/></svg>PDF</button>
+            <button class="btn btn-g btn-sm"><svg width="16" height="16"><use href="#i-dl"/></svg>Fuente (.docx)</button>
+          </div>
+          <div class="vpage"><div class="paper">
+            <div class="row between"><span class="mono small sec">PR-GC-003 · v4</span><span class="small sec">Página 3 de 12</span></div>
+            <h3 style="margin:8px 0 4px">5. Aprobación de documentos</h3>
+            <div class="line" style="width:96%"></div><div class="line" style="width:88%"></div><div class="line" style="width:92%"></div><div class="line" style="width:60%"></div>
+            <h3 style="margin:12px 0 4px">5.1 Responsables</h3>
+            <div class="line" style="width:90%"></div><div class="line" style="width:94%"></div><div class="line" style="width:70%"></div>
+            <div style="border:1px solid #E6EBEE;margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr">
+              <div style="padding:10px;border-right:1px solid #E6EBEE"><div class="line" style="width:60%"></div></div><div style="padding:10px;border-right:1px solid #E6EBEE"><div class="line" style="width:70%"></div></div><div style="padding:10px"><div class="line" style="width:50%"></div></div>
+            </div>
+            <div class="line" style="width:94%;margin-top:12px"></div><div class="line" style="width:84%"></div>
+          </div></div>
+        </div>
+        <div class="card pad">
+          <h3 style="margin-bottom:16px">Detalles</h3>
+          <dl class="meta">
+            <dt>Proceso</dt><dd>Gestión SIG</dd>
+            <dt>Tipo</dt><dd>Procedimiento (PR)</dd>
+            <dt>Elabora</dt><dd>Coordinador de Calidad</dd>
+            <dt>Revisa</dt><dd>Líder SIG</dd>
+            <dt>Aprueba</dt><dd>Gerente General</dd>
+            <dt>Revisión periódica</dt><dd>Cada 12 meses · próxima 15/03/2027</dd>
+            <dt>Distribución</dt><dd>24 cargos · requiere confirmar lectura</dd>
+            <dt>Hash del PDF (SHA-256)</dt><dd class="row" style="gap:6px"><span class="mono">3fa9e1…77c21</span><span class="x" style="width:24px;height:24px" aria-label="Copiar hash"><svg width="14" height="14"><use href="#i-copy"/></svg></span></dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="tabs" style="padding:0 16px"><button class="on">Comentarios <span class="n">3</span></button><button>Versiones <span class="n">4</span></button><button>Firmas <span class="n">1</span></button><button>Lecturas <span class="n">0/24</span></button><button>Solicitudes <span class="n">1</span></button></div>
+        <div class="pad tl">
+          <div class="it"><div class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--color-texto-sec)">LG</div><div class="grow"><div class="small"><b style="font-weight:500">Laura Gómez</b> <span class="sec">· Líder SIG · 20/09/2026 10:12</span></div><p style="font-size:15px;line-height:24px">En el numeral 5.1 falta indicar quién aprueba los formatos (FO). Sugiero agregar la tabla de responsables por tipo.</p></div><span class="badge b-ok">Resuelto</span></div>
+          <div class="it"><div class="avatar" style="width:28px;height:28px;font-size:11px;background:var(--color-texto-sec)">JP</div><div class="grow"><div class="small"><b style="font-weight:500">Juan Pérez</b> <span class="sec">· Coordinador de Calidad · 20/09/2026 15:40</span></div><p style="font-size:15px;line-height:24px">Agregada la tabla en la página 3. Queda lista para revisión.</p></div></div>
+        </div>
+      </div>
+    </div></section>
+
+    <!-- ================= RIESGOS ================= -->
+    <section class="screen" id="s-riesgos"><div class="content" style="max-width:none">
+      <div class="head">
+        <h1>Riesgos</h1>
+        <div class="row hide-m"><button class="btn btn-s"><svg width="16" height="16"><use href="#i-dl"/></svg>Exportar CSV</button><button class="btn btn-p"><svg width="16" height="16"><use href="#i-plus"/></svg>Identificar riesgo</button></div>
+      </div>
+      <div class="filters">
+        <div class="input">Proceso: Todos<svg width="14" height="14"><use href="#i-down"/></svg></div>
+        <div class="input hide-m">Categoría<svg width="14" height="14"><use href="#i-down"/></svg></div>
+        <div class="seg"><button class="on">Residual</button><button>Inherente</button></div>
+      </div>
+      <div class="rgrid">
+        <div class="card pad">
+          <div class="row between" style="margin-bottom:16px"><h3>Matriz de calor · valoración residual</h3><span class="small sec hide-m">Clic en una celda para filtrar</span></div>
+          <div style="display:flex;gap:8px;align-items:center;justify-content:center">
+            <span class="caption hide-m" style="writing-mode:vertical-rl;transform:rotate(180deg)">Probabilidad</span>
+            <div class="heatwrap">
+            <div class="heat" role="grid" aria-label="Matriz de probabilidad por impacto" id="heat"></div>
+            <div class="caption" style="text-align:center;margin-top:4px;padding-left:28px">Impacto</div>
+            </div>
+          </div>
+        </div>
+        <div class="card pad" style="display:flex;flex-direction:column;gap:14px">
+          <div><div style="font-family:var(--f-display);font-size:28px;line-height:32px;font-weight:600">42</div><div class="small sec">riesgos identificados</div></div>
+          <div class="row between"><span class="row" style="gap:8px"><span class="sw lx"></span>Extremo</span><b>3</b></div>
+          <div class="row between"><span class="row" style="gap:8px"><span class="sw la"></span>Alto</span><b>9</b></div>
+          <div class="row between"><span class="row" style="gap:8px"><span class="sw lm"></span>Moderado</span><b>17</b></div>
+          <div class="row between"><span class="row" style="gap:8px"><span class="sw lb"></span>Bajo</span><b>13</b></div>
+          <hr style="border:0;border-top:1px solid var(--color-borde)">
+          <div><div style="font-family:var(--f-display);font-size:22px;font-weight:600;color:var(--color-exito-texto)">81 %</div><div class="small sec">controles con evidencia a tiempo</div></div>
+        </div>
+      </div>
+      <div class="filters">
+        <div class="input grow" style="max-width:320px"><svg width="16" height="16"><use href="#i-search"/></svg>Código o descripción</div>
+        <div class="input hide-m">Nivel<svg width="14" height="14"><use href="#i-down"/></svg></div>
+        <label class="row small hide-m" style="gap:6px"><input type="checkbox"> Controles vencidos</label>
+      </div>
+      <div class="card" style="overflow:hidden">
+        <table class="dtable">
+          <thead><tr><th>Código</th><th>Descripción</th><th>Proceso</th><th>Inherente</th><th>Residual ↓</th><th>Controles</th></tr></thead>
+          <tbody>
+            <tr data-open="dRisk"><td class="mono">R-12</td><td>Incumplimiento de requisitos legales ambientales</td><td>Operaciones</td><td><span class="rb lx">Extremo 25</span></td><td><span class="rb lx">Extremo 20</span></td><td>1</td></tr>
+            <tr data-open="dRisk"><td class="mono">R-07</td><td>Pérdida de información por falla en copias de respaldo</td><td>TI</td><td><span class="rb lx">Extremo 20</span></td><td><span class="rb la">Alto 12</span></td><td>2 · <span style="color:var(--color-error-texto)">1 vencido</span></td></tr>
+            <tr data-open="dRisk"><td class="mono">R-03</td><td>Selección de proveedores sin evaluación previa</td><td>Compras</td><td><span class="rb la">Alto 16</span></td><td><span class="rb lm">Moderado 6</span></td><td>2</td></tr>
+            <tr data-open="dRisk"><td class="mono">R-21</td><td>Uso de versiones desactualizadas de procedimientos</td><td>Gestión SIG</td><td><span class="rb la">Alto 12</span></td><td><span class="rb lb">Bajo 4</span></td><td>3</td></tr>
+          </tbody>
+        </table>
+        <div class="mlist">
+          <div class="mi" data-open="dRisk"><div class="row between"><span class="mono">R-12</span><span class="rb lx">Extremo 20</span></div><span>Incumplimiento de requisitos legales ambientales</span><span class="small sec">Operaciones · 1 control</span></div>
+          <div class="mi" data-open="dRisk"><div class="row between"><span class="mono">R-07</span><span class="rb la">Alto 12</span></div><span>Pérdida de información por falla en copias de respaldo</span><span class="small sec">TI · 2 controles · <span style="color:var(--color-error-texto)">1 vencido</span></span></div>
+          <div class="mi" data-open="dRisk"><div class="row between"><span class="mono">R-03</span><span class="rb lm">Moderado 6</span></div><span>Selección de proveedores sin evaluación previa</span><span class="small sec">Compras · 2 controles</span></div>
+        </div>
+      </div>
+    </div></section>
+
+    <!-- ================= ADMIN ================= -->
+    <section class="screen" id="s-admin"><div class="content">
+      <h1>Administración</h1>
+      <div class="tabs"><button class="on">Usuarios</button><button>Cargos y roles</button><button>Procesos</button><button>Tipos de documento</button><button>Recertificación <span class="n" style="background:var(--color-advertencia-suave);color:var(--color-advertencia-texto)">12</span></button><button>Auditoría</button></div>
+      <div class="filters">
+        <div class="input grow" style="max-width:320px"><svg width="16" height="16"><use href="#i-search"/></svg>Nombre o correo</div>
+        <div class="input hide-m">Estado<svg width="14" height="14"><use href="#i-down"/></svg></div>
+        <label class="row small hide-m" style="gap:6px"><input type="checkbox"> Solo externos</label>
+        <span class="grow"></span>
+        <button class="btn btn-p"><svg width="16" height="16"><use href="#i-plus"/></svg>Invitar usuario</button>
+      </div>
+      <div class="card" style="overflow:hidden">
+        <table class="dtable">
+          <thead><tr><th>Nombre</th><th>Cargo</th><th>Tipo</th><th>Vigencia</th><th>Estado</th><th style="width:48px"></th></tr></thead>
+          <tbody>
+            <tr><td><div>Laura Gómez</div><div class="small sec">laura.gomez@acme.co</div></td><td>Coordinador de Calidad <span class="chip" style="margin-left:4px">Admin</span></td><td>Interno</td><td class="sec">—</td><td><span class="badge b-ok">Activo</span></td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr><td><div>Juan Pérez</div><div class="small sec">juan.perez@acme.co</div></td><td>Líder SIG</td><td>Interno</td><td class="sec">—</td><td><span class="badge b-ok">Activo</span></td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr><td><div>Andrés Ruiz</div><div class="small sec">aruiz@auditores.co</div></td><td>Auditor externo</td><td>Externo</td><td>Hasta 31/12/2026</td><td><span class="badge b-ok">Activo</span></td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr><td><div class="sec">m.diaz@acme.co</div><div class="small sec">Invitada el 22/09/2026</div></td><td>Líder de Compras</td><td>Interno</td><td class="sec">—</td><td><span class="badge b-warn">Invitado</span></td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+            <tr class="dim"><td><div>Pedro Castro</div><div class="small sec">pcastro@consultores.co</div></td><td>Consultor externo</td><td>Externo</td><td>Venció 30/06/2026</td><td><span class="badge b-neu">Vencido</span></td><td><svg width="18" height="18" class="sec"><use href="#i-dots"/></svg></td></tr>
+          </tbody>
+        </table>
+        <div class="mlist">
+          <div class="mi"><div class="row between"><b style="font-weight:500">Laura Gómez</b><span class="badge b-ok">Activo</span></div><span class="small sec">Coordinador de Calidad · Admin</span></div>
+          <div class="mi"><div class="row between"><b style="font-weight:500">Andrés Ruiz</b><span class="badge b-ok">Activo</span></div><span class="small sec">Auditor externo · hasta 31/12/2026</span></div>
+          <div class="mi"><div class="row between"><span class="sec">m.diaz@acme.co</span><span class="badge b-warn">Invitado</span></div><span class="small sec">Líder de Compras</span></div>
+        </div>
+      </div>
+    </div></section>
+
+    <!-- ================= ESTADOS ================= -->
+    <section class="screen" id="s-estados"><div class="content">
+      <div><h1>Estados de referencia</h1><p class="sec">Carga, vacío, error, éxito y restricción del Admin. Mismos patrones en todas las pantallas.</p></div>
+      <div class="sgrid">
+        <div class="card"><div class="pad" style="padding-bottom:0"><span class="caption">Carga · skeleton</span></div>
+          <div class="pad" style="display:flex;flex-direction:column;gap:14px">
+            <div class="row"><div class="skel" style="width:90px;height:22px"></div><div class="skel grow" style="height:14px"></div><div class="skel" style="width:70px;height:28px"></div></div>
+            <div class="row"><div class="skel" style="width:90px;height:22px"></div><div class="skel grow" style="height:14px"></div><div class="skel" style="width:70px;height:28px"></div></div>
+            <div class="row"><div class="skel" style="width:90px;height:22px"></div><div class="skel grow" style="height:14px"></div><div class="skel" style="width:70px;height:28px"></div></div>
+          </div></div>
+        <div class="card"><div class="pad" style="padding-bottom:0"><span class="caption">Vacío · bandeja</span></div>
+          <div class="empty"><div class="hex" style="color:var(--color-exito-texto)"><svg class="bg" width="56" height="56" style="color:var(--color-exito-suave)"><use href="#i-hexbg"/></svg><svg width="24" height="24"><use href="#i-check"/></svg></div><b style="font-weight:500">Estás al día: no tienes tareas pendientes.</b><button class="btn btn-s btn-sm">Ir a documentos</button></div></div>
+        <div class="card"><div class="pad" style="padding-bottom:0"><span class="caption">Error · por sección</span></div>
+          <div class="pad"><div class="alert" style="background:var(--color-error-suave);color:var(--color-error-texto)"><svg width="18" height="18"><use href="#i-warn"/></svg><div class="grow"><b style="font-weight:600">No pudimos cargar la lista maestra.</b><div>Revisa tu conexión e inténtalo de nuevo.</div></div><button class="btn btn-s btn-sm" style="color:var(--color-texto)">Reintentar</button></div></div></div>
+        <div class="card"><div class="pad" style="padding-bottom:0"><span class="caption">Admin · solo metadatos (visor)</span></div>
+          <div class="empty"><div class="hex"><svg class="bg" width="56" height="56" style="color:var(--color-acento-suave)"><use href="#i-hexbg"/></svg><svg width="24" height="24"><use href="#i-lock"/></svg></div><b style="font-weight:500">Tu rol de administrador permite ver los datos del documento, pero no su contenido.</b><span class="small sec">Si necesitas consultarlo, pide que tu cargo tenga un rol funcional.</span></div></div>
+        <div class="card"><div class="pad" style="padding-bottom:0"><span class="caption">Vacío · filtros sin resultado</span></div>
+          <div class="empty"><div class="hex"><svg class="bg" width="56" height="56" style="color:var(--color-acento-suave)"><use href="#i-hexbg"/></svg><svg width="24" height="24"><use href="#i-search"/></svg></div><b style="font-weight:500">Ningún documento coincide con estos filtros.</b><button class="btn btn-g btn-sm">Limpiar filtros</button></div></div>
+        <div class="card"><div class="pad" style="padding-bottom:0"><span class="caption">Aviso · versión no vigente</span></div>
+          <div class="pad"><div class="alert" style="background:var(--color-advertencia-suave);color:var(--color-advertencia-texto)"><svg width="18" height="18"><use href="#i-warn"/></svg><div class="grow">Estás viendo la <b>versión 3 (reemplazada)</b>. <a style="text-decoration:underline;font-weight:500">Ver versión vigente</a></div></div>
+          <div class="toast show" style="position:static;margin-top:16px;display:inline-flex"><svg width="16" height="16" style="color:var(--color-acento-claro)"><use href="#i-check"/></svg>Aprobación firmada. PR-GC-003 v4 está vigente.</div></div></div>
+      </div>
+    </div></section>
+
+    <nav class="tabbar" aria-label="Navegación móvil">
+      <a data-go="inicio"><svg width="22" height="22"><use href="#i-home"/></svg>Inicio<span class="count">7</span></a>
+      <a data-go="documentos"><svg width="22" height="22"><use href="#i-doc"/></svg>Documentos</a>
+      <a data-go="riesgos"><svg width="22" height="22"><use href="#i-risk"/></svg>Riesgos</a>
+      <a data-go="admin"><svg width="22" height="22"><use href="#i-menu"/></svg>Más</a>
+    </nav>
+  </div>
+</div>
+
+<!-- Drawer: registrar documento -->
+<div class="overlay" id="dReg"><div class="drawer" role="dialog" aria-label="Registrar documento">
+  <div class="dh"><div><h2>Registrar documento</h2><p class="small sec">Se guardará como borrador hasta que lo envíes a revisión.</p></div><button class="x" data-close aria-label="Cerrar"><svg width="18" height="18"><use href="#i-x"/></svg></button></div>
+  <div class="db">
+    <div style="display:flex;flex-direction:column;gap:14px"><span class="caption">1 · Identificación</span>
+      <div class="field"><label>Proceso</label><div class="input">Gestión SIG</div></div>
+      <div class="field"><label>Tipo</label><div class="input">Procedimiento (PR)</div></div>
+      <div class="field"><label>Título</label><div class="input">Gestión del cambio</div></div>
+      <div class="field"><label>Código</label><div class="input mono">PR-GC-015</div><span class="help">Sugerido según tipo y proceso. Puedes editarlo.</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px"><span class="caption">2 · Responsables</span>
+      <div class="field"><label>Cargo que elabora</label><div class="input">Coordinador de Calidad</div></div>
+      <div class="field"><label>Cargo que revisa</label><div class="input">Líder SIG</div></div>
+      <div class="field"><label>Cargo que aprueba</label><div class="input" style="border-color:var(--color-error)">Coordinador de Calidad</div><span class="small" style="color:var(--color-error-texto)">El aprobador debe ser un cargo distinto al elaborador.</span></div>
+      <div class="field"><label>Cargos de distribución</label><div class="input"><span class="chip">Todos los líderes de proceso</span><span class="chip">Auditor interno</span></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px"><span class="caption">3 · Archivos y revisión</span>
+      <div style="border:1.5px dashed var(--color-borde-fuerte);border-radius:var(--radio-md);padding:20px;text-align:center" class="small sec"><svg width="22" height="22" style="color:var(--color-acento)"><use href="#i-dl"/></svg><div><b style="color:var(--color-texto);font-weight:500">Arrastra el PDF y el archivo fuente</b> o selecciónalos</div><div>PDF obligatorio + Word/Excel · máx. 25 MB por archivo</div></div>
+      <div class="row small"><svg width="16" height="16" style="color:var(--color-exito)"><use href="#i-check"/></svg><span class="grow">PR-GC-015_v1.pdf · 1,2 MB</span></div>
+      <div class="field"><label>Revisar cada (meses)</label><div class="input" style="width:120px">12</div></div>
+    </div>
+  </div>
+  <div class="row" style="padding:16px 24px;border-top:1px solid var(--color-borde);justify-content:flex-end;margin-top:auto"><button class="btn btn-s">Guardar borrador</button><button class="btn btn-p">Enviar a revisión</button></div>
+</div></div>
+
+<!-- Drawer: riesgo -->
+<div class="overlay" id="dRisk"><div class="drawer" role="dialog" aria-label="Riesgo R-07">
+  <div class="dh"><div><div class="row" style="gap:8px"><span class="mono sec">R-07</span><span class="rb la">Alto 12</span></div><h2 style="margin-top:4px">Pérdida de información por falla en copias de respaldo</h2><p class="small sec">TI · Dueño: Coordinador de TI</p></div><button class="x" data-close aria-label="Cerrar"><svg width="18" height="18"><use href="#i-x"/></svg></button></div>
+  <div class="db">
+    <div><span class="caption">Análisis</span><p style="margin-top:6px"><b style="font-weight:500">Causa:</b> copias sin verificación de restauración. <b style="font-weight:500">Consecuencia:</b> interrupción de operaciones y pérdida de registros.</p></div>
+    <div><span class="caption">Valoración</span>
+      <div class="row" style="margin-top:8px;gap:12px">
+        <div class="card grow" style="padding:12px"><div class="small sec">Inherente</div><div class="row" style="gap:8px;margin-top:4px"><span class="small">P4 × I5</span><span class="rb lx">Extremo 20</span></div></div>
+        <div class="card grow" style="padding:12px"><div class="small sec">Residual</div><div class="row" style="gap:8px;margin-top:4px"><span class="small">P3 × I4</span><span class="rb la">Alto 12</span></div></div>
+      </div>
+      <button class="btn btn-g btn-sm" style="margin-top:8px;padding-left:0">Ver historial de valoraciones (3)</button>
+    </div>
+    <div><div class="row between"><span class="caption">Controles</span><button class="btn btn-g btn-sm"><svg width="14" height="14"><use href="#i-plus"/></svg>Agregar control</button></div>
+      <div class="card ctl" style="margin-top:8px;border-color:var(--color-error)">
+        <div class="row between"><b style="font-weight:500">Prueba mensual de restauración</b><span class="chip">Detectivo</span></div>
+        <div class="small sec">Mensual · Responsable: Coordinador de TI</div>
+        <div class="small" style="color:var(--color-error-texto)"><span class="row" style="gap:6px"><svg width="14" height="14"><use href="#i-warn"/></svg>Vencido desde 15/09/2026 · última evidencia 14/08/2026 · Efectivo</span></div>
+        <button class="btn btn-p btn-sm" style="align-self:flex-start">Registrar evidencia</button>
+      </div>
+      <div class="card ctl" style="margin-top:8px">
+        <div class="row between"><b style="font-weight:500">Copia automática diaria en nube</b><span class="chip">Preventivo</span></div>
+        <div class="small sec">Diaria · Responsable: Coordinador de TI · próxima 24/09/2026</div>
+        <div class="small"><span class="badge b-ok">Efectivo</span> <span class="sec">22/09/2026 · respaldo-log.pdf</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- Modal: firma -->
+<div class="overlay" id="mSign"><div class="modal" role="dialog" aria-label="Firmar aprobación">
+  <div class="row between"><h2>Firmar aprobación</h2><button class="x" data-close aria-label="Cerrar"><svg width="18" height="18"><use href="#i-x"/></svg></button></div>
+  <div class="card" style="padding:12px 16px;background:var(--color-fondo)">
+    <div class="small sec">Documento</div><div><span class="mono">PR-GC-003</span> · Control de documentos y registros · <b style="font-weight:500">v4</b></div>
+    <div class="small sec" style="margin-top:8px">Hash del PDF (SHA-256)</div><div class="mono" style="word-break:break-all">3fa9e1c07b2d4e5f…a81e0d77c21</div>
+  </div>
+  <p style="font-size:15px;line-height:24px">«Apruebo este documento para su uso en la organización.»</p>
+  <div class="field"><label>Confirma tu contraseña para firmar</label><div class="input">••••••••••</div></div>
+  <label class="row small" style="gap:8px;align-items:flex-start"><input type="checkbox" checked style="margin-top:4px"> Entiendo que esta firma queda registrada con mi nombre, fecha, hora e IP.</label>
+  <div class="row" style="justify-content:flex-end"><button class="btn btn-s" data-close>Cancelar</button><button class="btn btn-p" id="doSign"><svg width="16" height="16"><use href="#i-sign"/></svg>Firmar aprobación</button></div>
+</div></div>
+
+<div class="toast" id="toast"><svg width="16" height="16" style="color:var(--color-acento-claro)"><use href="#i-check"/></svg><span>Aprobación firmada. PR-GC-003 v4 está vigente.</span></div>
+
+</div>
+</div>
+
+<script>
+// Matriz de calor (residual). Niveles por P×I: 1–4 bajo, 5–9 moderado, 10–16 alto, 20–25 extremo
+const counts={'5-1':0,'5-2':1,'5-3':0,'5-4':2,'5-5':1,'4-1':0,'4-2':2,'4-3':4,'4-4':1,'4-5':1,'3-1':1,'3-2':5,'3-3':3,'3-4':2,'3-5':0,'2-1':2,'2-2':4,'2-3':3,'2-4':2,'2-5':1,'1-1':3,'1-2':3,'1-3':2,'1-4':1,'1-5':0};
+const lvl=s=>s>=20?['lx','extremo']:s>=10?['la','alto']:s>=5?['lm','moderado']:['lb','bajo'];
+const heat=document.getElementById('heat');
+for(let p=5;p>=1;p--){
+  heat.insertAdjacentHTML('beforeend',`<span class="axis">${p}</span>`);
+  for(let i=1;i<=5;i++){const n=counts[p+'-'+i]||0,[c,name]=lvl(p*i);
+    heat.insertAdjacentHTML('beforeend',`<button class="cell ${c} ${n?'':'e'} ${p===3&&i===4?'sel':''}" aria-label="Probabilidad ${p}, impacto ${i}, nivel ${name}, ${n} riesgos">${n||''}</button>`);}
+}
+heat.insertAdjacentHTML('beforeend','<span></span>'+[1,2,3,4,5].map(i=>`<span class="axis">${i}</span>`).join(''));
+
+// Navegación del mockup
+const names={inicio:'Inicio',documentos:'Documentos',ficha:'PR-GC-003',riesgos:'Riesgos',admin:'Administración',estados:'Estados'};
+const navOf={ficha:'documentos',estados:'inicio'};
+function go(s){
+  document.querySelectorAll('.overlay').forEach(o=>o.classList.remove('open'));
+  document.getElementById('s-login').classList.toggle('on',s==='login');
+  document.getElementById('shell').style.display=s==='login'?'none':'';
+  document.querySelectorAll('.shell .screen').forEach(e=>e.classList.toggle('on',e.id==='s-'+s));
+  const n=navOf[s]||s;
+  document.querySelectorAll('.nav a,.tabbar a').forEach(a=>a.classList.toggle('on',a.dataset.go===n));
+  document.querySelectorAll('.review [data-go]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.go===s));
+  document.getElementById('crumb').innerHTML=s==='ficha'?'Documentos / <b>PR-GC-003</b>':`<b>${names[s]||''}</b>`;
+  document.getElementById('mtitle').textContent=s==='ficha'?'‹ Documentos':names[s]||'';
+  location.hash=s; document.getElementById('frame').scrollTop=0; window.scrollTo(0,0);
+}
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-go]'); if(g){go(g.dataset.go);return;}
+  const o=e.target.closest('[data-open]'); if(o){document.getElementById(o.dataset.open).classList.add('open');return;}
+  if(e.target.closest('[data-close]')||e.target.classList.contains('overlay')){e.target.closest('.overlay').classList.remove('open');}
+});
+document.getElementById('doSign').onclick=()=>{document.getElementById('mSign').classList.remove('open');const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),4000);};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open'));});
+const stage=document.getElementById('stage'),bD=document.getElementById('bDesk'),bM=document.getElementById('bMob');
+bD.onclick=()=>{stage.classList.remove('movil');bD.setAttribute('aria-pressed',true);bM.setAttribute('aria-pressed',false);};
+bM.onclick=()=>{stage.classList.add('movil');bM.setAttribute('aria-pressed',true);bD.setAttribute('aria-pressed',false);};
+if(location.search.includes("movil"))bM.onclick();
+go((location.hash||'#inicio').slice(1));
+</script>
+</body>
+</html>
