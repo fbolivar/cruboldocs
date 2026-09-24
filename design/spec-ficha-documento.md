@@ -21,7 +21,7 @@
 │ └───────────────────────────────────────────────────────────────────────┘│
 │ ┌───────────────────────────────────────────┬──────────────────────────┐ │
 │ │ Visor PDF (protagonista, alto 75vh)        │ Detalles                 │ │
-│ │ [‹ 3/12 ›] [− 100% +] [⤓ PDF] [⤓ Fuente]   │ Proceso: Gestión SIG     │ │
+│ │ PR-GC-003 · v4  [⤓ PDF] [⤓ Fuente] [⤢]     │ Proceso: Gestión SIG     │ │
 │ │                                            │ Tipo: Procedimiento      │ │
 │ │                                            │ Elabora: Coord. Calidad  │ │
 │ │                                            │ Revisa: Líder SIG        │ │
@@ -49,11 +49,11 @@
 | Vigente | Cualquiera | **Solicitar actualización** (secundario) |
 | Vigente, solicitud abierta | Líder/Elaborador | Rechazar solicitud · **Crear nueva versión** |
 
-- **Modal de firma** (`radio-lg`, `sombra-lg`, 480px): título "Firmar aprobación de PR-GC-003 v4"; bloque de lo que se firma (documento, versión, hash del PDF en `mono`); texto del significado: "Apruebo este documento para su uso en la organización."; campo de contraseña (reautenticación, label "Confirma tu contraseña para firmar"); casilla "Entiendo que esta firma queda registrada con fecha, hora e IP." Botón primario "Firmar aprobación", secundario "Cancelar". Rechazar/Devolver: modal con motivo obligatorio (textarea).
-- **Visor PDF** (card, `superficie`): barra superior con paginación, zoom, descarga del PDF y de la fuente. **Admin solo-metadatos:** el visor se reemplaza por un estado informativo con candado en hexágono: "Tu rol de administrador permite ver los datos del documento, pero no su contenido." y sin botones de descarga.
+- **Modal de firma** (`radio-lg`, `sombra-lg`, 480px): título "Firmar aprobación de PR-GC-003 v4"; bloque de lo que se firma (documento, versión, hash del PDF en `mono`); texto del significado: "Apruebo este documento para su uso en la organización."; campo de contraseña (reautenticación, label "Confirma tu contraseña para firmar"); casilla obligatoria "Entiendo que esta firma queda registrada con mi nombre, fecha, hora e IP." Botón primario "Firmar aprobación", secundario "Cancelar". Rechazar/Devolver: modal con motivo obligatorio (textarea).
+- **Visor PDF** (card, `superficie`): visor **nativo del navegador** (`<iframe>` con la URL firmada del PDF; cero dependencias). La paginación y el zoom los da el propio visor del navegador, por eso la barra superior solo lleva código · versión, descarga del PDF, descarga de la fuente ("Fuente (.docx)") y "Abrir en pantalla completa" (abre el PDF en una pestaña nueva). En móvil "Abrir en pantalla completa" es la acción principal del visor (botón a lo ancho bajo el visor), porque iOS Safari solo muestra la primera página dentro de un iframe. *Decisión aprobada por Fernando (2026-09-23).* **Admin solo-metadatos:** el visor se reemplaza por un estado informativo con candado en hexágono: "Tu rol de administrador permite ver los datos del documento, pero no su contenido." y sin botones de descarga.
 - **Detalles** (columna derecha 320px): lista de pares label/valor (`small` `texto-sec` / `body`), cargos responsables, periodicidad, hash con copiar.
 - **Pestañas:**
-  - *Comentarios*: hilo por versión; cada comentario con autor, fecha, texto (`body-lg`) y "Marcar resuelto"; comentarios resueltos atenuados. Caja de nuevo comentario solo para el revisor en estado En revisión y para el elaborador para responder.
+  - *Comentarios*: **Admin solo-metadatos no los ve** (candado en hexágono: "Tu rol de administrador no permite ver los comentarios de revisión."; sin conteo en la pestaña). Decisión de Fernando, 2026-09-23. Para el resto: hilo por versión; cada comentario con autor, fecha, texto (`body-lg`) y "Marcar resuelto"; comentarios resueltos atenuados. Caja de nuevo comentario solo para el revisor en estado En revisión y para el elaborador para responder.
   - *Versiones*: tabla (Versión, Estado, Resumen del cambio, Aprobada por, Fecha de vigencia); clic muestra esa versión en el visor.
   - *Firmas*: línea de tiempo (quién, cargo, acción, significado, fecha-hora, IP, hash de firma abreviado). Solo lectura.
   - *Lecturas*: barra de progreso "18 de 24 cargos confirmaron" (`exito`) + lista de pendientes y confirmados con fecha.
@@ -81,7 +81,7 @@
 | ActionBar | Nuevo | Mapa rol × estado |
 | SignatureDialog | Nuevo (Dialog de shadcn) | Reautenticación |
 | ReasonDialog | Nuevo | Rechazar / devolver / solicitar |
-| PdfViewer | Nuevo | Visor nativo del navegador o pdf.js (decidir en frontend; dependencia a justificar) |
+| PdfViewer | Nuevo | Visor nativo del navegador (`<iframe>`); barra con código · versión, descargas y "Abrir en pantalla completa". Sin dependencias |
 | MetaList | Nuevo | Pares label/valor |
 | CommentThread, VersionTable, SignatureTimeline, ReadProgress, ChangeRequestList | Nuevos | |
 | Tabs | shadcn | |
