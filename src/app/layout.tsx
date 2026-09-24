@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { IBM_Plex_Mono, IBM_Plex_Sans, Space_Grotesk } from "next/font/google"
+import { connection } from "next/server"
 
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -31,7 +32,9 @@ export const metadata: Metadata = {
   description: "Control documental y gestión de riesgos para tu sistema de gestión.",
 }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Render por petición en todas las páginas: el nonce de la CSP (src/proxy.ts) es por petición.
+  await connection()
   return (
     <html lang="es-CO" className={`${spaceGrotesk.variable} ${plexSans.variable} ${plexMono.variable} h-full`}>
       <body className="min-h-full">
