@@ -371,5 +371,22 @@ ok(!!(await svc(`select public.sign_version_checked('${v2}', '${U.juan}', 'revis
 // RA-15: sin correos completos en la traza.
 const leaks = (await svc(`select count(*)::int n from public.audit_log where diff ? 'email' or entity_label ~ '^[^*@]+@'`)).rows[0].n
 ok(leaks === 0, `La traza no guarda correos completos (RA-15, ${leaks})`)
+
+// ---------- 014: re-verificación del bloque 6 ----------
+const mCarlos = (await svc(`select id from public.memberships where user_id = '${U.carlos}'`)).rows[0].id
+await as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision, at) values ('${A}', '${mCarlos}', '${U.juan}', 'mantener', '2999-01-01')`)
+ok((await svc(`select (at < now() + interval '1 minute') ok from public.access_recertifications where membership_id = '${mCarlos}'`)).rows[0].ok,
+  "La fecha de una recertificación la fija la base, no el cliente (N-2)")
+await throws(() => as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mLaura}', '${U.juan}', 'revocar')`),
+  "Juan (Líder SIG) no revoca a un administrador desde la recertificación", "Solo un administrador")
+ok((await svc(`select count(*)::int n from public.access_recertifications where membership_id = '${mLaura}' and decision = 'revocar'`)).rows[0].n === 0,
+  "La decisión rechazada no queda registrada ni marca la fecha (R-1)")
+await as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mSofia}', '${U.juan}', 'revocar')`)
+ok((await svc(`select status from public.memberships where id = '${mSofia}'`)).rows[0].status === "revocado", "Revocar en la recertificación revoca el acceso en la misma operación")
+await throws(() => as(db, U.laura, `update public.memberships set status = 'activo' where id = '${mSofia}'`),
+  "Un acceso revocado no se reactiva por REST (N-4)", "invitación nueva")
+const ctl2 = (await as(db, U.juan, `select public.add_control('${risk.id}', 'Cifrado de respaldos con llave rotada', 'preventivo', 'mensual', '${POS.lider}') id`)).rows[0].id
+const ctlAudit = (await as(db, U.oscar, `select diff::text d from public.audit_log where action = 'agregar_control' and diff::text like '%${ctl2}%'`)).rows
+ok(ctlAudit.length === 1 && !ctlAudit[0].d.includes("Cifrado"), "La traza guarda el id del control, no su descripción (RA-04)")
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
