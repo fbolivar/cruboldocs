@@ -10,15 +10,14 @@ export const metadata: Metadata = {
   description: "Cómo CrubolDocs trata los datos personales conforme a la Ley 1581 de 2012.",
 }
 
-// ⚠️ BORRADOR: texto provisional pendiente de revisión legal. Los datos marcados
-// como "pendiente" debe suministrarlos Crubol Technology S.A.S. antes del deploy.
-const PENDIENTE = "pendiente de definir"
+// ⚠️ BORRADOR: texto pendiente de revisión legal. La vigencia es la fecha de publicación
+// en producción: se fija el día del deploy (fase deploy).
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
-  nit: PENDIENTE,
-  domicilio: PENDIENTE,
-  correo: PENDIENTE,
-  vigenciaDesde: PENDIENTE,
+  nit: "902107870-4",
+  domicilio: "Calle 77A # 85-46, Bogotá D.C., Colombia",
+  correo: "datos@crubol.com",
+  vigenciaDesde: "la fecha de su publicación",
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -106,16 +105,34 @@ export default function TratamientoDeDatosPage() {
 
         <Section title="5. Cómo ejercerlos">
           <p>
-            Escribe al administrador de tu empresa o a {EMPRESA.correo}. Respondemos las consultas en un máximo de 10
+            Escribe al administrador de tu empresa o a{" "}
+            <a href={`mailto:${EMPRESA.correo}`} className="font-medium text-acento underline underline-offset-4">
+              {EMPRESA.correo}
+            </a>
+            . Respondemos las consultas en un máximo de 10
             días hábiles (prorrogables 5 días) y los reclamos en un máximo de 15 días hábiles (prorrogables 8 días).
           </p>
         </Section>
 
         <Section title="6. Proveedores y transferencia internacional">
           <p>
-            Para operar el servicio usamos proveedores de infraestructura que pueden almacenar los datos fuera de
-            Colombia: Supabase (base de datos y archivos), Vercel (aplicación) y Hostinger (correo). Todos están
-            obligados a proteger la información con medidas de seguridad adecuadas.
+            Para operar el servicio, {EMPRESA.nombre} contrata proveedores que actúan como sus encargados y tratan los
+            datos solo para prestarle ese servicio:
+          </p>
+          <ul className="list-disc space-y-1.5 pl-6">
+            <li>Supabase: base de datos, archivos e inicio de sesión. Servidores en Estados Unidos.</li>
+            <li>Vercel: aloja la aplicación. Procesa las solicitudes en Estados Unidos.</li>
+            <li>
+              Upstash: guarda por poco tiempo la dirección IP y el correo usados en intentos de ingreso, para limitar
+              ataques. Servidores en Estados Unidos.
+            </li>
+            <li>Cloudflare (Turnstile): verifica que quien ingresa sea una persona. Procesa la dirección IP y datos del navegador.</li>
+            <li>Hostinger: envío de correos. Sus servidores pueden estar fuera de Colombia.</li>
+          </ul>
+          <p>
+            Esto implica una transmisión internacional de datos personales, principalmente a Estados Unidos. Al aceptar
+            esta política autorizas esa transmisión. Los proveedores están obligados por contrato a proteger la
+            información con medidas de seguridad adecuadas y a no usarla para fines propios.
           </p>
         </Section>
 
