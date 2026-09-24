@@ -3,14 +3,14 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-testing — **cerrada** (2026-09-24). 157 unitarias (Vitest), 160 RLS (PGlite), 44 E2E en dev + 46 contra el build (Playwright, escritorio y móvil); `lint`, `tsc` y `build` en verde. Los E2E **no inician sesión** (sin rama de Supabase por decisión de Fernando): el camino dorado con sesión es manual, en `docs/QA-CHECKLIST.md` §2. Seguridad: veredicto APTO (`docs/seguridad/AUD-20260924.md`), pendiente de la aprobación de Fernando. Siguiente: aprobación de Fernando → fase **deploy**.
+testing — **cerrada** (2026-09-24). 157 unitarias (Vitest), 160 RLS (PGlite), 44 E2E en dev + 46 contra el build (Playwright, escritorio y móvil); `lint`, `tsc` y `build` en verde. Los E2E **no inician sesión** (sin rama de Supabase por decisión de Fernando): el camino dorado con sesión es manual, en `docs/QA-CHECKLIST.md` §2. Seguridad: veredicto APTO **aprobado por Fernando (2026-09-24)**, `docs/seguridad/AUD-20260924.md` §8. Siguiente: fase **deploy** (cumplir las condiciones de §7.5).
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
 - diseno (2026-09-23): tokens, specs y mockup aprobados por Fernando
 - frontend (2026-09-23): 5 pantallas + acceso + política de datos sobre datos mock; `lint` y `build` en verde
 - backend (2026-09-24): esquema en Supabase, capa de datos real, Storage, correo y cron; `tsc`, `lint`, `build` y 49 pruebas RLS en verde
-- seguridad (2026-09-24): auditoría, remediación (bloques 1–4, 6) y re-auditoría; veredicto **APTO** (pendiente de aprobación de Fernando). Ver `docs/seguridad/AUD-20260924.md` secciones 6 y 7.
+- seguridad (2026-09-24): auditoría, remediación (bloques 1–4, 6) y re-auditoría; veredicto **APTO, aprobado por Fernando el 2026-09-24** (§8). Ver `docs/seguridad/AUD-20260924.md` secciones 6 y 7.
 - testing (2026-09-24): Vitest + Playwright + RLS en verde; `docs/QA-CHECKLIST.md`.
 
 ## Decisiones tomadas
@@ -66,7 +66,7 @@ testing — **cerrada** (2026-09-24). 157 unitarias (Vitest), 160 RLS (PGlite), 
   - ✅ MFA del Superadmin registrado (TOTP verificado, 2026-09-24).
   - **Decisiones de Fernando (2026-09-24):** rate limiting con **Upstash Redis** (`@upstash/ratelimit`, plan gratis; por IP real y por correo/token); CAPTCHA **Cloudflare Turnstile** en login, recuperar contraseña y aceptar invitación (nativo en Supabase Auth); **MFA TOTP obligatoria solo para el Superadmin** (exigir `aal2` en sus acciones); el Superadmin ve **solo metadatos** (organizaciones, usuarios, cargos), nunca documentos ni riesgos.
   - **Orden de trabajo (hecho):** bloques 1–4 → re-auditoría (5) → bloque 6 (RA-01 a RA-04 + Bajos; migraciones 013 y 014; 160 pruebas RLS). Veredicto APTO.
-  - **Recomendaciones pendientes de confirmar por Fernando (sección 7.6):** (1) contenido de archivos: aceptar el riesgo en v1 sin antivirus y declararlo en los términos; (2) supresión de datos: anonimizar en vez de borrar (script de soporte antes de la primera solicitud; confirmar con la revisión legal).
+  - **Decisiones 7.6 confirmadas por Fernando (2026-09-24):** (1) sin antivirus en v1, riesgo declarado en los términos de servicio; (2) supresión de datos por anonimización (script de soporte antes de la primera solicitud; confirmar con la revisión legal).
   - **Condiciones del deploy (sección 7.5):** DNS sin proxy de Cloudflare; `NEXT_PUBLIC_APP_URL` en Vercel (Turnstile valida el hostname); en Supabase Auth: aviso de contraseña cambiada, vida del JWT y límite de verificación MFA; alerta de cuota en Upstash; probar recuperar contraseña en producción (el enlace vuelve a `/auth/confirmar`, que ya solo acepta recuperación).
   - Bloque 2, prerrequisitos listos (2026-09-24): Upstash Redis `beloved-finch-295937` (us-east-2, plan gratis; ping y escritura verificados) y widget Turnstile `CrubolDocs` (hostname `localhost`; secret verificada con siteverify). Claves en `.env.local`: `UPSTASH_REDIS_REST_URL/TOKEN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`. **Activar el CAPTCHA en Supabase Auth (Attack Protection) solo cuando la UI ya envíe el token**, o el login deja de funcionar. Al publicar: agregar el dominio de producción al widget.
   - Después: re-auditoría de los altos y pruebas RLS nuevas por cada corrección.
