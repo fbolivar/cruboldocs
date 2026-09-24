@@ -1,0 +1,138 @@
+import { TriangleAlertIcon } from "lucide-react"
+import type { Metadata } from "next"
+import Link from "next/link"
+import type * as React from "react"
+
+import { LogoHex, Wordmark } from "@/components/ui/logo-hex"
+
+export const metadata: Metadata = {
+  title: "Política de tratamiento de datos personales",
+  description: "Cómo CrubolDocs trata los datos personales conforme a la Ley 1581 de 2012.",
+}
+
+// ⚠️ BORRADOR: texto provisional pendiente de revisión legal. Los datos marcados
+// como "pendiente" debe suministrarlos Crubol Technology S.A.S. antes del deploy.
+const PENDIENTE = "pendiente de definir"
+const EMPRESA = {
+  nombre: "Crubol Technology S.A.S.",
+  nit: PENDIENTE,
+  domicilio: PENDIENTE,
+  correo: PENDIENTE,
+  vigenciaDesde: PENDIENTE,
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="font-display text-h2">{title}</h2>
+      <div className="flex flex-col gap-3 text-body-lg">{children}</div>
+    </section>
+  )
+}
+
+export default function TratamientoDeDatosPage() {
+  return (
+    <div className="min-h-dvh bg-fondo">
+      <header className="border-b border-borde bg-superficie">
+        <div className="mx-auto flex h-14 max-w-3xl items-center gap-2.5 px-4 md:px-8">
+          <Link href="/login" className="flex items-center gap-2.5">
+            <LogoHex className="size-7" />
+            <Wordmark />
+          </Link>
+        </div>
+      </header>
+
+      <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
+        <div role="note" className="flex gap-3 rounded-md bg-advertencia-suave px-4 py-3 text-small text-advertencia-texto">
+          <TriangleAlertIcon className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+          <p>
+            <strong className="font-semibold">Borrador.</strong> Este texto es provisional y está pendiente de revisión
+            legal antes de su publicación definitiva.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h1>Política de tratamiento de datos personales</h1>
+          <p className="text-texto-sec">
+            En cumplimiento de la Ley 1581 de 2012 y el Decreto 1074 de 2015 (Capítulo 25).
+          </p>
+        </div>
+
+        <Section title="1. Quién trata tus datos">
+          <p>
+            CrubolDocs es un servicio de {EMPRESA.nombre} (NIT {EMPRESA.nit}, domicilio {EMPRESA.domicilio}). Cada
+            empresa cliente es <strong className="font-semibold">responsable</strong> de los datos de sus usuarios y
+            colaboradores; {EMPRESA.nombre} actúa como <strong className="font-semibold">encargado</strong> y los trata
+            solo por cuenta de la empresa y según sus instrucciones.
+          </p>
+        </Section>
+
+        <Section title="2. Qué datos tratamos">
+          <ul className="list-disc space-y-1.5 pl-6">
+            <li>Identificación y contacto: nombre completo y correo electrónico corporativo.</li>
+            <li>Datos laborales: cargo, proceso y organización a la que perteneces.</li>
+            <li>
+              Registros de uso: acciones en la plataforma, firmas electrónicas (fecha, hora, dirección IP y navegador) y
+              confirmaciones de lectura.
+            </li>
+          </ul>
+          <p>No solicitamos datos sensibles ni datos de niñas, niños y adolescentes.</p>
+        </Section>
+
+        <Section title="3. Para qué los usamos">
+          <ul className="list-disc space-y-1.5 pl-6">
+            <li>Darte acceso a la plataforma y gestionar tus permisos según tu cargo.</li>
+            <li>Registrar la trazabilidad de documentos, firmas, lecturas y controles del sistema de gestión.</li>
+            <li>Enviarte avisos de tareas, vencimientos e invitaciones por correo.</li>
+            <li>Atender auditorías del sistema de gestión y requerimientos de autoridades.</li>
+            <li>Mantener la seguridad del servicio y prevenir accesos no autorizados.</li>
+          </ul>
+        </Section>
+
+        <Section title="4. Tus derechos">
+          <p>Como titular de los datos puedes:</p>
+          <ul className="list-disc space-y-1.5 pl-6">
+            <li>Conocer, actualizar y rectificar tus datos.</li>
+            <li>Solicitar prueba de la autorización que otorgaste.</li>
+            <li>Ser informado sobre el uso que se ha dado a tus datos.</li>
+            <li>Presentar quejas ante la Superintendencia de Industria y Comercio.</li>
+            <li>
+              Revocar la autorización o pedir la supresión de tus datos cuando no exista un deber legal o contractual de
+              conservarlos. Los registros de firmas y de auditoría se conservan por su valor probatorio.
+            </li>
+            <li>Acceder de forma gratuita a tus datos personales.</li>
+          </ul>
+        </Section>
+
+        <Section title="5. Cómo ejercerlos">
+          <p>
+            Escribe al administrador de tu empresa o a {EMPRESA.correo}. Respondemos las consultas en un máximo de 10
+            días hábiles (prorrogables 5 días) y los reclamos en un máximo de 15 días hábiles (prorrogables 8 días).
+          </p>
+        </Section>
+
+        <Section title="6. Proveedores y transferencia internacional">
+          <p>
+            Para operar el servicio usamos proveedores de infraestructura que pueden almacenar los datos fuera de
+            Colombia: Supabase (base de datos y archivos), Vercel (aplicación) y Hostinger (correo). Todos están
+            obligados a proteger la información con medidas de seguridad adecuadas.
+          </p>
+        </Section>
+
+        <Section title="7. Seguridad">
+          <p>
+            El acceso se limita por organización y cargo; los archivos se guardan en almacenamiento privado; las firmas
+            y la auditoría no se pueden modificar; y la comunicación viaja cifrada.
+          </p>
+        </Section>
+
+        <Section title="8. Vigencia">
+          <p>
+            Esta política rige desde {EMPRESA.vigenciaDesde}. Los datos se conservan mientras exista la relación con la
+            empresa cliente y durante el tiempo que exijan las normas aplicables.
+          </p>
+        </Section>
+      </main>
+    </div>
+  )
+}
