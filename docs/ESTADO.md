@@ -3,7 +3,7 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-seguridad — **cerrada en código: veredicto APTO para deploy** (2026-09-24), pendiente de la aprobación de Fernando (parada obligatoria). Informe: `docs/seguridad/AUD-20260924.md` — auditoría inicial (5 Altos, 8 Medios, 9 Bajos), remediación en 4 bloques, re-auditoría (sección 6: 4 Medios nuevos RA-01 a RA-04) y bloque 6 (sección 7: RA-01 a RA-04 y 12 Bajos corregidos, migraciones 013 y 014, re-verificación independiente). **0 Críticos, 0 Altos, 0 Medios abiertos**; residuales Bajos en 7.4. Condiciones operativas del deploy en 7.5. Siguiente: aprobación de Fernando → fase **deploy**.
+testing — **cerrada** (2026-09-24). 157 unitarias (Vitest), 160 RLS (PGlite), 44 E2E en dev + 46 contra el build (Playwright, escritorio y móvil); `lint`, `tsc` y `build` en verde. Los E2E **no inician sesión** (sin rama de Supabase por decisión de Fernando): el camino dorado con sesión es manual, en `docs/QA-CHECKLIST.md` §2. Seguridad: veredicto APTO (`docs/seguridad/AUD-20260924.md`), pendiente de la aprobación de Fernando. Siguiente: aprobación de Fernando → fase **deploy**.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
@@ -11,8 +11,10 @@ seguridad — **cerrada en código: veredicto APTO para deploy** (2026-09-24), p
 - frontend (2026-09-23): 5 pantallas + acceso + política de datos sobre datos mock; `lint` y `build` en verde
 - backend (2026-09-24): esquema en Supabase, capa de datos real, Storage, correo y cron; `tsc`, `lint`, `build` y 49 pruebas RLS en verde
 - seguridad (2026-09-24): auditoría, remediación (bloques 1–4, 6) y re-auditoría; veredicto **APTO** (pendiente de aprobación de Fernando). Ver `docs/seguridad/AUD-20260924.md` secciones 6 y 7.
+- testing (2026-09-24): Vitest + Playwright + RLS en verde; `docs/QA-CHECKLIST.md`.
 
 ## Decisiones tomadas
+- Testing (2026-09-24): **sin rama de Supabase ni base de pruebas** (decisión de Fernando: sin costo adicional). Los E2E solo cubren flujos sin sesión y no escriben en la base real; el flujo con sesión se prueba a mano (QA-CHECKLIST §2). Dependencias de desarrollo: `vitest@4` (unitarias; la v5 exige `@types/node` ≥ 22) y `@playwright/test` (E2E).
 - Dependencias de seguridad (2026-09-24): `@upstash/ratelimit` + `@upstash/redis` para límites de intentos (decisión de Fernando: Upstash plan gratis).
 - Producto: CrubolDocs, SaaS de gestión de calidad (control documental + riesgos). Detalle en `docs/ARQUITECTURA.md`.
 - Sin cobro en v1; alta de organizaciones por Superadmin + invitación (ADR-005).
@@ -79,6 +81,8 @@ seguridad — **cerrada en código: veredicto APTO para deploy** (2026-09-24), p
 - Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio), `CRON_SECRET`, `UPSTASH_*` y `*TURNSTILE*` (obligatorias en producción: sin ellas login y recuperar fallan a propósito).
 
 ## Notas para la próxima sesión
+- Pruebas: `npm test` (Vitest, `tests/unit/`), `npm run test:rls`, `npm run test:e2e` (usa el dev de 3001 si está activo), `npm run test:e2e:prod` (tras `npm run build`, levanta `next start` en 3002 y agrega HSTS/CSP estricta), `npm run check` (lint + tsc + unitarias + RLS + build; **no con el dev activo**). Antes de cada release: `docs/QA-CHECKLIST.md`.
+- Turnstile dibuja su iframe en un shadow DOM cerrado: en Playwright se verifica con `page.frames()`, no con un locator.
 - Seguridad (bloque 6): `/auth/confirmar` solo acepta recuperación y `updatePassword` exige la sesión de recuperación (< 15 min): no sirve para cambiar la contraseña desde la app con sesión normal. Aceptar una invitación no reescribe un acceso activo; un acceso revocado vuelve solo con invitación nueva. La recertificación (mantener o revocar) la aplica la base al insertar en `access_recertifications`.
 - El modo demo y el mock se eliminaron: para ver la app hay que ingresar con un usuario real.
 - Pruebas RLS: `npm run test:rls` (PGlite, sin Docker). Toda migración nueva: agregarla a `supabase/migrations/`, correr las pruebas, aplicarla con el MCP de Supabase y regenerar tipos.
