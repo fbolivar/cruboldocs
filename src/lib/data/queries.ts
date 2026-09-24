@@ -7,6 +7,7 @@ import "server-only"
 import { redirect } from "next/navigation"
 import { cache } from "react"
 
+import { canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -473,6 +474,7 @@ export async function getDocument(id: string, user: CurrentUser): Promise<Docume
   if (!s || !isUuid(id)) return null
   const { data: d } = await s.supabase.from("documents").select("*").eq("id", id).maybeSingle()
   if (!d) return null
+  const showIp = canSeeSignatureIp(user)
 
   const [{ data: versions }, { data: distribution }, { data: requests }, { data: positions }, { data: type }] =
     await Promise.all([
@@ -544,7 +546,7 @@ export async function getDocument(id: string, user: CurrentUser): Promise<Docume
             action: x.action as "revision" | "aprobacion",
             meaning: x.meaning,
             signedAt: x.signed_at,
-            ip: x.ip ? String(x.ip) : "",
+            ip: showIp && x.ip ? String(x.ip) : "",
             signatureHash: x.signature_hash,
           })),
         reads: readers.map(([userId, m]) => ({

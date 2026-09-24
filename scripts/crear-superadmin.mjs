@@ -1,7 +1,7 @@
 // Crea (o promueve) un Superadministrador de Crubol. Uso único por persona:
 //   npm run superadmin -- correo@crubol.com "Nombre Apellido"
-// Si el usuario no existe, se crea con una contraseña temporal que se muestra UNA vez;
-// cámbiala en /recuperar después de ingresar. Requiere SUPABASE_SECRET_KEY en .env.local.
+// Si el usuario no existe, se crea con una contraseña aleatoria que nadie conoce ni se imprime
+// (AUD BAJ-06): la persona fija la suya en /recuperar con su correo. Requiere SUPABASE_SECRET_KEY.
 import { randomBytes } from "node:crypto"
 import { createClient } from "@supabase/supabase-js"
 
@@ -23,12 +23,10 @@ const normalized = email.trim().toLowerCase()
 
 const { data: profile } = await admin.from("profiles").select("id").eq("email", normalized).maybeSingle()
 let userId = profile?.id
-let tempPassword = null
 if (!userId) {
-  tempPassword = randomBytes(12).toString("base64url")
   const { data, error } = await admin.auth.admin.createUser({
     email: normalized,
-    password: tempPassword,
+    password: randomBytes(32).toString("base64url"),
     email_confirm: true,
     user_metadata: { full_name: fullName || normalized },
   })
@@ -45,4 +43,4 @@ if (error) {
   process.exit(1)
 }
 console.log(`Superadmin listo: ${normalized}`)
-if (tempPassword) console.log(`Contraseña temporal (se muestra una sola vez): ${tempPassword}`)
+if (!profile) console.log("Para ingresar, fija la contraseña en /recuperar con ese correo y luego registra el MFA en /mfa.")

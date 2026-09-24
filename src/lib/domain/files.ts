@@ -24,6 +24,20 @@ export const isPdfName = (name: string) => extensionOf(name) === "pdf"
 export const isSourceName = (name: string) => SOURCE_EXT.includes(extensionOf(name))
 export const isEvidenceName = (name: string) => EVIDENCE_EXT.includes(extensionOf(name))
 
+/**
+ * Nombre con que se descarga un archivo: el que escribió el usuario (sin rutas ni caracteres de
+ * control) con la extensión del archivo validado. Un Word no se descarga como `.hta` (AUD RA-11).
+ */
+export function downloadName(name: string, storedPath: string): string {
+  const base = name
+    .replace(/[\u0000-\u001f\u007f/\\:*?"<>|]+/g, " ")
+    .trim()
+    .replace(/\.[^.]*$/, "")
+    .trim()
+    .slice(0, 200)
+  return `${base || "archivo"}.${extensionOf(storedPath)}`
+}
+
 const startsWith = (bytes: Uint8Array, sig: number[], offset = 0) => sig.every((b, i) => bytes[offset + i] === b)
 const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0))
 

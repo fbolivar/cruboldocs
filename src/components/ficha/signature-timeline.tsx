@@ -30,7 +30,7 @@ export function SignatureTimeline({ signatures }: { signatures: Signature[] }) {
             <p className="text-body-lg">«{s.meaning}»</p>
             <p className="flex flex-wrap gap-x-3 gap-y-1 text-small text-texto-sec">
               <span>{formatDateTime(s.signedAt)}</span>
-              <span>IP {s.ip}</span>
+              {s.ip && <span>IP {s.ip}</span>}
               <span>
                 Firma <span className="font-mono">{shortHash(s.signatureHash)}</span>
               </span>

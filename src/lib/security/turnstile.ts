@@ -8,6 +8,14 @@ export type TurnstileAction = "login" | "recuperar" | "invitacion"
 
 export const CAPTCHA_FAILED = "No pudimos verificar que no eres un robot. Vuelve a intentarlo."
 
+/** En producción el token debe venir del dominio de la app, no de localhost ni de previews (AUD RA-09). */
+function hostnameAllowed(hostname: string | undefined): boolean {
+  if (process.env.NODE_ENV !== "production") return true
+  const app = process.env.NEXT_PUBLIC_APP_URL
+  if (!app) throw new Error("Falta NEXT_PUBLIC_APP_URL en producción.")
+  return hostname === new URL(app).hostname
+}
+
 export async function verifyTurnstile(token: string | undefined, action: TurnstileAction, ip: string | null): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY
   if (!secret) {
@@ -24,8 +32,8 @@ export async function verifyTurnstile(token: string | undefined, action: Turnsti
       body,
       signal: AbortSignal.timeout(5000),
     })
-    const data = (await res.json()) as { success?: boolean; action?: string }
-    return data.success === true && data.action === action
+    const data = (await res.json()) as { success?: boolean; action?: string; hostname?: string }
+    return data.success === true && data.action === action && hostnameAllowed(data.hostname)
   } catch (e) {
     console.error("turnstile", e)
     return false

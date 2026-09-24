@@ -13,6 +13,11 @@ export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** IP de los firmantes: dato personal, solo para quien administra o audita (AUD RA-12). */
+export function canSeeSignatureIp(user: CurrentUser): boolean {
+  return user.isOrgAdmin || hasRole(user, "lider_sig") || hasRole(user, "auditor")
+}
+
 export function canSeeAdmin(user: CurrentUser): boolean {
   return user.isOrgAdmin || user.isPlatformAdmin || hasRole(user, "lider_sig") || hasRole(user, "auditor")
 }

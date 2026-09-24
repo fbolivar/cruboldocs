@@ -64,7 +64,7 @@ export const config = {
   // Toda página (no API ni estáticos). Los prefetch no son HTML: no llevan CSP.
   matcher: [
     {
-      source: "/((?!api|auth/confirmar|_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!api/|auth/confirmar$|_next/static|_next/image|favicon.ico$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

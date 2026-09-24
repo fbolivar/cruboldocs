@@ -28,12 +28,12 @@ import {
   type UploadTicket,
 } from "@/lib/data/storage"
 import { DOCUMENT_STATUS_META, SIGNATURE_MEANING, segregationError } from "@/lib/domain/documents"
-import { EVIDENCE_EXT, isEvidenceName, isPdfName, isSourceName, SOURCE_EXT } from "@/lib/domain/files"
+import { downloadName, EVIDENCE_EXT, isEvidenceName, isPdfName, isSourceName, SOURCE_EXT } from "@/lib/domain/files"
 import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
 import { flushOutbox, smtpConfigured } from "@/lib/email/outbox"
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format"
 import { clientIp } from "@/lib/security/client-ip"
-import { TOO_MANY, withinLimits } from "@/lib/security/rate-limit"
+import { hasAttemptsLeft, ipKey, recordFailure, TOO_MANY, withinLimits } from "@/lib/security/rate-limit"
 import { CAPTCHA_FAILED, verifyTurnstile } from "@/lib/security/turnstile"
 import { createAdminClient, createAuthClient, createClient, createEphemeralClient } from "@/lib/supabase/server"
 import type { Json } from "@/lib/supabase/database.types"
@@ -42,10 +42,12 @@ import type {
   ControlType,
   CurrentUser,
   DocumentFilters,
+  DocumentStatus,
   DocumentSummary,
   EvidenceResult,
   Result,
   RiskFilters,
+  RiskLevel,
 } from "@/lib/types"
 
 const ok = <T,>(data: T): Result<T> => ({ ok: true, data })
@@ -56,7 +58,10 @@ const APP_URL = () => (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "")
 /** Mensaje para el usuario a partir del error de la base (las funciones del flujo ya lo redactan). */
 function dbMessage(e: PostgrestError | null, fallback = GENERIC): string {
   if (!e) return fallback
-  if (["42501", "22023", "P0002"].includes(e.code) && e.message && !e.message.includes("row-level security")) return e.message
+  // Solo los mensajes redactados por las funciones del flujo; los de Postgres (RLS, permisos de
+  // tabla o función) revelan nombres internos (AUD RA-13).
+  const native = e.message?.includes("row-level security") || e.message?.startsWith("permission denied")
+  if (["42501", "22023", "P0002"].includes(e.code) && e.message && !native) return e.message
   if (e.code === "23505") return "Ya existe un registro con ese código o nombre."
   if (e.code === "23503") return "No se puede completar: hay registros que dependen de este."
   if (e.code === "23514") return "Revisa los datos: hay un valor que no está permitido."
@@ -86,14 +91,23 @@ const refresh = () => revalidatePath("/app", "layout")
 
 // ---------- Acceso ----------
 
+/**
+ * El CAPTCHA va primero: un intento sin resolverlo no cuenta en ningún límite (AUD RA-01).
+ * El límite global por correo solo suma contraseñas incorrectas, y el estricto es por correo
+ * e IP: bloquear la cuenta de otra persona exige muchas IP y muchos CAPTCHA.
+ */
 export async function login(email: string, password: string, captchaToken: string): Promise<Result> {
   const normalized = email.trim().toLowerCase().slice(0, 254)
   const ip = await clientIp()
-  if (!(await withinLimits([["login:ip", ip], ["login:correo", normalized]]))) return fail(TOO_MANY)
   if (!(await verifyTurnstile(captchaToken, "login", ip))) return fail(CAPTCHA_FAILED)
+  const pair = `${normalized}|${ipKey(ip) ?? "desconocido"}`
+  if (!(await withinLimits([["login:ip", ip], ["login:correo_ip", pair]]))) return fail(TOO_MANY)
+  if (!(await hasAttemptsLeft("login:correo", normalized))) return fail(TOO_MANY)
   const supabase = await createAuthClient(ip)
   const { error } = await supabase.auth.signInWithPassword({ email: normalized, password })
-  return error ? fail("Correo o contraseña incorrectos.") : ok(undefined)
+  if (!error) return ok(undefined)
+  await recordFailure("login:correo", normalized)
+  return fail("Correo o contraseña incorrectos.")
 }
 
 export async function logout(): Promise<void> {
@@ -109,17 +123,37 @@ export async function requestPasswordReset(email: string, captchaToken: string):
   if (!(await verifyTurnstile(captchaToken, "recuperar", ip))) return fail(CAPTCHA_FAILED)
   // Al superar el límite no se envía nada, pero la respuesta sigue siendo la misma.
   if (!(await withinLimits([["recuperar:ip", ip], ["recuperar:correo", normalized]]))) return ok(undefined)
+  // Tiempo de respuesta mínimo: Auth tarda más cuando el correo existe (envía el mensaje), y la
+  // diferencia revelaría qué correos tienen cuenta (AUD RA-07). No va en after(): el verificador
+  // PKCE se guarda en una cookie de esta respuesta.
+  const started = Date.now()
   const supabase = await createAuthClient(ip)
   await supabase.auth.resetPasswordForEmail(normalized, {
-    redirectTo: `${APP_URL()}/auth/confirmar?siguiente=/restablecer`,
+    redirectTo: `${APP_URL()}/auth/confirmar`,
   })
+  const wait = RESET_MIN_MS - (Date.now() - started)
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait))
   return ok(undefined)
 }
 
-/** Nueva contraseña tras abrir el enlace de recuperación (la sesión la crea /auth/confirmar). */
+const RESET_MIN_MS = 2500
+/** Vida de la sesión de recuperación para fijar la contraseña. */
+const RECOVERY_MAX_AGE_S = 15 * 60
+const RECOVERY_EXPIRED = "El enlace venció o ya fue usado. Solicita uno nuevo."
+
+/**
+ * Nueva contraseña solo con la sesión que crea el enlace de recuperación (/auth/confirmar) y
+ * mientras sea reciente: una sesión robada no sirve para cambiar la contraseña y expulsar al
+ * dueño de la cuenta (AUD RA-02). `amr` sale del JWT verificado.
+ */
 export async function updatePassword(password: string): Promise<Result> {
   if (password.length < 10) return fail("La contraseña debe tener al menos 10 caracteres.")
   const supabase = await createClient()
+  const { data: auth } = await supabase.auth.getClaims()
+  const amr = (auth?.claims?.amr ?? []) as { method?: string; timestamp?: number }[]
+  const recovery = amr.find((a) => a.method === "recovery" || a.method === "otp")
+  if (!recovery?.timestamp || Date.now() / 1000 - recovery.timestamp > RECOVERY_MAX_AGE_S) return fail(RECOVERY_EXPIRED)
+  if (!(await withinLimits([["contrasena:usuario", auth?.claims?.sub]], { failClosed: true }))) return fail(TOO_MANY)
   const { error } = await supabase.auth.updateUser({ password })
   if (error) {
     return fail(
@@ -127,7 +161,7 @@ export async function updatePassword(password: string): Promise<Result> {
         ? "Usa una contraseña distinta a la anterior."
         : error.code === "weak_password"
           ? "Esa contraseña es débil o apareció en una filtración de datos. Usa otra más larga y difícil de adivinar."
-          : "El enlace venció o ya fue usado. Solicita uno nuevo."
+          : RECOVERY_EXPIRED
     )
   }
   return ok(undefined)
@@ -238,7 +272,7 @@ export async function verifyMfa(factorId: string, code: string): Promise<Result>
     const { data: auth } = await supabase.auth.getClaims()
     const uid = auth?.claims?.sub
     if (!uid) return fail("Tu sesión terminó. Ingresa de nuevo.")
-    if (!(await withinLimits([["mfa:usuario", uid]]))) return fail(TOO_MANY)
+    if (!(await withinLimits([["mfa:usuario", uid]], { failClosed: true }))) return fail(TOO_MANY)
     const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code })
     if (error) return fail("El código no es correcto o ya cambió. Escribe el código que muestra ahora tu app.")
     return ok(undefined)
@@ -257,11 +291,45 @@ export async function setActiveOrganization(orgId: string): Promise<Result> {
 
 // ---------- Búsqueda y exportaciones ----------
 
+// Los filtros llegan del navegador: forma y longitud acotadas antes de consultar (AUD BAJ-07).
+const filterText = z.string().max(200).optional()
+const sortDir = z.enum(["asc", "desc"]).optional()
+const documentFiltersSchema = z.object({
+  q: filterText,
+  processId: filterText,
+  typeId: filterText,
+  statuses: z.array(z.enum(Object.keys(DOCUMENT_STATUS_META) as [DocumentStatus, ...DocumentStatus[]])).max(20).optional(),
+  reviewOverdue: z.boolean().optional(),
+  sort: z.enum(["code", "title", "nextReview"]).optional(),
+  dir: sortDir,
+  page: z.number().int().min(1).max(100_000).optional(),
+})
+const riskFiltersSchema = z.object({
+  q: filterText,
+  processId: filterText,
+  category: filterText,
+  level: z.enum(Object.keys(RISK_LEVEL_LABELS) as [RiskLevel, ...RiskLevel[]]).optional(),
+  overdueControls: z.boolean().optional(),
+  kind: z.enum(["inherente", "residual"]).optional(),
+  cell: z.string().regex(/^[1-5]-[1-5]$/).optional(),
+  sort: z.enum(["level", "code", "process"]).optional(),
+  dir: sortDir,
+})
+const auditFiltersSchema = z.object({
+  from: filterText,
+  to: filterText,
+  actor: filterText,
+  action: filterText,
+  entityType: filterText,
+})
+
 export async function searchDocumentsAction(q: string): Promise<DocumentSummary[]> {
-  return searchDocuments(q)
+  const parsed = z.string().max(200).safeParse(q)
+  return parsed.success ? searchDocuments(parsed.data) : []
 }
 
-export async function exportDocumentsCsv(filters: DocumentFilters): Promise<string> {
+export async function exportDocumentsCsv(input: DocumentFilters): Promise<string> {
+  const filters = documentFiltersSchema.parse(input)
   const rows = await listAllDocuments(filters)
   return toCsv(rows, [
     { header: "Código", value: (d) => d.code },
@@ -275,7 +343,8 @@ export async function exportDocumentsCsv(filters: DocumentFilters): Promise<stri
   ])
 }
 
-export async function exportRisksCsv(filters: RiskFilters): Promise<string> {
+export async function exportRisksCsv(input: RiskFilters): Promise<string> {
+  const filters = riskFiltersSchema.parse(input)
   const rows = await listAllRisks(filters)
   return toCsv(rows, [
     { header: "Código", value: (r) => r.code },
@@ -292,7 +361,8 @@ export async function exportRisksCsv(filters: RiskFilters): Promise<string> {
   ])
 }
 
-export async function exportAuditCsv(filters: AuditFilters): Promise<string> {
+export async function exportAuditCsv(input: AuditFilters): Promise<string> {
+  const filters = auditFiltersSchema.parse(input)
   const rows = await listAuditLog(filters)
   return toCsv(rows, [
     { header: "Fecha", value: (e) => formatDateTime(e.at) },
@@ -457,7 +527,7 @@ export async function attachVersionFiles(input: {
       promoteUpload("documentos", base, input.pdfPath, (ext) => ext === "pdf"),
       promoteUpload("documentos", base, input.sourcePath, (ext) => SOURCE_EXT.includes(ext)),
     ])
-    const sourceFileName = String(input.sourceFileName ?? "").trim().slice(0, 255)
+    const sourceFileName = downloadName(String(input.sourceFileName ?? ""), source.path)
     // Solo el servidor asocia archivos (la RPC no es ejecutable por `authenticated`).
     const { error } = await createAdminClient().rpc("set_version_files", {
       p_actor: draft.user.id,
@@ -545,7 +615,7 @@ export async function signVersion(input: {
     if (!version) return fail("No encontramos esta versión del documento.")
     const id = version.id
 
-    if (!(await withinLimits([["firma:usuario", user.id]]))) return fail(TOO_MANY)
+    if (!(await withinLimits([["firma:usuario", user.id]], { failClosed: true }))) return fail(TOO_MANY)
     const ip = await clientIp()
     const ephemeral = createEphemeralClient(ip)
     const { data: reauth, error: authErr } = await ephemeral.auth.signInWithPassword({ email: user.email, password: input.password })
@@ -559,8 +629,10 @@ export async function signVersion(input: {
     }
 
     const h = await headers()
-    const { error } = await createAdminClient().rpc("sign_version", {
+    // La base bloquea la versión y firma solo si su PDF sigue siendo el verificado (AUD RA-10).
+    const { error } = await createAdminClient().rpc("sign_version_checked", {
       p_version: id,
+      p_expected_sha256: version.pdf_sha256,
       p_signer: user.id,
       p_action: input.action,
       p_meaning: SIGNATURE_MEANING[input.action],
@@ -687,7 +759,7 @@ export async function registerEvidence(input: {
       p_notes: input.notes.trim().slice(0, 2000),
       p_file_path: file?.path,
       p_file_sha256: file?.sha256,
-      p_file_name: file ? (input.fileName ?? "").slice(0, 255) : undefined,
+      p_file_name: file ? downloadName(String(input.fileName ?? ""), file.path) : undefined,
     })
     if (error) {
       if (file) await removeObjects("evidencias", [file.path])
@@ -938,8 +1010,13 @@ export async function updateMembership(
   })
 }
 
-export async function saveRecertDecisions(decisions: { membershipId: string; keep: boolean }[]): Promise<Result<{ count: number }>> {
+const recertSchema = z.array(z.object({ membershipId: z.uuid(), keep: z.boolean() })).min(1).max(1000)
+
+export async function saveRecertDecisions(input: { membershipId: string; keep: boolean }[]): Promise<Result<{ count: number }>> {
   return guard(async () => {
+    const parsed = recertSchema.safeParse(input)
+    if (!parsed.success) return fail("Marca al menos un acceso que no sea el tuyo.")
+    const decisions = parsed.data
     const user = await getCurrentUser()
     const supabase = await createClient()
     const ids = decisions.map((d) => d.membershipId).filter(isUuid)
@@ -956,15 +1033,12 @@ export async function saveRecertDecisions(decisions: { membershipId: string; kee
       }))
     )
     if (error) return fail(dbMessage(error))
-    const now = new Date().toISOString()
-    const keep = valid.filter((d) => d.keep).map((d) => d.membershipId)
+    // La fecha de recertificación la fija la base al registrar la decisión (AUD RA-14).
     const revoke = valid.filter((d) => !d.keep).map((d) => d.membershipId)
-    const updates = await Promise.all([
-      keep.length ? supabase.from("memberships").update({ last_recertified_at: now }).in("id", keep) : null,
-      revoke.length ? supabase.from("memberships").update({ status: "revocado", last_recertified_at: now }).in("id", revoke) : null,
-    ])
-    const uErr = updates.find((u) => u?.error)?.error
-    if (uErr) return fail(dbMessage(uErr))
+    if (revoke.length) {
+      const { error: uErr } = await supabase.from("memberships").update({ status: "revocado" }).in("id", revoke)
+      if (uErr) return fail(dbMessage(uErr))
+    }
     await createAdminClient().rpc("complete_tasks", {
       p_type: "recertificar_accesos",
       p_entity_id: user.organization.id,
