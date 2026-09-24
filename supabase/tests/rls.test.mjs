@@ -134,6 +134,22 @@ ok((await as(db, U.beto, `select count(*)::int n from public.risks`)).rows[0].n 
 ok((await as(db, U.carlos, `select count(*)::int n from public.risks`)).rows[0].n === 0, "Carlos (solo aprobador) no ve riesgos")
 await throws(() => as(db, U.sofia, `select public.add_assessment('${risk.id}', 'residual', 1, 1)`), "Sofía no puede valorar riesgos", "no puede valorar")
 
+// ---------- 009: borrador de quien lo registra y directorio ----------
+const DOC2 = id("a4", 2)
+const v21 = (await as(db, U.juan, `select public.create_document($1, $2, $3, $4, 'PR-GC-002', 'Auditorías internas',
+  $5, $6, $7, '{}'::uuid[], false, 12, 'Creación') id`, [DOC2, A, P.sigA, id("a3", 1), POS.calidad, POS.gerente, POS.jefe])).rows[0].id
+await throws(() => as(db, U.sofia, `select public.set_version_files('${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${A}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`),
+  "Sofía no adjunta archivos a un borrador ajeno")
+await throws(() => as(db, U.juan, `select public.set_version_files('${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${B}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`),
+  "La ruta del archivo fuente también se valida", "Ruta de archivo")
+await as(db, U.juan, `select public.set_version_files('${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${A}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`)
+await as(db, U.juan, `select public.submit_version('${v21}')`)
+ok((await as(db, U.carlos, `select count(*)::int n from public.tasks where type = 'revisar' and entity_id = '${v21}'`)).rows[0].n === 1,
+  "Juan (Líder SIG) registra para otro elaborador, adjunta y envía a revisión")
+const dirA = (await as(db, U.sofia, `select * from public.org_directory('${A}')`)).rows
+ok(dirA.length === 6 && dirA.every((r) => r.position_name), "Sofía ve el directorio de A (solo vigentes, con cargo)")
+ok((await as(db, U.beto, `select count(*)::int n from public.org_directory('${A}')`)).rows[0].n === 0, "Beto (org B) no ve el directorio de A")
+
 // ---------- Job diario ----------
 const job = (await svc(`select public.run_daily_jobs() r`)).rows[0].r
 ok(job && typeof job.controles === "number", `Job diario ejecuta (${JSON.stringify(job)})`)
