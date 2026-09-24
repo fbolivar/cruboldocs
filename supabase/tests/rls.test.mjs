@@ -3,7 +3,7 @@ import { as, asMfa, freshDb } from "./harness.mjs"
 
 const db = await freshDb()
 let pass = 0, fail = 0
-const ok = (cond, name) => { cond ? pass++ : fail++; console.log(`${cond ? "✓" : "✗"} ${name}`) }
+const ok = (cond, name) => { if (cond) pass++; else fail++; console.log(`${cond ? "✓" : "✗"} ${name}`) }
 async function throws(fn, name, match) {
   try { await fn(); ok(false, `${name} (no falló)`) }
   catch (e) { ok(!match || e.message.includes(match), `${name} → ${e.message.split("\n")[0]}`) }
