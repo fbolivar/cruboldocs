@@ -3,12 +3,13 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-frontend — completada (2026-09-23). Siguiente: backend.
+backend — código completo (2026-09-24); falta la prueba de punta a punta con usuarios reales (requiere la clave secreta, ver Pendientes). Siguiente: seguridad.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
 - diseno (2026-09-23): tokens, specs y mockup aprobados por Fernando
 - frontend (2026-09-23): 5 pantallas + acceso + política de datos sobre datos mock; `lint` y `build` en verde
+- backend (2026-09-24, en cierre): esquema en Supabase, capa de datos real, Storage, correo y cron; `tsc`, `lint`, `build` y 49 pruebas RLS en verde
 
 ## Decisiones tomadas
 - Producto: CrubolDocs, SaaS de gestión de calidad (control documental + riesgos). Detalle en `docs/ARQUITECTURA.md`.
@@ -31,16 +32,30 @@ frontend — completada (2026-09-23). Siguiente: backend.
   - CSV con separador `;` (Excel es-CO) + BOM y protección contra inyección de fórmulas.
   - Fechas: "hoy" y vencimientos se calculan en zona America/Bogota (`src/lib/format.ts`).
 
+- Backend (2026-09-24):
+  - Proyecto Supabase **cruboldocs** (`dcteuwybqtktwvpfweyr`), org `bc-fabric-sas` (Pro, ~USD 10/mes), región **us-east-2** (se pidió sa-east-1; quedó así al crearlo desde el panel). Migraciones 001–009 aplicadas; tipos en `src/lib/supabase/database.types.ts` (regenerar tras cada migración).
+  - Lecturas: todas con la sesión del usuario (RLS). La clave secreta solo en: firma tras reautenticación, invitaciones, Storage (URLs de subida y verificación), auditoría de acciones de administración, outbox y cron.
+  - Archivos: el navegador sube directo a Storage con URL firmada (Vercel limita el cuerpo a 4,5 MB); el servidor descarga, valida tamaño y `%PDF-`, calcula SHA-256 y registra. Rutas `documentos/<org>/<doc>/<versión>/<archivo>` y `evidencias/<org>/<control>/<uuid>/<archivo>`.
+  - Migración 009: quien registra el borrador (Líder SIG/de proceso) adjunta y envía aunque el elaborador sea otro cargo; bucket acepta PowerPoint; `org_directory(org)` da nombre y cargo de colegas (sin correo).
+  - Frecuencia de controles pasó de texto libre a lista fija (diaria…anual, por evento), igual que el esquema.
+  - Firma: reautenticación con cliente efímero (no toca la sesión) → `sign_version` con IP y user-agent.
+  - Invitaciones: token de 256 bits, en la base solo su SHA-256, vence en 7 días. Si el correo ya tiene cuenta, se pide su contraseña actual para vincularlo. La aceptación de la política de datos queda en `audit_log`.
+  - Superadmin sin organizaciones ve "Crubol" y solo la pestaña Organizaciones. Selector de organización activa en el menú de cuenta.
+  - Correo: `after()` vacía el outbox tras cada mutación; cron diario 06:00 Bogotá (`vercel.json`) como respaldo.
+  - Sin sesión → /login; con sesión sin membresía vigente → /sin-acceso.
+
 ## Pendientes / próxima acción
-- Ejecutar `/fase backend`. Contrato para reemplazar el mock sin tocar componentes:
-  - Lecturas: `src/lib/data/queries.ts` (conservar firmas y tipos de `src/lib/types.ts`).
-  - Mutaciones: `src/lib/data/actions.ts` (Server Actions que devuelven `Result`). Faltan acciones reales para reemplazar archivos de una versión y crear la versión N+1 (hoy la ficha lo simula en pantalla).
-  - Eliminar al terminar: `src/lib/data/mock-data.ts`, `src/lib/data/demo.ts`, `setDemoUser`/`setDemoScenario`, el bloque "Solo desarrollo" del menú de usuario y `src/proxy.ts` (pasa a refrescar la sesión de Supabase). `/` debe redirigir a `/app` si hay sesión.
-  - Subida de archivos: hoy simulada (tope 25 MB, PDF + fuente obligatorios); pasar a Storage privado con URL firmada.
+- **Fernando, para cerrar backend:**
+  1. Copiar en `.env.local` la clave secreta (Supabase > Project Settings > API Keys > `sb_secret_…`) → `SUPABASE_SECRET_KEY`, y las credenciales SMTP de Hostinger (`SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`).
+  2. `npm run superadmin -- <correo> "<nombre>"` (muestra una contraseña temporal una sola vez).
+  3. Supabase > Authentication: **desactivar el registro público** ("Allow new users to sign up"); Site URL y Redirect URLs con `http://localhost:3001/**` y el dominio de producción; SMTP propio (Hostinger) para los correos de recuperación (el de Supabase permite muy pocos por hora).
+  4. Prueba de punta a punta: crear organización → invitar → registrar documento → revisar → aprobar → confirmar lectura; identificar riesgo → evidencia.
+- Fase seguridad: `/fase seguridad` (auditoría obligatoria antes del deploy). Revisar además: bucket `evidencias` acepta cualquier tipo de archivo; FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
 - Antes del deploy: completar datos de Crubol en `/tratamiento-de-datos` y revisión legal.
-- Fase backend: crear un proyecto NUEVO en Supabase (confirmar organización y costo con Fernando antes de crearlo). SMTP: cuenta propia de Hostinger (smtp.hostinger.com, 465 SSL). Credenciales solo en `.env.local` y en Vercel.
+- Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio) y `CRON_SECRET`.
 
 ## Notas para la próxima sesión
-- Demo local (solo desarrollo): `?demo_usuario=<id>&demo_estado=normal|vacio|error|carga` en cualquier URL de `/app`. Usuarios: u-laura (admin, por defecto), u-juan (revisor), u-carlos (aprobador), u-diana (responsable de control), u-andres (auditor externo), u-sofia (consulta), u-oscar (admin solo metadatos), u-crubol (superadmin). También en el menú del avatar: "Ver como…" y "Simular estado…".
+- El modo demo y el mock se eliminaron: para ver la app hay que ingresar con un usuario real.
+- Pruebas RLS: `npm run test:rls` (PGlite, sin Docker). Toda migración nueva: agregarla a `supabase/migrations/`, correr las pruebas, aplicarla con el MCP de Supabase y regenerar tipos.
 - El servidor de desarrollo corre en el puerto 3001 (el 3000 está ocupado por otro proceso).
 - Next.js 16.3.6: leer `node_modules/next/dist/docs/` antes de escribir código (ver AGENTS.md).
