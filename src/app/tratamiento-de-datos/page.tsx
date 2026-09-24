@@ -1,4 +1,3 @@
-import { TriangleAlertIcon } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import type * as React from "react"
@@ -10,8 +9,8 @@ export const metadata: Metadata = {
   description: "Cómo CrubolDocs trata los datos personales conforme a la Ley 1581 de 2012.",
 }
 
-// ⚠️ BORRADOR: texto pendiente de revisión legal. La vigencia es la fecha de publicación
-// en producción: se fija el día del deploy (fase deploy).
+// Texto aprobado por Fernando tras la revisión legal (2026-09-24). La vigencia es la fecha
+// de publicación en producción: se fija el día del deploy (fase deploy).
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
   nit: "902107870-4",
@@ -42,14 +41,6 @@ export default function TratamientoDeDatosPage() {
       </header>
 
       <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
-        <div role="note" className="flex gap-3 rounded-md bg-advertencia-suave px-4 py-3 text-small text-advertencia-texto">
-          <TriangleAlertIcon className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-          <p>
-            <strong className="font-semibold">Borrador.</strong> Este texto es provisional y está pendiente de revisión
-            legal antes de su publicación definitiva.
-          </p>
-        </div>
-
         <div className="flex flex-col gap-2">
           <h1>Política de tratamiento de datos personales</h1>
           <p className="text-texto-sec">
