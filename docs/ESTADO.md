@@ -3,13 +3,13 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-backend — código completo (2026-09-24); falta la prueba de punta a punta con usuarios reales (requiere la clave secreta, ver Pendientes). Siguiente: seguridad.
+backend — completada (2026-09-24) con prueba de punta a punta pendiente (la hará Fernando con alias de Gmail o la fase testing). Siguiente: `/fase seguridad` (parada obligatoria antes del deploy).
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
 - diseno (2026-09-23): tokens, specs y mockup aprobados por Fernando
 - frontend (2026-09-23): 5 pantallas + acceso + política de datos sobre datos mock; `lint` y `build` en verde
-- backend (2026-09-24, en cierre): esquema en Supabase, capa de datos real, Storage, correo y cron; `tsc`, `lint`, `build` y 49 pruebas RLS en verde
+- backend (2026-09-24): esquema en Supabase, capa de datos real, Storage, correo y cron; `tsc`, `lint`, `build` y 49 pruebas RLS en verde
 
 ## Decisiones tomadas
 - Producto: CrubolDocs, SaaS de gestión de calidad (control documental + riesgos). Detalle en `docs/ARQUITECTURA.md`.
@@ -49,8 +49,9 @@ backend — código completo (2026-09-24); falta la prueba de punta a punta con 
   1. ✅ Clave secreta en `.env.local` (verificada 2026-09-24).
   2. ✅ Superadmin creado: fbolivarb@gmail.com (Fernando Bolivar Buitrago). Cambiar la contraseña temporal al ingresar.
   3. ✅ Registro público desactivado en Supabase Auth. Pendiente: Site URL y Redirect URLs (`http://localhost:3001/**` y el dominio de producción).
-  4. ✅ Organización CRUBOL TECHNOLOGY S.A.S creada; invitación a operaciones@crubol.com (enlace entregado a mano). Pendiente: prueba de punta a punta (invitar elaborador/revisor/aprobador → registrar → revisar → aprobar → confirmar lectura; riesgo → evidencia).
-- **Correo (SMTP) — pospuesto por decisión de Fernando (2026-09-24):** Titan (`smtp.titan.email`, contacto@crubol.com) rechaza la autenticación (535) en 465 y 587; la contraseña del buzón está mal o requiere clave de aplicación. `SMTP_PASSWORD` quedó comentada en `.env.local` para que los correos esperen en la cola sin agotar intentos. Mientras no haya SMTP, al invitar, reenviar o crear una organización la UI muestra el enlace para copiarlo y compartirlo a mano (`InvitationLinkDialog`). Recuperar contraseña tampoco envía correo hasta configurar el SMTP propio en Supabase Auth.
+  4. ✅ Organización CRUBOL TECHNOLOGY S.A.S creada; invitación a operaciones@crubol.com (enlace entregado a mano).
+  5. Pendiente: prueba de punta a punta. Sin correo se puede con alias de Gmail (`fbolivarb+elaborador@gmail.com`, `+revisor`, `+aprobador`): invitar → copiar enlace → abrir en incógnito. Flujo: registrar → revisar → aprobar → confirmar lectura; riesgo → evidencia. La fase testing la automatiza con Playwright.
+- **Correo (SMTP) — pospuesto por decisión de Fernando (2026-09-24):** Titan (`smtp.titan.email`; MX y SPF de crubol.com confirmados en Titan) rechaza la autenticación de info@crubol.com por SMTP (465/587) e IMAP aunque el webmail abre: contraseña distinta (webmail abierto por SSO de Hostinger), plan sin acceso para apps externas o clave de aplicación. Al activarlo, `SMTP_FROM` debe usar el mismo buzón del usuario. `SMTP_PASSWORD` quedó comentada en `.env.local` para que los correos esperen en la cola sin agotar intentos. Mientras no haya SMTP, al invitar, reenviar o crear una organización la UI muestra el enlace para copiarlo y compartirlo a mano (`InvitationLinkDialog`). Recuperar contraseña tampoco envía correo hasta configurar el SMTP propio en Supabase Auth.
 - Fase seguridad: `/fase seguridad` (auditoría obligatoria antes del deploy). Revisar además: enlace de invitación visible al administrador cuando no hay SMTP; bucket `evidencias` acepta cualquier tipo de archivo; FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
 - Antes del deploy: completar datos de Crubol en `/tratamiento-de-datos` y revisión legal.
 - Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio) y `CRON_SECRET`.
@@ -59,4 +60,5 @@ backend — código completo (2026-09-24); falta la prueba de punta a punta con 
 - El modo demo y el mock se eliminaron: para ver la app hay que ingresar con un usuario real.
 - Pruebas RLS: `npm run test:rls` (PGlite, sin Docker). Toda migración nueva: agregarla a `supabase/migrations/`, correr las pruebas, aplicarla con el MCP de Supabase y regenerar tipos.
 - El servidor de desarrollo corre en el puerto 3001 (el 3000 está ocupado por otro proceso).
+- No correr `next build` con el dev server de 3001 activo (rompe `.next`); verificar con `npx tsc --noEmit` y `npm run lint`. Lanzar el dev desde PowerShell (`npm run dev -- -p 3001`), no desde Git Bash (falla `next/font`).
 - Next.js 16.3.6: leer `node_modules/next/dist/docs/` antes de escribir código (ver AGENTS.md).
