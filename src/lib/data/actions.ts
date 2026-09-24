@@ -33,7 +33,7 @@ import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
 import { flushOutbox, smtpConfigured } from "@/lib/email/outbox"
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format"
 import { clientIp } from "@/lib/security/client-ip"
-import { hasAttemptsLeft, ipKey, recordFailure, TOO_MANY, withinLimits } from "@/lib/security/rate-limit"
+import { ipKey, TOO_MANY, withinLimits } from "@/lib/security/rate-limit"
 import { CAPTCHA_FAILED, verifyTurnstile } from "@/lib/security/turnstile"
 import { createAdminClient, createAuthClient, createClient, createEphemeralClient } from "@/lib/supabase/server"
 import type { Json } from "@/lib/supabase/database.types"
@@ -93,21 +93,19 @@ const refresh = () => revalidatePath("/app", "layout")
 
 /**
  * El CAPTCHA va primero: un intento sin resolverlo no cuenta en ningún límite (AUD RA-01).
- * El límite global por correo solo suma contraseñas incorrectas, y el estricto es por correo
- * e IP: bloquear la cuenta de otra persona exige muchas IP y muchos CAPTCHA.
+ * El límite estricto es por correo e IP; el global por correo es más alto: bloquear la cuenta de
+ * otra persona exige muchas IP y muchos CAPTCHA resueltos.
  */
 export async function login(email: string, password: string, captchaToken: string): Promise<Result> {
   const normalized = email.trim().toLowerCase().slice(0, 254)
   const ip = await clientIp()
   if (!(await verifyTurnstile(captchaToken, "login", ip))) return fail(CAPTCHA_FAILED)
   const pair = `${normalized}|${ipKey(ip) ?? "desconocido"}`
-  if (!(await withinLimits([["login:ip", ip], ["login:correo_ip", pair]]))) return fail(TOO_MANY)
-  if (!(await hasAttemptsLeft("login:correo", normalized))) return fail(TOO_MANY)
+  const limits = await withinLimits([["login:ip", ip], ["login:correo_ip", pair], ["login:correo", normalized]])
+  if (!limits) return fail(TOO_MANY)
   const supabase = await createAuthClient(ip)
   const { error } = await supabase.auth.signInWithPassword({ email: normalized, password })
-  if (!error) return ok(undefined)
-  await recordFailure("login:correo", normalized)
-  return fail("Correo o contraseña incorrectos.")
+  return error ? fail("Correo o contraseña incorrectos.") : ok(undefined)
 }
 
 export async function logout(): Promise<void> {
@@ -1032,13 +1030,8 @@ export async function saveRecertDecisions(input: { membershipId: string; keep: b
         decision: d.keep ? "mantener" : "revocar",
       }))
     )
+    // La base aplica cada decisión en la membresía (fecha o revocación) en la misma operación.
     if (error) return fail(dbMessage(error))
-    // La fecha de recertificación la fija la base al registrar la decisión (AUD RA-14).
-    const revoke = valid.filter((d) => !d.keep).map((d) => d.membershipId)
-    if (revoke.length) {
-      const { error: uErr } = await supabase.from("memberships").update({ status: "revocado" }).in("id", revoke)
-      if (uErr) return fail(dbMessage(uErr))
-    }
     await createAdminClient().rpc("complete_tasks", {
       p_type: "recertificar_accesos",
       p_entity_id: user.organization.id,

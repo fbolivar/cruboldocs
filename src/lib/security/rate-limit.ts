@@ -11,8 +11,8 @@ type Rule = { limit: number; window: `${number} m` | `${number} h` }
 
 const RULES = {
   "login:ip": { limit: 20, window: "10 m" },
-  // Por correo desde una IP (bloqueo rápido) y por correo desde cualquier IP, contando solo
-  // contraseñas incorrectas (AUD RA-01: nadie bloquea una cuenta ajena sin intentar credenciales).
+  // Por correo desde una IP (bloqueo rápido) y por correo desde cualquier IP; ambos después del
+  // CAPTCHA (AUD RA-01: nadie bloquea una cuenta ajena sin resolverlo).
   "login:correo_ip": { limit: 8, window: "15 m" },
   "login:correo": { limit: 30, window: "15 m" },
   "recuperar:ip": { limit: 5, window: "15 m" },
@@ -67,6 +67,8 @@ function limiter(key: LimitKey): Ratelimit | null {
  * suele recibir un solo cliente (AUD RA-06).
  */
 export function ipKey(ip: string | null | undefined): string | null {
+  const v4 = ip?.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i)?.[1]
+  if (v4) return v4
   if (!ip || !ip.includes(":")) return ip ?? null
   const [head, tail = ""] = ip.toLowerCase().split("::")
   const h = head ? head.split(":") : []
@@ -103,21 +105,4 @@ export async function withinLimits(checks: [LimitKey, string | null | undefined]
     })
   )
   return results.every(Boolean)
-}
-
-/** true si a la clave todavía le quedan intentos, sin consumir uno. */
-export async function hasAttemptsLeft(key: LimitKey, id: string | null | undefined): Promise<boolean> {
-  const l = limiter(key)
-  if (!l) return true
-  try {
-    return (await l.getRemaining(hashId(key, id))).remaining > 0
-  } catch (e) {
-    console.error("rate-limit", key, e)
-    return true
-  }
-}
-
-/** Registra un intento fallido en la clave. */
-export async function recordFailure(key: LimitKey, id: string | null | undefined): Promise<void> {
-  await withinLimits([[key, id]])
 }
