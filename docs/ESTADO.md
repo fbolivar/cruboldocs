@@ -3,7 +3,7 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar.
+seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar. Remediación: **bloque 1 (integridad) hecho** (2026-09-24, migración 010; ALTA-01, MED-02, MED-05 corregidos); quedan ALTA-02 a ALTA-05.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
@@ -54,15 +54,16 @@ seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `
   5. Pendiente: prueba de punta a punta. Sin correo se puede con alias de Gmail (`fbolivarb+elaborador@gmail.com`, `+revisor`, `+aprobador`): invitar → copiar enlace → abrir en incógnito. Flujo: registrar → revisar → aprobar → confirmar lectura; riesgo → evidencia. La fase testing la automatiza con Playwright.
 - **Correo (SMTP) — pospuesto por decisión de Fernando (2026-09-24):** Titan (`smtp.titan.email`; MX y SPF de crubol.com confirmados en Titan) rechaza la autenticación de info@crubol.com por SMTP (465/587) e IMAP aunque el webmail abre: contraseña distinta (webmail abierto por SSO de Hostinger), plan sin acceso para apps externas o clave de aplicación. Al activarlo, `SMTP_FROM` debe usar el mismo buzón del usuario. `SMTP_PASSWORD` quedó comentada en `.env.local` para que los correos esperen en la cola sin agotar intentos. Mientras no haya SMTP, al invitar, reenviar o crear una organización la UI muestra el enlace para copiarlo y compartirlo a mano (`InvitationLinkDialog`). Recuperar contraseña tampoco envía correo hasta configurar el SMTP propio en Supabase Auth.
 - **Remediación de seguridad (bloquea el deploy)** — detalle y plan en `docs/seguridad/AUD-20260924.md`:
-  - ALTA-01 archivo firmado reemplazable (`upsert: true`) y RPC de archivos llamables directo con hash del cliente.
+  - ~~ALTA-01~~ ✅ corregido en el bloque 1 (ver sección 5 del informe).
   - ALTA-02 invitaciones insertables por REST con token elegido + cuenta confirmada sin probar el correo → pre-secuestro de cuentas entre organizaciones.
   - ALTA-03 sin rate limiting (oráculo de contraseña en aceptar invitación; límite por IP de Supabase compartido por Vercel → DoS de login).
   - ALTA-04 Superadmin lee riesgos y documentos de todos los clientes, puede darse acceso total y no tiene MFA.
   - ALTA-05 Admin se asigna rol funcional por REST (evade "solo metadatos") y las escrituras de administración no se auditan en BD.
   - **Decisiones de Fernando (2026-09-24):** rate limiting con **Upstash Redis** (`@upstash/ratelimit`, plan gratis; por IP real y por correo/token); CAPTCHA **Cloudflare Turnstile** en login, recuperar contraseña y aceptar invitación (nativo en Supabase Auth); **MFA TOTP obligatoria solo para el Superadmin** (exigir `aal2` en sus acciones); el Superadmin ve **solo metadatos** (organizaciones, usuarios, cargos), nunca documentos ni riesgos.
-  - **Orden de trabajo (una sesión por bloque, con `/fase seguridad`):** 1) integridad (ALTA-01, MED-02, MED-05) → 2) identidad (ALTA-02, ALTA-03, MED-04, MED-06, BAJ-02) → 3) privilegios (ALTA-04, ALTA-05, MED-01, MED-08) → 4) plataforma (MED-03, MED-07, BAJ-09) → 5) re-auditoría. Próximo: **bloque 1**.
+  - **Orden de trabajo (una sesión por bloque, con `/fase seguridad`):** ~~1) integridad (ALTA-01, MED-02, MED-05)~~ ✅ → 2) identidad (ALTA-02, ALTA-03, MED-04, MED-06, BAJ-02) → 3) privilegios (ALTA-04, ALTA-05, MED-01, MED-08) → 4) plataforma (MED-03, MED-07, BAJ-09) → 5) re-auditoría. Próximo: **bloque 2 (identidad)**.
   - Para el bloque 2, Fernando debe crear antes: base Upstash Redis (URL y token REST a `.env.local`) y sitio Turnstile en Cloudflare (site key y secret key; la secret también en Supabase Auth → Bot and Abuse Protection).
   - Después: re-auditoría de los altos y pruebas RLS nuevas por cada corrección.
+- Bloque 1 (2026-09-24): subida a `<base>/subida/<archivo>` con `upsert: false`; el servidor valida (tamaño, firma binaria) y escribe los mismos bytes en `<base>/<archivo>` (sin token). `set_version_files(p_actor, …)` y `register_evidence(p_actor, …)` solo `service_role`. `signVersion` compara el SHA-256 del PDF guardado antes de firmar. Tipos de archivo en `src/lib/domain/files.ts`. Residual bajo: limpiar temporales `*/subida/*` viejos (job diario).
 - Otros pendientes no de seguridad: FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
 - Antes del deploy: completar datos de Crubol en `/tratamiento-de-datos` y revisión legal.
 - Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio) y `CRON_SECRET`.
