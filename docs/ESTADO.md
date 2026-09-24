@@ -20,7 +20,6 @@ diseno (pendiente de iniciar)
 
 ## Pendientes / próxima acción
 - Ejecutar `/fase diseno` (mockup requiere aprobación de Fernando).
-
 - Por definir en la fase backend: qué cuenta SMTP se usa; proyecto de Supabase (crear o existente).
 
 ## Notas para la próxima sesión
