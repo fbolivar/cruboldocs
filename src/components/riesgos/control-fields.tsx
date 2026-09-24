@@ -2,10 +2,9 @@
 
 import type { Option } from "@/components/riesgos/filter-controls"
 import { Field } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { CONTROL_TYPE_LABELS } from "@/lib/domain/risk"
+import { CONTROL_FREQUENCY_LABELS, CONTROL_TYPE_LABELS } from "@/lib/domain/risk"
 import type { ControlType } from "@/lib/types"
 
 export interface ControlDraft {
@@ -22,7 +21,7 @@ export const EMPTY_CONTROL: ControlDraft = { description: "", type: "preventivo"
 export function validateControl(c: ControlDraft): ControlErrors {
   const e: ControlErrors = {}
   if (!c.description.trim()) e.description = "Describe el control."
-  if (!c.frequency.trim()) e.frequency = "Indica la frecuencia."
+  if (!c.frequency) e.frequency = "Elige la frecuencia."
   if (!c.responsiblePositionId) e.responsiblePositionId = "Elige el cargo responsable."
   return e
 }
@@ -58,6 +57,7 @@ export function SelectField({
 }
 
 const TYPE_OPTIONS: Option[] = (Object.keys(CONTROL_TYPE_LABELS) as ControlType[]).map((t) => ({ value: t, label: CONTROL_TYPE_LABELS[t] }))
+const FREQUENCY_OPTIONS: Option[] = Object.entries(CONTROL_FREQUENCY_LABELS).map(([value, label]) => ({ value, label }))
 
 /** Campos de un control: descripción, tipo, frecuencia y cargo responsable. */
 export function ControlFields({
@@ -88,7 +88,13 @@ export function ControlFields({
         </Field>
         <Field id={`${idPrefix}-frec`} label="Frecuencia" error={errors.frequency} required>
           {(aria) => (
-            <Input {...aria} placeholder="Mensual, Por evento…" value={value.frequency} onChange={(e) => onChange({ ...value, frequency: e.target.value })} />
+            <SelectField
+              aria={aria}
+              value={value.frequency}
+              placeholder="Elige la frecuencia"
+              options={FREQUENCY_OPTIONS}
+              onChange={(v) => onChange({ ...value, frequency: v })}
+            />
           )}
         </Field>
       </div>

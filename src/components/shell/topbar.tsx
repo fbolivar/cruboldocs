@@ -7,14 +7,13 @@ import { usePathname } from "next/navigation"
 import { useBreadcrumbLabel } from "@/components/shell/breadcrumb-context"
 import { GlobalSearch, MobileSearch } from "@/components/shell/global-search"
 import { isActive, type NavItem } from "@/components/shell/nav-items"
-import { type DemoOptions, UserMenu } from "@/components/shell/user-menu"
+import { UserMenu } from "@/components/shell/user-menu"
 import { LogoHex } from "@/components/ui/logo-hex"
 import type { CurrentUser } from "@/lib/types"
 
 interface TopbarProps {
   user: CurrentUser
   items: NavItem[]
-  demo: DemoOptions | null
 }
 
 /** Breadcrumb desde la estructura de rutas; la página de detalle aporta el último nivel. */
@@ -26,7 +25,7 @@ function useTrail(items: NavItem[]) {
   return { section, detail: isDetail ? detail : null }
 }
 
-export function Topbar({ user, items, demo }: TopbarProps) {
+export function Topbar({ user, items }: TopbarProps) {
   const { section, detail } = useTrail(items)
   return (
     <header className="sticky top-0 z-30 hidden h-14 items-center gap-4 border-b border-borde bg-superficie px-8 md:flex">
@@ -58,14 +57,14 @@ export function Topbar({ user, items, demo }: TopbarProps) {
           </span>
         )}
         <GlobalSearch />
-        <UserMenu user={user} demo={demo} />
+        <UserMenu user={user} />
       </div>
     </header>
   )
 }
 
 /** Móvil: logo + título (o "‹ Volver" en detalle) + búsqueda + avatar. */
-export function MobileTopbar({ user, items, demo }: TopbarProps) {
+export function MobileTopbar({ user, items }: TopbarProps) {
   const { section, detail } = useTrail(items)
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-borde bg-superficie px-4 md:hidden">
@@ -81,7 +80,7 @@ export function MobileTopbar({ user, items, demo }: TopbarProps) {
         </div>
       )}
       <MobileSearch />
-      <UserMenu user={user} demo={demo} />
+      <UserMenu user={user} />
     </header>
   )
 }

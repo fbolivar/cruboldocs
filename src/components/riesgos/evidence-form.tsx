@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
-import { registerEvidence } from "@/lib/data/actions"
+import { prepareEvidenceUpload, registerEvidence } from "@/lib/data/actions"
+import { uploadToTicket } from "@/lib/data/upload"
 import { todayIsoDate } from "@/lib/format"
 import type { Control, ControlEvidence, EvidenceResult } from "@/lib/types"
 
@@ -49,7 +50,18 @@ export function EvidenceForm({ control, onCancel, onSaved }: Props) {
     setErrors(e)
     if (Object.keys(e).length > 0 || !result) return
     startTransition(async () => {
-      const res = await registerEvidence({ controlId: control.id, executedAt, result, notes: notes.trim(), fileName: file?.name ?? null })
+      let filePath: string | null = null
+      if (file) {
+        const ticket = await prepareEvidenceUpload(control.id, file.name)
+        if (!ticket.ok) return setErrors({ form: ticket.error })
+        try {
+          await uploadToTicket(ticket.data, file)
+        } catch {
+          return setErrors({ file: "No pudimos subir el archivo. Revisa tu conexión e inténtalo de nuevo." })
+        }
+        filePath = ticket.data.path
+      }
+      const res = await registerEvidence({ controlId: control.id, executedAt, result, notes: notes.trim(), fileName: file?.name ?? null, filePath })
       if (!res.ok) return setErrors({ form: res.error })
       // Mediodía en Bogotá: evita que la fecha cambie al formatearla.
       onSaved({ executedAt: `${executedAt}T12:00:00-05:00`, result, notes: notes.trim(), fileName: file?.name ?? null })

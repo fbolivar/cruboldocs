@@ -1,5 +1,5 @@
-// Actualizaciones locales (optimistas) de la ficha. El mock no persiste: la UI
-// refleja el resultado de cada acción sobre una copia en memoria del documento.
+// Actualizaciones locales (optimistas) de la ficha: reflejan el resultado de cada
+// acción ya persistida sin recargar el documento completo.
 
 import type {
   ChangeRequest,
@@ -13,10 +13,9 @@ import type {
   VersionStatus,
 } from "@/lib/types"
 
-export const SIGNATURE_MEANING: Record<SignatureAction, string> = {
-  revision: "Revisé este documento y es técnicamente correcto.",
-  aprobacion: "Apruebo este documento para su uso en la organización.",
-}
+import { SIGNATURE_MEANING } from "@/lib/domain/documents"
+
+export { SIGNATURE_MEANING }
 
 export function personOf(user: CurrentUser): PersonRef {
   return { id: user.id, fullName: user.fullName, positionName: user.positionName ?? "Sin cargo" }

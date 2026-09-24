@@ -18,6 +18,17 @@ export const CONTROL_TYPE_LABELS: Record<ControlType, string> = {
   correctivo: "Correctivo",
 }
 
+/** Frecuencias admitidas por `controls.frequency`; la próxima ejecución se calcula con ellas. */
+export const CONTROL_FREQUENCY_LABELS: Record<string, string> = {
+  diaria: "Diaria",
+  semanal: "Semanal",
+  mensual: "Mensual",
+  trimestral: "Trimestral",
+  semestral: "Semestral",
+  anual: "Anual",
+  por_evento: "Por evento",
+}
+
 /** Umbrales por defecto (`organizations.risk_scale`): 1–4 bajo, 5–9 moderado, 10–16 alto, 20–25 extremo. */
 export interface RiskScale {
   moderadoFrom: number

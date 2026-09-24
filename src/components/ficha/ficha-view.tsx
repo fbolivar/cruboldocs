@@ -26,10 +26,18 @@ interface FichaViewProps {
   autoOpen: DialogActionId | null
 }
 
-/** Ficha del documento. El estado es local y optimista: el mock no persiste las acciones. */
+/**
+ * Ficha del documento. Cada acción actualiza el estado local al instante; al revalidar,
+ * el servidor envía el documento real (URLs firmadas, hash, tareas) y reemplaza la copia local.
+ */
 export function FichaView({ initialDoc, user, versionNo, taskDetail, autoOpen }: FichaViewProps) {
   const router = useRouter()
   const [doc, setDoc] = useState(initialDoc)
+  const [serverDoc, setServerDoc] = useState(initialDoc)
+  if (initialDoc !== serverDoc) {
+    setServerDoc(initialDoc)
+    setDoc(initialDoc)
+  }
   const [openedVersionId, setOpenedVersionId] = useState<string | null>(null)
   const version = doc.versions.find((v) => v.versionNo === versionNo) ?? doc.versions[0]
   const bar = getActionBar(doc, version, user)

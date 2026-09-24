@@ -11,7 +11,8 @@ import { RegisterResponsables } from "@/components/documentos/register-responsab
 import { FIELD_ORDER, useRegisterForm, type RegisterCatalogs } from "@/components/documentos/use-register-form"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { registerDocument } from "@/lib/data/actions"
+import { attachVersionFiles, registerDocument } from "@/lib/data/actions"
+import { uploadToTicket } from "@/lib/data/upload"
 
 export type { RegisterCatalogs }
 
@@ -59,16 +60,39 @@ export function RegisterDocumentSheet({ open, onOpenChange, catalogs }: Register
       sourceFileName: v.source?.name ?? "",
       submitForReview: mode === "revision",
     }).catch(() => ({ ok: false as const, error: "No pudimos registrar el documento. Revisa tu conexión e inténtalo de nuevo." }))
-    setSending(null)
 
     if (!res.ok) {
+      setSending(null)
       setServerError(res.error)
       requestAnimationFrame(() => summaryRef.current?.focus())
       return
     }
-    toast.success(
-      mode === "revision" ? `Documento ${res.data.code} enviado a revisión` : `Documento ${res.data.code} guardado como borrador`
-    )
+
+    // El documento ya existe en borrador: se suben los archivos directo a Storage y se asocian.
+    const { uploads } = res.data
+    const attached = await Promise.all([uploadToTicket(uploads.pdf, v.pdf!.file), uploadToTicket(uploads.source, v.source!.file)])
+      .then(() =>
+        attachVersionFiles({
+          documentId: res.data.id,
+          versionNo: uploads.versionNo,
+          pdfPath: uploads.pdf.path,
+          sourcePath: uploads.source.path,
+          sourceFileName: v.source!.name,
+          submit: mode === "revision",
+        })
+      )
+      .catch(() => ({ ok: false as const, error: "" }))
+    setSending(null)
+
+    if (attached.ok) {
+      toast.success(
+        mode === "revision" ? `Documento ${res.data.code} enviado a revisión` : `Documento ${res.data.code} guardado como borrador`
+      )
+    } else {
+      toast.error(
+        `El documento ${res.data.code} quedó en borrador, pero no pudimos adjuntar los archivos${attached.error ? `: ${attached.error}` : ""}. Adjúntalos desde la ficha.`
+      )
+    }
     onOpenChange(false)
     form.reset()
     router.push(`/app/documentos/${res.data.id}`)

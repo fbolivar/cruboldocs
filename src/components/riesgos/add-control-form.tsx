@@ -8,6 +8,7 @@ import { type ControlDraft, type ControlErrors, ControlFields, EMPTY_CONTROL, va
 import type { Option } from "@/components/riesgos/filter-controls"
 import { Button } from "@/components/ui/button"
 import { addControl } from "@/lib/data/actions"
+import { CONTROL_FREQUENCY_LABELS } from "@/lib/domain/risk"
 import type { Control } from "@/lib/types"
 
 interface Props {
@@ -30,14 +31,14 @@ export function AddControlForm({ riskId, positions, onCancel, onSaved }: Props) 
     setErrors(e)
     if (Object.keys(e).length > 0) return
     startTransition(async () => {
-      const res = await addControl(riskId, { ...draft, description: draft.description.trim(), frequency: draft.frequency.trim() })
+      const res = await addControl(riskId, { ...draft, description: draft.description.trim() })
       if (!res.ok) return setFormError(res.error)
       toast.success("Control agregado")
       onSaved({
         id: `nuevo-${Date.now()}`,
         description: draft.description.trim(),
         type: draft.type,
-        frequency: draft.frequency.trim(),
+        frequency: CONTROL_FREQUENCY_LABELS[draft.frequency] ?? draft.frequency,
         responsiblePositionId: draft.responsiblePositionId,
         responsiblePositionName: positions.find((p) => p.value === draft.responsiblePositionId)?.label ?? "",
         nextDueDate: new Date().toISOString(),

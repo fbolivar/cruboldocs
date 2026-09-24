@@ -1,7 +1,7 @@
 "use client"
 
 import { CircleCheckIcon, FileUpIcon, XIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 
 import type { AttachedFile } from "@/components/documentos/use-register-form"
 import { Button } from "@/components/ui/button"
@@ -24,8 +24,8 @@ interface FileDropzoneProps {
 }
 
 /**
- * Zona de arrastre para un archivo obligatorio: valida tipo y tamaño (25 MB), muestra una barra de
- * progreso (carga SIMULADA hasta la fase backend, donde sube a Supabase Storage) y permite quitarlo.
+ * Zona de arrastre para un archivo obligatorio: valida tipo y tamaño (25 MB) y permite quitarlo.
+ * La subida a Storage ocurre al enviar el formulario.
  */
 export function FileDropzone({ id, label, extensions, formatsText, typeError, sizeError, value, onChange, onTouched, error }: FileDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -33,15 +33,6 @@ export function FileDropzone({ id, label, extensions, formatsText, typeError, si
   const [localError, setLocalError] = useState<string | null>(null)
   const shownError = localError ?? error
   const errorId = `${id}-error`
-  const progress = value?.progress ?? 100
-
-  useEffect(() => {
-    if (progress >= 100) return
-    const t = setTimeout(() => {
-      onChange((prev) => (prev ? { ...prev, progress: Math.min(100, prev.progress + 12 + Math.round(Math.random() * 18)) } : prev))
-    }, 160)
-    return () => clearTimeout(t)
-  }, [progress, onChange])
 
   const accept = (file: File | undefined) => {
     onTouched()
@@ -50,7 +41,7 @@ export function FileDropzone({ id, label, extensions, formatsText, typeError, si
     if (!extensions.some((ext) => lower.endsWith(ext))) return setLocalError(typeError)
     if (file.size > MAX_FILE_BYTES) return setLocalError(sizeError)
     setLocalError(null)
-    onChange(() => ({ name: file.name, size: file.size, progress: 0 }))
+    onChange(() => ({ name: file.name, size: file.size, file }))
   }
 
   return (
@@ -61,24 +52,14 @@ export function FileDropzone({ id, label, extensions, formatsText, typeError, si
       {value ? (
         <div className="flex flex-col gap-2 rounded-md border border-borde px-3 py-2.5">
           <div className="flex items-center gap-2 text-small">
-            {progress >= 100 ? (
-              <CircleCheckIcon className="size-4 shrink-0 text-exito" aria-hidden="true" />
-            ) : (
-              <FileUpIcon className="size-4 shrink-0 text-acento" aria-hidden="true" />
-            )}
+            <CircleCheckIcon className="size-4 shrink-0 text-exito" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">
               {value.name} · <span className="text-texto-sec">{formatFileSize(value.size)}</span>
-              {progress >= 100 && <span className="sr-only"> (cargado)</span>}
             </span>
             <Button variant="ghost" size="icon" aria-label={`Quitar ${value.name}`} onClick={() => onChange(() => null)}>
               <XIcon aria-hidden="true" />
             </Button>
           </div>
-          {progress < 100 && (
-            <div role="progressbar" aria-label={`Cargando ${value.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1.5 overflow-hidden rounded-full bg-superficie-alt">
-              <div className="h-full rounded-full bg-acento transition-all duration-150" style={{ width: `${progress}%` }} />
-            </div>
-          )}
         </div>
       ) : (
         // El clic en toda la zona es un atajo de ratón/táctil; el botón "selecciónalo" es el control accesible.

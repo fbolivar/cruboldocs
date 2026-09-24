@@ -1,8 +1,9 @@
 "use client"
 
-import { FlaskConicalIcon, LogOutIcon } from "lucide-react"
+import { Building2Icon, LogOutIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
+import { toast } from "sonner"
 
 import {
   DropdownMenu,
@@ -18,16 +19,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { logout, setDemoScenario, setDemoUser } from "@/lib/data/actions"
-import type { DemoScenario } from "@/lib/data/demo"
+import { logout, setActiveOrganization } from "@/lib/data/actions"
 import type { CurrentUser } from "@/lib/types"
 import { cn } from "@/lib/utils"
-
-export interface DemoOptions {
-  users: { id: string; label: string; name: string }[]
-  scenarios: { id: DemoScenario; label: string }[]
-  scenario: DemoScenario
-}
 
 function initials(name: string): string {
   return name
@@ -49,14 +43,17 @@ export function Avatar({ name, className }: { name: string; className?: string }
   )
 }
 
-/** Menú de cuenta. En desarrollo incluye "Ver como" y "Simular estado" para revisar roles y estados. */
-export function UserMenu({ user, demo }: { user: CurrentUser; demo: DemoOptions | null }) {
+/** Menú de cuenta. Con varias organizaciones (o Superadmin) permite cambiar la activa. */
+export function UserMenu({ user }: { user: CurrentUser }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const run = (fn: () => Promise<void>) => startTransition(async () => {
-    await fn()
-    router.refresh()
-  })
+  const switchOrg = (id: string) =>
+    startTransition(async () => {
+      const res = await setActiveOrganization(id)
+      if (!res.ok) return void toast.error(res.error)
+      router.push("/app")
+      router.refresh()
+    })
 
   return (
     <DropdownMenu>
@@ -69,33 +66,19 @@ export function UserMenu({ user, demo }: { user: CurrentUser; demo: DemoOptions 
           <span className="text-small font-normal text-texto-sec">{user.positionName ?? (user.isPlatformAdmin ? "Superadministrador" : "Sin cargo")}</span>
           <span className="text-small font-normal text-texto-sec">{user.email}</span>
         </DropdownMenuLabel>
-        {demo && (
+        {user.organizations.length > 1 && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="flex items-center gap-1.5 text-caption text-texto-sec uppercase">
-                <FlaskConicalIcon className="size-3.5" aria-hidden="true" /> Solo desarrollo
-              </DropdownMenuLabel>
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>Ver como…</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-80">
-                  <DropdownMenuRadioGroup value={user.id} onValueChange={(id) => run(() => setDemoUser(id))}>
-                    {demo.users.map((u) => (
-                      <DropdownMenuRadioItem key={u.id} value={u.id} className="flex-col items-start">
-                        <span>{u.name}</span>
-                        <span className="text-small text-texto-sec">{u.label}</span>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>Simular estado…</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup value={demo.scenario} onValueChange={(s) => run(() => setDemoScenario(s as DemoScenario))}>
-                    {demo.scenarios.map((s) => (
-                      <DropdownMenuRadioItem key={s.id} value={s.id}>
-                        {s.label}
+                <DropdownMenuSubTrigger>
+                  <Building2Icon aria-hidden="true" /> Cambiar organización
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-72">
+                  <DropdownMenuRadioGroup value={user.organization.id} onValueChange={switchOrg}>
+                    {user.organizations.map((o) => (
+                      <DropdownMenuRadioItem key={o.id} value={o.id}>
+                        {o.name}
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>

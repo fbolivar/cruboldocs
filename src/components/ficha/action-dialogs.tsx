@@ -117,6 +117,7 @@ export function ActionDialogs({ open, setOpen, doc, version, user, setDoc }: Act
       <ReplaceFilesDialog
         open
         onOpenChange={onOpenChange}
+        documentId={doc.id}
         versionNo={n}
         onDone={(name) => {
           setDoc((d) => up.replaceFiles(d, n, name))

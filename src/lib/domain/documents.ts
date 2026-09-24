@@ -4,6 +4,7 @@ import type {
   DocumentStatus,
   DocumentVersion,
   Role,
+  SignatureAction,
   VersionStatus,
 } from "@/lib/types"
 
@@ -180,3 +181,9 @@ export function segregationError(elaborador: string, revisor: string, aprobador:
 }
 
 export const MAX_FILE_BYTES = 25 * 1024 * 1024
+
+/** Texto que el firmante acepta; se guarda en `signatures.meaning` (ADR-004). */
+export const SIGNATURE_MEANING: Record<SignatureAction, string> = {
+  revision: "Revisé este documento y es técnicamente correcto.",
+  aprobacion: "Apruebo este documento para su uso en la organización.",
+}

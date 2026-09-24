@@ -14,11 +14,11 @@ export interface RegisterCatalogs {
   defaultElaboradorId: string | null
 }
 
-/** Archivo adjunto; `progress` < 100 = cargando. */
+/** Archivo elegido; se sube a Storage al enviar el formulario. */
 export interface AttachedFile {
   name: string
   size: number
-  progress: number
+  file: File
 }
 
 export interface RegisterValues {
@@ -71,9 +71,7 @@ function validate(v: RegisterValues, existingCodes: string[]): Partial<Record<Fi
     if (v.aprobador === v.elaborador || v.aprobador === v.revisor) e.aprobador = seg
   }
   if (!v.pdf) e.pdf = "Adjunta el PDF de consulta."
-  else if (v.pdf.progress < 100) e.pdf = "Espera a que termine la carga del PDF."
   if (!v.source) e.source = "Adjunta el archivo fuente en Word o Excel."
-  else if (v.source.progress < 100) e.source = "Espera a que termine la carga del archivo fuente."
   if (!Number.isInteger(months) || months < 1 || months > 60) e.reviewMonths = "Indica un número entero de meses entre 1 y 60."
   if (v.changeSummary.trim().length < 3) e.changeSummary = "Describe el cambio en una frase, por ejemplo: Versión inicial."
   return e
