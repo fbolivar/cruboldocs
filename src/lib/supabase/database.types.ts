@@ -1,4 +1,3 @@
-// Generado desde el proyecto Supabase (no editar a mano).
 export type Json =
   | string
   | number
@@ -1556,8 +1555,13 @@ export type Database = {
       }
       is_active_member: { Args: { org: string }; Returns: boolean }
       is_document_participant: { Args: { p_doc: string }; Returns: boolean }
+      is_member_of: { Args: { org: string; p_user: string }; Returns: boolean }
       is_org_admin: { Args: { org: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_safe_object_path: {
+        Args: { p_path: string; p_prefix: string }
+        Returns: boolean
+      }
       log_event: {
         Args: {
           org: string
@@ -1589,8 +1593,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      position_of: { Args: { org: string; p_user: string }; Returns: string }
       register_evidence: {
         Args: {
+          p_actor: string
           p_control: string
           p_executed_at: string
           p_file_name?: string
@@ -1642,6 +1648,7 @@ export type Database = {
       set_active_org: { Args: { org: string }; Returns: undefined }
       set_version_files: {
         Args: {
+          p_actor: string
           p_pdf_path: string
           p_pdf_sha256: string
           p_pdf_size: number

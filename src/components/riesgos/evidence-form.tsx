@@ -12,10 +12,12 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
 import { prepareEvidenceUpload, registerEvidence } from "@/lib/data/actions"
 import { uploadToTicket } from "@/lib/data/upload"
+import { EVIDENCE_EXT, isEvidenceName } from "@/lib/domain/files"
 import { todayIsoDate } from "@/lib/format"
 import type { Control, ControlEvidence, EvidenceResult } from "@/lib/types"
 
 const MAX_BYTES = 25 * 1024 * 1024
+const EVIDENCE_ACCEPT = EVIDENCE_EXT.map((e) => `.${e}`).join(",")
 
 type Errors = Partial<Record<"executedAt" | "result" | "file" | "form", string>>
 
@@ -41,6 +43,7 @@ export function EvidenceForm({ control, onCancel, onSaved }: Props) {
     else if (executedAt > today) e.executedAt = "La fecha de ejecución no puede ser futura."
     if (!result) e.result = "Elige el resultado del control."
     if (file && file.size > MAX_BYTES) e.file = "El archivo supera 25 MB. Adjunta uno más liviano."
+    else if (file && !isEvidenceName(file.name)) e.file = "Adjunta un PDF, una imagen (PNG, JPG, WebP), un CSV o un archivo de Office."
     return e
   }
 
@@ -102,8 +105,8 @@ export function EvidenceForm({ control, onCancel, onSaved }: Props) {
         {(aria) => <Textarea {...aria} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Qué se verificó y qué se encontró" />}
       </Field>
 
-      <Field id="ev-archivo" label="Archivo de soporte" help="Opcional. PDF, imagen u hoja de cálculo de hasta 25 MB." error={errors.file}>
-        {(aria) => <Input {...aria} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="py-1.5" />}
+      <Field id="ev-archivo" label="Archivo de soporte" help="Opcional. PDF, imagen (PNG, JPG, WebP), CSV o archivo de Office de hasta 25 MB." error={errors.file}>
+        {(aria) => <Input {...aria} type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="py-1.5" />}
       </Field>
 
       <p className="flex items-start gap-2 text-small text-texto-sec">

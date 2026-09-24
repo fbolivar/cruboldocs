@@ -81,7 +81,9 @@ await throws(() => as(db, U.laura, `update public.profiles set email = 'x@y.co' 
 // ---------- Flujo del documento ----------
 await throws(() => as(db, U.laura, `select public.submit_version('${ver}')`), "No se envía sin archivos", "Adjunta el PDF")
 const sha = "a".repeat(64)
-await as(db, U.laura, `select public.set_version_files('${ver}', '${A}/${DOC}/${ver}/doc.pdf', '${sha}', 1000, '${A}/${DOC}/${ver}/doc.docx', '${"b".repeat(64)}', 'doc.docx', 2000)`)
+await throws(() => as(db, U.laura, `select public.set_version_files('${U.laura}', '${ver}', '${A}/${DOC}/${ver}/doc.pdf', '${sha}', 1000, '${A}/${DOC}/${ver}/doc.docx', '${sha}', 'doc.docx', 2000)`),
+  "Un cliente no puede invocar set_version_files con su hash (solo servidor)", "permission denied")
+await svc(`select public.set_version_files('${U.laura}', '${ver}', '${A}/${DOC}/${ver}/doc.pdf', '${sha}', 1000, '${A}/${DOC}/${ver}/doc.docx', '${"b".repeat(64)}', 'doc.docx', 2000)`)
 await as(db, U.laura, `select public.submit_version('${ver}')`)
 const juanTasks = await as(db, U.juan, `select type from public.tasks where status = 'pendiente'`)
 ok(juanTasks.rows.some((r) => r.type === "revisar"), "Juan (revisor) recibe la tarea 'revisar'")
@@ -127,8 +129,24 @@ ok(risk.code === "R-01", `Juan (Líder SIG) identifica el riesgo ${risk.code}`)
 const lvl = (await as(db, U.sofia, `select level, score from public.risk_assessments where risk_id = '${risk.id}'`)).rows[0]
 ok(lvl.level === "extremo" && lvl.score === 20, "La valoración 4×5 queda en nivel extremo (20)")
 const ctl = (await as(db, U.diana, `select id from public.controls where risk_id = '${risk.id}'`)).rows[0].id
-await throws(() => as(db, U.sofia, `select public.register_evidence('${ctl}', current_date, 'efectivo', '')`), "Sofía (consulta) no registra evidencia", "Solo el cargo responsable")
-await as(db, U.diana, `select public.register_evidence('${ctl}', current_date, 'efectivo', 'OK')`)
+await throws(() => as(db, U.diana, `select public.register_evidence('${U.diana}', '${ctl}', current_date, 'efectivo', '')`),
+  "Un cliente no puede invocar register_evidence (solo servidor)", "permission denied")
+await throws(() => svc(`select public.register_evidence('${U.sofia}', '${ctl}', current_date, 'efectivo', '')`), "Sofía (consulta) no registra evidencia", "Solo el cargo responsable")
+const EV = "cccccccc-0000-0000-0000-000000000001"
+for (const [path, name] of [
+  [`${A}/${ctl}/${EV}/../../../${B}/x.pdf`, "con recorrido de ruta"],
+  [`${A}/${ctl}/${EV}/subida/x.pdf`, "temporal (sin validar)"],
+  [`${B}/${ctl}/${EV}/x.pdf`, "de otra organización"],
+  [`${A}/${ctl}/no-uuid/x.pdf`, "sin identificador válido"],
+  [`${A}/${ctl}/${EV}/.htaccess`, "con nombre oculto"],
+]) {
+  await throws(() => svc(`select public.register_evidence('${U.diana}', '${ctl}', current_date, 'efectivo', '', $1, '${sha}', 'x.pdf')`, [path]),
+    `Evidencia con ruta ${name} rechazada`, "Ruta de archivo")
+}
+await throws(() => svc(`select public.register_evidence('${U.diana}', '${ctl}', current_date, 'efectivo', '', '${A}/${ctl}/${EV}/x.pdf', 'no-es-hash', 'x.pdf')`),
+  "Evidencia con hash mal formado rechazada", "Ruta de archivo")
+await svc(`select public.register_evidence('${U.diana}', '${ctl}', current_date, 'efectivo', 'OK', '${A}/${ctl}/${EV}/acta.pdf', '${sha}', 'acta.pdf')`)
+ok((await as(db, U.diana, `select registered_by = '${U.diana}' ok from public.control_evidences where control_id = '${ctl}'`)).rows[0].ok, "La evidencia queda a nombre del actor que pasó el servidor")
 ok((await as(db, U.diana, `select next_due_date > current_date + 20 ok from public.controls where id = '${ctl}'`)).rows[0].ok, "Diana registra evidencia y se recalcula la próxima ejecución")
 ok((await as(db, U.beto, `select count(*)::int n from public.risks`)).rows[0].n === 0, "Beto (org B) no ve riesgos de A")
 ok((await as(db, U.carlos, `select count(*)::int n from public.risks`)).rows[0].n === 0, "Carlos (solo aprobador) no ve riesgos")
@@ -138,11 +156,26 @@ await throws(() => as(db, U.sofia, `select public.add_assessment('${risk.id}', '
 const DOC2 = id("a4", 2)
 const v21 = (await as(db, U.juan, `select public.create_document($1, $2, $3, $4, 'PR-GC-002', 'Auditorías internas',
   $5, $6, $7, '{}'::uuid[], false, 12, 'Creación') id`, [DOC2, A, P.sigA, id("a3", 1), POS.calidad, POS.gerente, POS.jefe])).rows[0].id
-await throws(() => as(db, U.sofia, `select public.set_version_files('${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${A}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`),
+await throws(() => svc(`select public.set_version_files('${U.sofia}', '${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${A}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`),
   "Sofía no adjunta archivos a un borrador ajeno")
-await throws(() => as(db, U.juan, `select public.set_version_files('${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${B}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`),
+await throws(() => svc(`select public.set_version_files('${U.juan}', '${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${B}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`),
   "La ruta del archivo fuente también se valida", "Ruta de archivo")
-await as(db, U.juan, `select public.set_version_files('${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${A}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`)
+const pre = `${A}/${DOC2}/${v21}`
+for (const [pdf, src, name] of [
+  [`${pre}/../../${DOC}/${ver}/doc.pdf`, `${pre}/a.docx`, "con recorrido de ruta"],
+  [`${pre}/subida/a.pdf`, `${pre}/a.docx`, "temporal"],
+  [`${pre}/a.pdf/`, `${pre}/a.docx`, "con barra final"],
+  [`${pre}/a%2F..%2Fx.pdf`, `${pre}/a.docx`, "codificada"],
+  [`${pre}/a.docx`, `${pre}/a.docx`, "PDF sin extensión .pdf"],
+]) {
+  await throws(() => svc(`select public.set_version_files('${U.juan}', '${v21}', $1, '${sha}', 1, $2, '${sha}', 'a.docx', 1)`, [pdf, src]),
+    `Adjuntar con ruta ${name} se rechaza`, "Ruta de archivo")
+}
+await throws(() => svc(`select public.set_version_files('${U.juan}', '${v21}', '${pre}/a.pdf', 'xyz', 1, '${pre}/a.docx', '${sha}', 'a.docx', 1)`),
+  "Adjuntar con hash mal formado se rechaza", "Archivo inválido")
+await throws(() => svc(`select public.set_version_files('${U.beto}', '${v21}', '${pre}/a.pdf', '${sha}', 1, '${pre}/a.docx', '${sha}', 'a.docx', 1)`),
+  "Beto (org B) no adjunta archivos a un borrador de A", "Solo el cargo elaborador")
+await svc(`select public.set_version_files('${U.juan}', '${v21}', '${A}/${DOC2}/${v21}/a.pdf', '${sha}', 1, '${A}/${DOC2}/${v21}/a.docx', '${sha}', 'a.docx', 1)`)
 await as(db, U.juan, `select public.submit_version('${v21}')`)
 ok((await as(db, U.carlos, `select count(*)::int n from public.tasks where type = 'revisar' and entity_id = '${v21}'`)).rows[0].n === 1,
   "Juan (Líder SIG) registra para otro elaborador, adjunta y envía a revisión")
@@ -159,5 +192,7 @@ const job3 = (await svc(`select count(*)::int n from public.email_outbox`)).rows
 ok(job2 === job3, "El job es idempotente: no repite correos")
 await throws(() => as(db, U.laura, `select public.run_daily_jobs()`), "Un usuario no puede ejecutar el job", "permission denied")
 
+const evBucket = (await db.query(`select allowed_mime_types m from storage.buckets where id = 'evidencias'`)).rows[0].m
+ok(Array.isArray(evBucket) && !evBucket.some((t) => ["text/html", "image/svg+xml", "application/xhtml+xml", "text/javascript", "text/xml", "application/xml"].includes(t)), "El bucket de evidencias solo acepta tipos de lista blanca")
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

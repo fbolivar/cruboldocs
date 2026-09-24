@@ -18,15 +18,16 @@ import { newToken, sha256Hex } from "@/lib/data/hash"
 import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
-  isPdfName,
-  isSourceName,
+  promoteUpload,
   removeObjects,
   safeFileName,
+  stagingPath,
+  storedFileMatches,
   UploadError,
   type UploadTicket,
-  verifyUpload,
 } from "@/lib/data/storage"
 import { DOCUMENT_STATUS_META, SIGNATURE_MEANING, segregationError } from "@/lib/domain/documents"
+import { EVIDENCE_EXT, isEvidenceName, isPdfName, isSourceName, SOURCE_EXT } from "@/lib/domain/files"
 import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
 import { flushOutbox, smtpConfigured } from "@/lib/email/outbox"
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format"
@@ -307,8 +308,8 @@ async function versionTickets(org: string, documentId: string, versionId: string
   const base = `${org}/${documentId}/${versionId}`
   const stamp = Date.now().toString(36)
   const [pdf, source] = await Promise.all([
-    createUploadTicket("documentos", `${base}/${stamp}-${safeFileName(pdfName)}`),
-    createUploadTicket("documentos", `${base}/${stamp}-${safeFileName(sourceName)}`),
+    createUploadTicket("documentos", stagingPath(base, `${stamp}-${safeFileName(pdfName)}`)),
+    createUploadTicket("documentos", stagingPath(base, `${stamp}-${safeFileName(sourceName)}`)),
   ])
   return { documentId, versionNo, pdf, source }
 }
@@ -407,13 +408,16 @@ export async function attachVersionFiles(input: {
   return guard(async () => {
     const draft = await editableDraft(input.documentId, input.versionNo)
     if (!draft) return fail("Solo el elaborador puede adjuntar archivos a una versión en borrador.")
-    const base = `${draft.doc.organization_id}/${input.documentId}/${draft.version.id}/`
-    if (!input.pdfPath.startsWith(base) || !input.sourcePath.startsWith(base) || input.pdfPath === input.sourcePath) {
-      return fail("Ruta de archivo inválida.")
-    }
-    const [pdf, source] = await Promise.all([verifyUpload("documentos", input.pdfPath, true), verifyUpload("documentos", input.sourcePath)])
-    const sourceFileName = input.sourceFileName.trim().slice(0, 255)
-    const { error } = await draft.supabase.rpc("set_version_files", {
+    const base = `${draft.doc.organization_id}/${input.documentId}/${draft.version.id}`
+    if (input.pdfPath === input.sourcePath) return fail("Ruta de archivo inválida.")
+    const [pdf, source] = await Promise.all([
+      promoteUpload("documentos", base, input.pdfPath, (ext) => ext === "pdf"),
+      promoteUpload("documentos", base, input.sourcePath, (ext) => SOURCE_EXT.includes(ext)),
+    ])
+    const sourceFileName = String(input.sourceFileName ?? "").trim().slice(0, 255)
+    // Solo el servidor asocia archivos (la RPC no es ejecutable por `authenticated`).
+    const { error } = await createAdminClient().rpc("set_version_files", {
+      p_actor: draft.user.id,
       p_version: draft.version.id,
       p_pdf_path: pdf.path,
       p_pdf_sha256: pdf.sha256,
@@ -423,7 +427,10 @@ export async function attachVersionFiles(input: {
       p_source_name: sourceFileName,
       p_source_size: source.size,
     })
-    if (error) return fail(dbMessage(error))
+    if (error) {
+      await removeObjects("documentos", [pdf.path, source.path])
+      return fail(dbMessage(error))
+    }
     const stale = [draft.version.pdf_path, draft.version.source_path].filter(
       (p): p is string => !!p && p !== pdf.path && p !== source.path
     )
@@ -485,13 +492,26 @@ export async function signVersion(input: {
     if (!input.password) return fail("Escribe tu contraseña para firmar.")
     if (input.action !== "revision" && input.action !== "aprobacion") return fail("Acción de firma inválida.")
     const user = await getCurrentUser()
-    const id = await versionId(input.documentId, input.versionNo)
-    if (!id) return fail("No encontramos esta versión del documento.")
+    if (!isUuid(input.documentId)) return fail("No encontramos esta versión del documento.")
+    const { data: version } = await (await createClient())
+      .from("document_versions")
+      .select("id, pdf_path, pdf_sha256")
+      .eq("document_id", input.documentId)
+      .eq("version_no", input.versionNo)
+      .maybeSingle()
+    if (!version) return fail("No encontramos esta versión del documento.")
+    const id = version.id
 
     const ephemeral = createEphemeralClient()
     const { data: reauth, error: authErr } = await ephemeral.auth.signInWithPassword({ email: user.email, password: input.password })
     if (authErr || reauth.user?.id !== user.id) return fail("La contraseña no es correcta. La firma no se registró.")
     await ephemeral.auth.signOut({ scope: "local" })
+
+    // Lo que se firma es el hash registrado: el PDF guardado debe seguir correspondiendo (ADR-004).
+    if (!version.pdf_path || !version.pdf_sha256 || !(await storedFileMatches("documentos", version.pdf_path, version.pdf_sha256))) {
+      console.error("firma: el PDF guardado no coincide con el hash registrado", { version: id })
+      return fail("El PDF guardado no coincide con el registrado. La firma no se registró; avisa al Líder SIG.")
+    }
 
     const h = await headers()
     const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || null
@@ -586,7 +606,8 @@ export async function prepareEvidenceUpload(controlId: string, fileName: string)
     const supabase = await createClient()
     const { data: c } = await supabase.from("controls").select("organization_id, responsible_position_id").eq("id", controlId).maybeSingle()
     if (!c || c.responsible_position_id !== user.positionId) return fail("Solo el cargo responsable registra evidencia de este control.")
-    return ok(await createUploadTicket("evidencias", `${c.organization_id}/${controlId}/${randomUUID()}/${safeFileName(fileName)}`))
+    if (!isEvidenceName(fileName)) return fail("Adjunta un PDF, una imagen (PNG, JPG, WebP), un CSV o un archivo de Office.")
+    return ok(await createUploadTicket("evidencias", stagingPath(`${c.organization_id}/${controlId}/${randomUUID()}`, safeFileName(fileName))))
   })
 }
 
@@ -607,11 +628,15 @@ export async function registerEvidence(input: {
     const user = await getCurrentUser()
     let file: { path: string; sha256: string } | null = null
     if (input.filePath) {
-      if (!input.filePath.startsWith(`${user.organization.id}/${input.controlId}/`)) return fail("Ruta de archivo inválida.")
-      file = await verifyUpload("evidencias", input.filePath)
+      // `<org>/<control>/<uuid>/subida/<archivo>`: el uuid lo generó prepareEvidenceUpload.
+      const base = input.filePath.split("/").slice(0, 3).join("/")
+      const [org, control, key] = base.split("/")
+      if (org !== user.organization.id || control !== input.controlId || !isUuid(key)) return fail("Ruta de archivo inválida.")
+      file = await promoteUpload("evidencias", base, input.filePath, (ext) => EVIDENCE_EXT.includes(ext))
     }
-    const supabase = await createClient()
-    const { error } = await supabase.rpc("register_evidence", {
+    // Solo el servidor registra evidencias (la RPC no es ejecutable por `authenticated`).
+    const { error } = await createAdminClient().rpc("register_evidence", {
+      p_actor: user.id,
       p_control: input.controlId,
       p_executed_at: input.executedAt,
       p_result: input.result,
@@ -620,7 +645,10 @@ export async function registerEvidence(input: {
       p_file_sha256: file?.sha256,
       p_file_name: file ? (input.fileName ?? "").slice(0, 255) : undefined,
     })
-    if (error) return fail(dbMessage(error))
+    if (error) {
+      if (file) await removeObjects("evidencias", [file.path])
+      return fail(dbMessage(error))
+    }
     refresh()
     return ok(undefined)
   })
