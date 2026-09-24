@@ -1,26 +1,183 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/* ===== Tokens — design/tokens.md v1 (solo modo claro) ===== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-acento: #0B7285;
+  --color-acento-hover: #095C6B;
+  --color-acento-medio: #15AABF;
+  --color-acento-claro: #63E6BE;
+  --color-acento-suave: #E3F4F6;
+  --color-fondo: #F8FAFB;
+  --color-superficie: #FFFFFF;
+  --color-superficie-alt: #EEF2F4;
+  --color-borde: #E3E8EC;
+  --color-borde-fuerte: #C5CFD6;
+  --color-texto: #12232B;
+  --color-texto-sec: #5C6F7A;
+  --color-exito: #2F9E6E;
+  --color-exito-texto: #1B7A52;
+  --color-exito-suave: #E6F4EE;
+  --color-advertencia: #E8A13C;
+  --color-advertencia-texto: #8A5A0B;
+  --color-advertencia-suave: #FDF3E3;
+  --color-error: #D64550;
+  --color-error-texto: #B3303B;
+  --color-error-suave: #FBEAEB;
+  --color-info: #15AABF;
+  --color-riesgo-bajo: #8CE0B8;
+  --color-riesgo-moderado: #F4C95D;
+  --color-riesgo-alto: #F2994A;
+  --color-riesgo-extremo: #C92A3A;
+  --radio-sm: 6px;
+  --radio-md: 10px;
+  --radio-lg: 16px;
+  --sombra-sm: 0 1px 2px rgba(18, 35, 43, .06);
+  --sombra-md: 0 4px 12px rgba(18, 35, 43, .08);
+  --sombra-lg: 0 12px 32px rgba(18, 35, 43, .12);
+
+  /* Variables de shadcn/ui mapeadas a los tokens */
+  --background: var(--color-fondo);
+  --foreground: var(--color-texto);
+  --card: var(--color-superficie);
+  --card-foreground: var(--color-texto);
+  --popover: var(--color-superficie);
+  --popover-foreground: var(--color-texto);
+  --primary: var(--color-acento);
+  --primary-foreground: var(--color-superficie);
+  --secondary: var(--color-superficie-alt);
+  --secondary-foreground: var(--color-texto);
+  --muted: var(--color-superficie-alt);
+  --muted-foreground: var(--color-texto-sec);
+  --accent: var(--color-superficie-alt);
+  --accent-foreground: var(--color-texto);
+  --destructive: var(--color-error-texto);
+  --border: var(--color-borde);
+  --input: var(--color-borde-fuerte);
+  --ring: var(--color-acento);
+  --radius: var(--radio-md);
 }
 
 @theme inline {
+  --color-acento: var(--color-acento);
+  --color-acento-hover: var(--color-acento-hover);
+  --color-acento-medio: var(--color-acento-medio);
+  --color-acento-claro: var(--color-acento-claro);
+  --color-acento-suave: var(--color-acento-suave);
+  --color-fondo: var(--color-fondo);
+  --color-superficie: var(--color-superficie);
+  --color-superficie-alt: var(--color-superficie-alt);
+  --color-borde: var(--color-borde);
+  --color-borde-fuerte: var(--color-borde-fuerte);
+  --color-texto: var(--color-texto);
+  --color-texto-sec: var(--color-texto-sec);
+  --color-exito: var(--color-exito);
+  --color-exito-texto: var(--color-exito-texto);
+  --color-exito-suave: var(--color-exito-suave);
+  --color-advertencia: var(--color-advertencia);
+  --color-advertencia-texto: var(--color-advertencia-texto);
+  --color-advertencia-suave: var(--color-advertencia-suave);
+  --color-error: var(--color-error);
+  --color-error-texto: var(--color-error-texto);
+  --color-error-suave: var(--color-error-suave);
+  --color-info: var(--color-info);
+  --color-riesgo-bajo: var(--color-riesgo-bajo);
+  --color-riesgo-moderado: var(--color-riesgo-moderado);
+  --color-riesgo-alto: var(--color-riesgo-alto);
+  --color-riesgo-extremo: var(--color-riesgo-extremo);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: var(--radio-sm);
+  --radius-md: var(--radio-md);
+  --radius-lg: var(--radio-lg);
+  --shadow-sm: var(--sombra-sm);
+  --shadow-md: var(--sombra-md);
+  --shadow-lg: var(--sombra-lg);
+
+  --font-display: var(--font-space-grotesk), sans-serif;
+  --font-heading: var(--font-space-grotesk), sans-serif;
+  --font-sans: var(--font-plex-sans), sans-serif;
+  --font-mono: var(--font-plex-mono), monospace;
+
+  /* Escala tipográfica (tamaño / interlineado / peso) */
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 2.25rem;
+  --text-h1--font-weight: 600;
+  --text-h1-movil: 1.5rem;
+  --text-h1-movil--line-height: 2rem;
+  --text-h1-movil--font-weight: 600;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.75rem;
+  --text-h2--font-weight: 600;
+  --text-h3: 1rem;
+  --text-h3--line-height: 1.5rem;
+  --text-h3--font-weight: 500;
+  --text-kpi: 1.75rem;
+  --text-kpi--line-height: 2rem;
+  --text-kpi--font-weight: 600;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.375rem;
+  --text-body-lg: 0.9375rem;
+  --text-body-lg--line-height: 1.5rem;
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.25rem;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 500;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--font-weight: 500;
+  --text-caption--letter-spacing: 0.04em;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-fondo text-body text-texto antialiased;
+  }
+  h1 {
+    @apply font-display text-h1-movil md:text-h1;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  /* Foco visible del contrato: se impone sobre `outline-none` de los componentes */
+  :focus-visible {
+    outline: 2px solid var(--color-acento) !important;
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
