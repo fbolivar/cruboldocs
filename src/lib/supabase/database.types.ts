@@ -1418,6 +1418,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation: {
+        Args: { p_full_name?: string; p_token_hash: string; p_user: string }
+        Returns: string
+      }
       add_assessment: {
         Args: {
           p_impact: number
@@ -1449,6 +1453,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_org: { Args: { org: string }; Returns: boolean }
+      can_manage_org_as: {
+        Args: { org: string; p_user: string }
+        Returns: boolean
+      }
       can_manage_risk: {
         Args: { org: string; process: string }
         Returns: boolean
@@ -1484,6 +1492,22 @@ export type Database = {
           p_type: string
         }
         Returns: string
+      }
+      create_invitation: {
+        Args: {
+          p_actor: string
+          p_email: string
+          p_is_external: boolean
+          p_is_org_admin: boolean
+          p_org: string
+          p_position: string
+          p_token_hash: string
+          p_valid_until: string
+        }
+        Returns: {
+          expires_at: string
+          id: string
+        }[]
       }
       create_risk: {
         Args: {
@@ -1557,7 +1581,12 @@ export type Database = {
       is_document_participant: { Args: { p_doc: string }; Returns: boolean }
       is_member_of: { Args: { org: string; p_user: string }; Returns: boolean }
       is_org_admin: { Args: { org: string }; Returns: boolean }
+      is_org_admin_as: {
+        Args: { org: string; p_user: string }
+        Returns: boolean
+      }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_platform_admin_user: { Args: { p_user: string }; Returns: boolean }
       is_safe_object_path: {
         Args: { p_path: string; p_prefix: string }
         Returns: boolean
@@ -1605,6 +1634,10 @@ export type Database = {
           p_notes: string
           p_result: string
         }
+        Returns: string
+      }
+      reissue_invitation: {
+        Args: { p_actor: string; p_invitation: string; p_token_hash: string }
         Returns: string
       }
       request_update: {

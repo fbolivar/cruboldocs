@@ -194,5 +194,46 @@ await throws(() => as(db, U.laura, `select public.run_daily_jobs()`), "Un usuari
 
 const evBucket = (await db.query(`select allowed_mime_types m from storage.buckets where id = 'evidencias'`)).rows[0].m
 ok(Array.isArray(evBucket) && !evBucket.some((t) => ["text/html", "image/svg+xml", "application/xhtml+xml", "text/javascript", "text/xml", "application/xml"].includes(t)), "El bucket de evidencias solo acepta tipos de lista blanca")
+
+// ---------- 011: invitaciones solo por servidor ----------
+const H = (c) => c.repeat(64)
+const inv = (actor, org, email, pos, admin, hash) =>
+  svc(`select * from public.create_invitation($1, $2, $3, $4, $5, false, null, $6)`, [actor, org, email, pos, admin, hash])
+await throws(() => as(db, U.laura, `insert into public.invitations (organization_id, email, position_id, token_hash, invited_by)
+  values ('${A}', 'gerente@valle.co', '${POS.analista}', '${H("1")}', '${U.laura}')`), "Un admin no puede insertar invitaciones por REST (token elegido)", "row-level security")
+await throws(() => as(db, U.laura, `select * from public.create_invitation('${U.laura}', '${A}', 'x@y.co', '${POS.analista}', false, false, null, '${H("1")}')`),
+  "Un cliente no puede invocar create_invitation (solo servidor)", "permission denied")
+await throws(() => inv(U.beto, A, "x@y.co", POS.analista, false, H("1")), "Beto (org B) no invita en A", "No tienes permiso")
+await throws(() => inv(U.sofia, A, "x@y.co", POS.analista, false, H("1")), "Sofía (consulta) no invita", "No tienes permiso")
+await throws(() => inv(U.juan, A, "x@y.co", POS.analista, true, H("1")), "Juan (Líder SIG, no admin) no invita administradores", "Solo un administrador")
+await throws(() => inv(U.juan, A, "SOFIA@x.co", POS.analista, false, H("1")), "No se invita a quien ya es miembro activo", "ya pertenece")
+await throws(() => inv(U.juan, A, "x@y.co", POS.analista, false, "elegido-por-el-cliente"), "El hash del token debe ser SHA-256", "Invitación inválida")
+const inv1 = (await inv(U.juan, A, "Nuevo@X.co", POS.analista, false, H("1"))).rows[0]
+ok(!!inv1?.id, "Juan (Líder SIG) invita a nuevo@x.co")
+ok((await as(db, U.oscar, `select count(*)::int n from public.audit_log where action = 'invitar_usuario' and entity_id = '${inv1.id}'`)).rows[0].n === 1,
+  "La invitación queda auditada en la base (no depende de la app)")
+
+const NUEVO = "00000000-0000-0000-0000-0000000000aa"
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${NUEVO}', 'nuevo@x.co', '{}')`)
+await throws(() => as(db, NUEVO, `select public.accept_invitation('${H("1")}', '${NUEVO}')`), "Un cliente no puede invocar accept_invitation", "permission denied")
+await throws(() => svc(`select public.accept_invitation('${H("1")}', '${U.beto}')`), "Beto no acepta una invitación dirigida a otro correo", "otro correo")
+await throws(() => svc(`select public.accept_invitation('${H("9")}', '${NUEVO}')`), "Un token inexistente se rechaza", "venció o ya fue usada")
+ok((await svc(`select public.accept_invitation('${H("1")}', '${NUEVO}', 'Nuevo Usuario') org`)).rows[0].org === A, "nuevo@x.co acepta y queda en A")
+const mNuevo = (await as(db, NUEVO, `select position_id, status, is_org_admin from public.memberships where organization_id = '${A}'`)).rows[0]
+ok(mNuevo?.position_id === POS.analista && mNuevo.status === "activo" && !mNuevo.is_org_admin, "La membresía toma el cargo de la invitación")
+await throws(() => svc(`select public.accept_invitation('${H("1")}', '${NUEVO}')`), "La invitación es de un solo uso", "venció o ya fue usada")
+
+const inv2 = (await inv(U.laura, A, "otro@x.co", POS.analista, true, H("2"))).rows[0]
+ok(!!inv2?.id, "Laura (admin) sí invita administradores")
+await svc(`insert into public.email_outbox (organization_id, to_email, template) values ('${A}', 'otro@x.co', 'invitacion'), ('${B}', 'otro@x.co', 'invitacion')`)
+await throws(() => svc(`select public.reissue_invitation('${U.beto}', '${inv2.id}', '${H("3")}')`), "Beto (org B) no reenvía invitaciones de A", "No tienes permiso")
+await svc(`select public.reissue_invitation('${U.laura}', '${inv2.id}', '${H("3")}')`)
+const outbox = (await svc(`select organization_id from public.email_outbox where to_email = 'otro@x.co' and status = 'pendiente'`)).rows
+ok(outbox.length === 1 && outbox[0].organization_id === B, "Reenviar descarta solo los correos pendientes de esa organización (BAJ-01)")
+await throws(() => svc(`select public.accept_invitation('${H("2")}', '${NUEVO}')`), "El token anterior deja de servir al reenviar", "venció o ya fue usada")
+await svc(`update public.invitations set expires_at = now() - interval '1 minute' where id = '${inv2.id}'`)
+const OTRO = "00000000-0000-0000-0000-0000000000bb"
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${OTRO}', 'otro@x.co', '{}')`)
+await throws(() => svc(`select public.accept_invitation('${H("3")}', '${OTRO}')`), "Una invitación vencida no se acepta", "venció o ya fue usada")
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
