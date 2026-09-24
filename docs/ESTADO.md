@@ -3,13 +3,14 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-backend — completada (2026-09-24) con prueba de punta a punta pendiente (la hará Fernando con alias de Gmail o la fase testing). Siguiente: `/fase seguridad` (parada obligatoria antes del deploy).
+seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
 - diseno (2026-09-23): tokens, specs y mockup aprobados por Fernando
 - frontend (2026-09-23): 5 pantallas + acceso + política de datos sobre datos mock; `lint` y `build` en verde
 - backend (2026-09-24): esquema en Supabase, capa de datos real, Storage, correo y cron; `tsc`, `lint`, `build` y 49 pruebas RLS en verde
+- seguridad (2026-09-24): auditoría con veredicto NO APTO (ver `docs/seguridad/AUD-20260924.md`); remediación pendiente
 
 ## Decisiones tomadas
 - Producto: CrubolDocs, SaaS de gestión de calidad (control documental + riesgos). Detalle en `docs/ARQUITECTURA.md`.
@@ -52,7 +53,15 @@ backend — completada (2026-09-24) con prueba de punta a punta pendiente (la ha
   4. ✅ Organización CRUBOL TECHNOLOGY S.A.S creada; invitación a operaciones@crubol.com (enlace entregado a mano).
   5. Pendiente: prueba de punta a punta. Sin correo se puede con alias de Gmail (`fbolivarb+elaborador@gmail.com`, `+revisor`, `+aprobador`): invitar → copiar enlace → abrir en incógnito. Flujo: registrar → revisar → aprobar → confirmar lectura; riesgo → evidencia. La fase testing la automatiza con Playwright.
 - **Correo (SMTP) — pospuesto por decisión de Fernando (2026-09-24):** Titan (`smtp.titan.email`; MX y SPF de crubol.com confirmados en Titan) rechaza la autenticación de info@crubol.com por SMTP (465/587) e IMAP aunque el webmail abre: contraseña distinta (webmail abierto por SSO de Hostinger), plan sin acceso para apps externas o clave de aplicación. Al activarlo, `SMTP_FROM` debe usar el mismo buzón del usuario. `SMTP_PASSWORD` quedó comentada en `.env.local` para que los correos esperen en la cola sin agotar intentos. Mientras no haya SMTP, al invitar, reenviar o crear una organización la UI muestra el enlace para copiarlo y compartirlo a mano (`InvitationLinkDialog`). Recuperar contraseña tampoco envía correo hasta configurar el SMTP propio en Supabase Auth.
-- Fase seguridad: `/fase seguridad` (auditoría obligatoria antes del deploy). Revisar además: enlace de invitación visible al administrador cuando no hay SMTP; bucket `evidencias` acepta cualquier tipo de archivo; FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
+- **Remediación de seguridad (bloquea el deploy)** — detalle y plan en `docs/seguridad/AUD-20260924.md`:
+  - ALTA-01 archivo firmado reemplazable (`upsert: true`) y RPC de archivos llamables directo con hash del cliente.
+  - ALTA-02 invitaciones insertables por REST con token elegido + cuenta confirmada sin probar el correo → pre-secuestro de cuentas entre organizaciones.
+  - ALTA-03 sin rate limiting (oráculo de contraseña en aceptar invitación; límite por IP de Supabase compartido por Vercel → DoS de login).
+  - ALTA-04 Superadmin lee riesgos y documentos de todos los clientes, puede darse acceso total y no tiene MFA.
+  - ALTA-05 Admin se asigna rol funcional por REST (evade "solo metadatos") y las escrituras de administración no se auditan en BD.
+  - Decisiones de Fernando: proveedor de rate limiting (Vercel WAF vs. Upstash), CAPTCHA (Turnstile), MFA del Superadmin y qué debe ver el Superadmin.
+  - Después: re-auditoría de los altos y pruebas RLS nuevas por cada corrección.
+- Otros pendientes no de seguridad: FKs sin índice (linter, informativo); la página /recuperar no muestra aviso cuando el enlace venció (`?enlace=vencido`).
 - Antes del deploy: completar datos de Crubol en `/tratamiento-de-datos` y revisión legal.
 - Deploy: cargar en Vercel las variables de `.env.example` (con `NEXT_PUBLIC_APP_URL` del dominio) y `CRON_SECRET`.
 
