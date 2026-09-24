@@ -3,7 +3,7 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar. Remediación: **bloque 1 (integridad) hecho** (migración 010; ALTA-01, MED-02, MED-05), **bloque 2 (identidad) hecho en código** (migración 011; ALTA-02, MED-06, BAJ-01/02/03; ALTA-03 cierra cuando Fernando active la configuración de Supabase Auth) y **bloque 3 (privilegios) hecho** (2026-09-24, migración 012; ALTA-04, ALTA-05, MED-01, MED-08, BAJ-05). No queda ningún Alto abierto en código. Siguen: configuración de Supabase Auth (ALTA-03, MED-04), bloque 4 y re-auditoría.
+seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `docs/seguridad/AUD-20260924.md` (0 críticos, 5 altos, 8 medios, 9 bajos). El deploy queda bloqueado hasta remediar los altos y re-auditar. Remediación: **bloque 1 (integridad) hecho** (migración 010; ALTA-01, MED-02, MED-05), **bloque 2 (identidad) hecho en código** (migración 011; ALTA-02, MED-06, BAJ-01/02/03; ALTA-03 cierra cuando Fernando active la configuración de Supabase Auth) y **bloque 3 (privilegios) hecho** (2026-09-24, migración 012; ALTA-04, ALTA-05, MED-01, MED-08, BAJ-05). Configuración de Supabase Auth hecha por Fernando (2026-09-24): CAPTCHA verificado en vivo, así que **ALTA-03 queda cerrado**; MFA del Superadmin registrado. **Los 5 altos están corregidos** (falta re-auditarlos). Siguen: activar la protección de contraseñas filtradas (MED-04; el linter la sigue viendo desactivada), bloque 4 y re-auditoría.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
@@ -57,10 +57,11 @@ seguridad — auditoría hecha (2026-09-24): **NO APTO para deploy**. Informe: `
 - **Remediación de seguridad (bloquea el deploy)** — detalle y plan en `docs/seguridad/AUD-20260924.md`:
   - ~~ALTA-01~~ ✅ corregido en el bloque 1 (ver sección 5 del informe).
   - ~~ALTA-02~~ ✅ corregido en el bloque 2.
-  - ALTA-03 ✅ en código (Upstash + Turnstile + `Sb-Forwarded-For`); **cierra al completar la configuración de Supabase de abajo**.
+  - ~~ALTA-03~~ ✅ corregido (Upstash + Turnstile + `Sb-Forwarded-For`; CAPTCHA de Supabase Auth verificado en vivo el 2026-09-24).
+  - **Pendiente MED-04:** activar "Prevent use of leaked passwords" en Supabase Auth (el linter `auth_leaked_password_protection` sigue activo).
   - ~~ALTA-04~~ ✅ corregido en el bloque 3 (Superadmin con MFA `aal2` y solo metadatos).
   - ~~ALTA-05~~ ✅ corregido en el bloque 3 (traza por triggers; nadie cambia los roles de su cargo).
-  - **Fernando, para cerrar el bloque 3:** ingresar con la cuenta Superadmin → `/mfa` → registrar la app de autenticación (TOTP). Hacerlo apenas se despliegue: hasta entonces, quien tenga la contraseña podría registrar su propio factor.
+  - ✅ MFA del Superadmin registrado (TOTP verificado, 2026-09-24).
   - **Decisiones de Fernando (2026-09-24):** rate limiting con **Upstash Redis** (`@upstash/ratelimit`, plan gratis; por IP real y por correo/token); CAPTCHA **Cloudflare Turnstile** en login, recuperar contraseña y aceptar invitación (nativo en Supabase Auth); **MFA TOTP obligatoria solo para el Superadmin** (exigir `aal2` en sus acciones); el Superadmin ve **solo metadatos** (organizaciones, usuarios, cargos), nunca documentos ni riesgos.
   - **Orden de trabajo (una sesión por bloque, con `/fase seguridad`):** ~~1) integridad (ALTA-01, MED-02, MED-05)~~ ✅ → ~~2) identidad (ALTA-02, ALTA-03, MED-04, MED-06, BAJ-02)~~ ✅ en código → ~~3) privilegios (ALTA-04, ALTA-05, MED-01, MED-08)~~ ✅ → 4) plataforma (MED-03, MED-07, BAJ-09) → 5) re-auditoría. Próximo: **bloque 4 (plataforma)**.
   - Bloque 2, prerrequisitos listos (2026-09-24): Upstash Redis `beloved-finch-295937` (us-east-2, plan gratis; ping y escritura verificados) y widget Turnstile `CrubolDocs` (hostname `localhost`; secret verificada con siteverify). Claves en `.env.local`: `UPSTASH_REDIS_REST_URL/TOKEN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`. **Activar el CAPTCHA en Supabase Auth (Attack Protection) solo cuando la UI ya envíe el token**, o el login deja de funcionar. Al publicar: agregar el dominio de producción al widget.
