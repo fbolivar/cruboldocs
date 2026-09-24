@@ -19,6 +19,9 @@ create table auth.users (id uuid primary key, email text, raw_user_meta_data jso
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 grant execute on function auth.uid() to anon, authenticated, service_role;
+create function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
+grant execute on function auth.jwt() to anon, authenticated, service_role;
 create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
 create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
 alter table storage.objects enable row level security;
@@ -43,14 +46,19 @@ export async function freshDb() {
 }
 
 /** Ejecuta `fn` como usuario autenticado (RLS activo). */
-export async function as(db, userId, sql, params = []) {
-  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${userId ?? ""}', false);`)
+export async function as(db, userId, sql, params = [], aal = "aal1") {
+  const claims = JSON.stringify({ sub: userId ?? "", aal })
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${userId ?? ""}', false);
+    select set_config('request.jwt.claims', '${claims}', false);`)
   try {
     return await db.query(sql, params)
   } finally {
-    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`)
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); select set_config('request.jwt.claims', '', false);`)
   }
 }
+
+/** Como `as`, con sesión de segundo factor (aal2). */
+export const asMfa = (db, userId, sql, params = []) => as(db, userId, sql, params, "aal2")
 
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
   const db = await freshDb()

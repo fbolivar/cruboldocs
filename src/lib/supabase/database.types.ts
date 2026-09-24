@@ -48,6 +48,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "access_recertifications_membership_org_fkey"
+            columns: ["membership_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
             foreignKeyName: "access_recertifications_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -1509,6 +1516,20 @@ export type Database = {
           id: string
         }[]
       }
+      create_organization: {
+        Args: {
+          p_actor: string
+          p_admin_email: string
+          p_name: string
+          p_nit: string
+          p_token_hash: string
+        }
+        Returns: {
+          expires_at: string
+          organization_id: string
+          position_id: string
+        }[]
+      }
       create_risk: {
         Args: {
           p_category: string
@@ -1543,6 +1564,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      current_actor: { Args: never; Returns: string }
       current_org: { Args: never; Returns: string }
       doc_or_fail: {
         Args: { p_doc: string }
@@ -1586,6 +1608,7 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_platform_admin_account: { Args: never; Returns: boolean }
       is_platform_admin_user: { Args: { p_user: string }; Returns: boolean }
       is_safe_object_path: {
         Args: { p_path: string; p_prefix: string }
@@ -1602,6 +1625,14 @@ export type Database = {
           p_label: string
         }
         Returns: undefined
+      }
+      member_contacts: {
+        Args: { org: string }
+        Returns: {
+          email: string
+          full_name: string
+          user_id: string
+        }[]
       }
       my_position: { Args: { org: string }; Returns: string }
       notify_position: {
@@ -1620,6 +1651,18 @@ export type Database = {
           position_id: string
           position_name: string
           user_id: string
+        }[]
+      }
+      platform_organizations: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          name: string
+          nit: string
+          pending_admin_invitation: string
+          status: string
+          user_count: number
         }[]
       }
       position_of: { Args: { org: string; p_user: string }; Returns: string }

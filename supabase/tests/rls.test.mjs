@@ -1,5 +1,5 @@
 // Pruebas de RLS y del flujo con 2 organizaciones (base de las pruebas de la fase testing).
-import { as, freshDb } from "./harness.mjs"
+import { as, asMfa, freshDb } from "./harness.mjs"
 
 const db = await freshDb()
 let pass = 0, fail = 0
@@ -200,7 +200,7 @@ const H = (c) => c.repeat(64)
 const inv = (actor, org, email, pos, admin, hash) =>
   svc(`select * from public.create_invitation($1, $2, $3, $4, $5, false, null, $6)`, [actor, org, email, pos, admin, hash])
 await throws(() => as(db, U.laura, `insert into public.invitations (organization_id, email, position_id, token_hash, invited_by)
-  values ('${A}', 'gerente@valle.co', '${POS.analista}', '${H("1")}', '${U.laura}')`), "Un admin no puede insertar invitaciones por REST (token elegido)", "row-level security")
+  values ('${A}', 'gerente@valle.co', '${POS.analista}', '${H("1")}', '${U.laura}')`), "Un admin no puede insertar invitaciones por REST (token elegido)", "permission denied")
 await throws(() => as(db, U.laura, `select * from public.create_invitation('${U.laura}', '${A}', 'x@y.co', '${POS.analista}', false, false, null, '${H("1")}')`),
   "Un cliente no puede invocar create_invitation (solo servidor)", "permission denied")
 await throws(() => inv(U.beto, A, "x@y.co", POS.analista, false, H("1")), "Beto (org B) no invita en A", "No tienes permiso")
@@ -235,5 +235,93 @@ await svc(`update public.invitations set expires_at = now() - interval '1 minute
 const OTRO = "00000000-0000-0000-0000-0000000000bb"
 await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${OTRO}', 'otro@x.co', '{}')`)
 await throws(() => svc(`select public.accept_invitation('${H("3")}', '${OTRO}')`), "Una invitación vencida no se acepta", "venció o ya fue usada")
+
+// ---------- 012: Superadmin con MFA y solo metadatos (ALTA-04) ----------
+const count = async (fn, user, sql) => (await fn(db, user, `select count(*)::int n from (${sql}) t`)).rows[0].n
+ok((await as(db, U.crubol, `select public.is_platform_admin() v`)).rows[0].v === false, "Superadmin sin MFA (aal1) no tiene privilegios")
+ok((await as(db, U.crubol, `select public.is_platform_admin_account() v`)).rows[0].v === true, "La app detecta la cuenta Superadmin para exigir el MFA")
+ok(await count(as, U.crubol, `select id from public.organizations`) === 0, "Superadmin sin MFA no ve organizaciones")
+ok(await count(asMfa, U.crubol, `select id from public.organizations`) === 2, "Superadmin con MFA ve las organizaciones")
+const porg = (await asMfa(db, U.crubol, `select * from public.platform_organizations() where id = '${A}'`)).rows[0]
+ok(porg?.user_count === 7, `platform_organizations da el conteo de usuarios vigentes (${porg?.user_count})`)
+ok(await count(as, U.laura, `select * from public.platform_organizations()`) === 0, "Un admin de organización no usa platform_organizations")
+for (const [t, name] of [["risks", "riesgos"], ["controls", "controles"], ["control_evidences", "evidencias"], ["documents", "documentos"],
+  ["document_versions", "versiones"], ["signatures", "firmas"], ["change_requests", "solicitudes"], ["read_acknowledgements", "lecturas"],
+  ["processes", "procesos"], ["positions", "cargos"], ["memberships", "membresías"], ["invitations", "invitaciones"], ["audit_log", "auditoría"]]) {
+  ok(await count(asMfa, U.crubol, `select 1 from public.${t}`) === 0, `Superadmin con MFA no lee ${name} de los clientes`)
+}
+ok(await count(asMfa, U.crubol, `select id from public.profiles where id <> '${U.crubol}'`) === 0, "Superadmin no lee perfiles de los clientes")
+ok(await count(asMfa, U.crubol, `select * from public.org_directory('${A}')`) === 0, "Superadmin no lee el directorio de un cliente")
+ok((await asMfa(db, U.crubol, `select public.is_org_admin('${A}') v`)).rows[0].v === false, "Superadmin no es admin de las organizaciones")
+await throws(() => asMfa(db, U.crubol, `insert into public.memberships (organization_id, user_id, position_id) values ('${A}', '${U.crubol}', '${POS.lider}')`),
+  "Superadmin no se da acceso a una organización", "permission denied")
+await throws(() => asMfa(db, U.crubol, `select public.set_active_org('${A}')`), "Superadmin no activa una organización ajena", "No perteneces")
+await throws(() => asMfa(db, U.crubol, `insert into public.organizations (name, nit) values ('X', '900000000-1')`), "Nadie crea organizaciones por REST", "row-level security")
+await throws(() => asMfa(db, U.crubol, `select * from public.create_organization('${U.crubol}', 'X', '900000000-1', 'a@x.co', '${H("4")}')`),
+  "Un cliente no invoca create_organization", "permission denied")
+await throws(() => svc(`select * from public.create_organization('${U.laura}', 'X', '900000000-1', 'a@x.co', '${H("4")}')`),
+  "Solo el Superadmin crea organizaciones", "No tienes permiso")
+const neo = (await svc(`select * from public.create_organization('${U.crubol}', 'Nueva SAS', '900000000-1', 'Admin@Nueva.co', '${H("4")}')`)).rows[0]
+ok(!!neo?.organization_id, "El Superadmin crea una organización con su cargo e invitación de administrador")
+const neoAudit = (await svc(`select action, actor_id from public.audit_log where organization_id = '${neo.organization_id}' order by id`)).rows
+ok(["crear_organizacion", "crear_cargo", "invitar_usuario"].every((a) => neoAudit.some((r) => r.action === a && r.actor_id === U.crubol)),
+  `El alta queda en la traza a nombre del Superadmin (${neoAudit.map((r) => r.action).join(", ")})`)
+const neoInv = (await asMfa(db, U.crubol, `select pending_admin_invitation id from public.platform_organizations() where id = '${neo.organization_id}'`)).rows[0].id
+await svc(`select public.reissue_invitation('${U.crubol}', '${neoInv}', '${H("5")}')`)
+ok(true, "El Superadmin reenvía la invitación del administrador inicial")
+const invA = (await inv(U.laura, A, "jefe2@x.co", POS.jefe, true, H("6"))).rows[0]
+await throws(() => svc(`select public.reissue_invitation('${U.crubol}', '${invA.id}', '${H("7")}')`),
+  "El Superadmin no reenvía invitaciones de una organización con administrador", "No tienes permiso")
+await throws(() => inv(U.crubol, A, "x@y.co", POS.analista, false, H("8")), "El Superadmin no invita usuarios en un cliente", "No tienes permiso")
+
+// ---------- 012: separación de funciones y traza en la base (ALTA-05, MED-01, BAJ-05) ----------
+await throws(() => as(db, U.oscar, `insert into public.position_roles (organization_id, position_id, role) values ('${A}', '${POS.jefe}', 'auditor')`),
+  "Óscar (admin sin rol) no se asigna un rol funcional en su propio cargo", "propio cargo")
+await throws(() => as(db, U.juan, `delete from public.position_roles where position_id = '${POS.lider}' and role = 'revisor'`),
+  "Juan (Líder SIG) no cambia los roles de su propio cargo", "propio cargo")
+await throws(() => as(db, U.oscar, `update public.memberships set position_id = '${POS.calidad}' where user_id = '${U.oscar}' and organization_id = '${A}'`),
+  "Óscar no se cambia a un cargo con roles funcionales", "propio acceso")
+await throws(() => as(db, U.juan, `update public.memberships set is_org_admin = true where user_id = '${U.sofia}'`),
+  "Juan (Líder SIG) no otorga administración por REST", "permission denied")
+await throws(() => as(db, U.juan, `update public.memberships set user_id = '${U.beto}' where user_id = '${U.sofia}'`),
+  "Nadie cambia el usuario de una membresía", "permission denied")
+await throws(() => as(db, U.juan, `update public.memberships set status = 'revocado' where user_id = '${U.laura}' and organization_id = '${A}'`),
+  "Juan (Líder SIG) no revoca a un administrador", "Solo un administrador")
+await throws(() => as(db, U.juan, `insert into public.memberships (organization_id, user_id, position_id) values ('${A}', '${U.beto}', '${POS.analista}')`),
+  "Nadie inserta membresías por REST (terceros de otra organización)", "permission denied")
+await throws(() => as(db, U.juan, `update public.invitations set token_hash = '${H("9")}' where id = '${invA.id}'`),
+  "Nadie cambia el token de una invitación por REST", "permission denied")
+await throws(() => as(db, U.juan, `delete from public.invitations where id = '${invA.id}'`),
+  "Juan (Líder SIG) no cancela la invitación de un administrador", "Solo un administrador")
+
+await as(db, U.oscar, `insert into public.position_roles (organization_id, position_id, role) values ('${A}', '${POS.analista}', 'auditor')`)
+await as(db, U.laura, `update public.memberships set valid_until = current_date + 30 where user_id = '${U.sofia}' and organization_id = '${A}'`)
+await as(db, U.juan, `update public.processes set name = 'TI y soporte' where id = '${P.tiA}'`)
+await as(db, U.laura, `delete from public.invitations where id = '${invA.id}'`)
+const trail = (await svc(`select action, actor_id from public.audit_log where organization_id = '${A}'`)).rows
+for (const [action, actor, name] of [["asignar_rol", U.oscar, "Asignar un rol por REST"], ["editar_acceso", U.laura, "Editar una membresía por REST"],
+  ["editar_proceso", U.juan, "Editar un proceso por REST"], ["cancelar_invitacion", U.laura, "Cancelar una invitación por REST"]]) {
+  ok(trail.some((r) => r.action === action && r.actor_id === actor), `${name} queda en la traza con su actor`)
+}
+const invTrail = (await svc(`select count(*)::int n from public.audit_log where action = 'invitar_usuario' and entity_id = '${inv1.id}'`)).rows[0].n
+ok(invTrail === 1, "Invitar deja una sola entrada en la traza")
+
+const mSofia = (await svc(`select id from public.memberships where user_id = '${U.sofia}'`)).rows[0].id
+const mJuan = (await svc(`select id from public.memberships where user_id = '${U.juan}'`)).rows[0].id
+const mBeto = (await svc(`select id from public.memberships where user_id = '${U.beto}'`)).rows[0].id
+await throws(() => as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mJuan}', '${U.juan}', 'mantener')`),
+  "Nadie recertifica su propio acceso", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mBeto}', '${U.juan}', 'mantener')`),
+  "No se recertifica una membresía de otra organización (BAJ-05)")
+await as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mSofia}', '${U.juan}', 'mantener')`)
+await as(db, U.juan, `update public.memberships set last_recertified_at = now() where user_id = '${U.laura}' and organization_id = '${A}'`)
+ok(true, "Juan (Líder SIG) recertifica a otros, incluido un administrador (solo la fecha)")
+
+// ---------- 012: correos fuera de REST (MED-08) ----------
+await throws(() => as(db, U.sofia, `select email from public.profiles where id = '${U.juan}'`), "Sofía no lee el correo de sus colegas", "permission denied")
+ok((await as(db, U.sofia, `select full_name from public.profiles where id = '${U.juan}'`)).rows[0]?.full_name === "juan", "Sofía sí ve el nombre de sus colegas")
+ok(await count(as, U.sofia, `select * from public.member_contacts('${A}')`) === 0, "Sofía no usa member_contacts")
+ok(await count(as, U.beto, `select * from public.member_contacts('${A}')`) === 0, "Beto (org B) no lee los correos de A")
+ok((await as(db, U.juan, `select email from public.member_contacts('${A}') where user_id = '${U.sofia}'`)).rows[0]?.email === "sofia@x.co", "Juan (Líder SIG) lee los correos de su organización")
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
