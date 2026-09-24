@@ -314,8 +314,12 @@ await throws(() => as(db, U.juan, `insert into public.access_recertifications (o
 await throws(() => as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mBeto}', '${U.juan}', 'mantener')`),
   "No se recertifica una membresía de otra organización (BAJ-05)")
 await as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mSofia}', '${U.juan}', 'mantener')`)
-await as(db, U.juan, `update public.memberships set last_recertified_at = now() where user_id = '${U.laura}' and organization_id = '${A}'`)
-ok(true, "Juan (Líder SIG) recertifica a otros, incluido un administrador (solo la fecha)")
+const mLaura = (await svc(`select id from public.memberships where user_id = '${U.laura}' and organization_id = '${A}'`)).rows[0].id
+await as(db, U.juan, `insert into public.access_recertifications (organization_id, membership_id, reviewed_by, decision) values ('${A}', '${mLaura}', '${U.juan}', 'mantener')`)
+const stamp = (await svc(`select (m.last_recertified_at = r.at) ok from public.memberships m join public.access_recertifications r on r.membership_id = m.id where m.id = '${mLaura}'`)).rows[0]
+ok(stamp?.ok === true, "Juan (Líder SIG) recertifica a un administrador y la base fija la fecha (RA-14)")
+await throws(() => as(db, U.juan, `update public.memberships set last_recertified_at = now() where user_id = '${U.laura}' and organization_id = '${A}'`),
+  "Nadie marca la fecha de recertificación por REST sin recertificar (RA-14)", "permission denied")
 
 // ---------- 012: correos fuera de REST (MED-08) ----------
 await throws(() => as(db, U.sofia, `select email from public.profiles where id = '${U.juan}'`), "Sofía no lee el correo de sus colegas", "permission denied")
@@ -323,5 +327,49 @@ ok((await as(db, U.sofia, `select full_name from public.profiles where id = '${U
 ok(await count(as, U.sofia, `select * from public.member_contacts('${A}')`) === 0, "Sofía no usa member_contacts")
 ok(await count(as, U.beto, `select * from public.member_contacts('${A}')`) === 0, "Beto (org B) no lee los correos de A")
 ok((await as(db, U.juan, `select email from public.member_contacts('${A}') where user_id = '${U.sofia}'`)).rows[0]?.email === "sofia@x.co", "Juan (Líder SIG) lee los correos de su organización")
+
+// ---------- 013: re-auditoría (RA-03, RA-04, RA-10, RA-15) ----------
+// RA-03: invitaciones pendientes frente a membresías activas.
+await inv(U.laura, A, "dup@x.co", POS.analista, false, H("a"))
+await throws(() => inv(U.laura, A, "DUP@x.co", POS.analista, false, H("b")), "Solo una invitación pendiente por correo", "invitación pendiente")
+await throws(() => svc(`insert into public.invitations (organization_id, email, position_id, token_hash, invited_by) values ('${A}', 'dup@x.co', '${POS.analista}', '${H("c")}', '${U.laura}')`),
+  "El índice único impide dos pendientes aunque se salte la función", "invitations_pending_email")
+// Invitación a Óscar que quedó pendiente de antes (simula la segunda invitación del escenario del hallazgo).
+await svc(`insert into public.invitations (organization_id, email, position_id, is_org_admin, token_hash, invited_by) values ('${A}', 'oscar@x.co', '${POS.jefe}', true, '${H("d")}', '${U.laura}')`)
+await throws(() => as(db, U.oscar, `update public.invitations set position_id = '${POS.calidad}' where email = 'oscar@x.co'`),
+  "Óscar no mueve a un cargo con roles una invitación dirigida a su correo", "propio correo")
+await throws(() => svc(`select public.accept_invitation('${H("d")}', '${U.oscar}')`),
+  "Aceptar una invitación no reescribe un acceso activo", "Ya tienes acceso")
+ok((await svc(`select position_id from public.memberships where user_id = '${U.oscar}' and organization_id = '${A}'`)).rows[0].position_id === POS.jefe,
+  "Óscar conserva su cargo sin roles funcionales")
+// Revocar cancela las invitaciones pendientes de esa persona.
+await svc(`insert into public.invitations (organization_id, email, position_id, token_hash, invited_by) values ('${A}', 'diana@x.co', '${POS.ti}', '${H("e")}', '${U.laura}')`)
+await as(db, U.laura, `update public.memberships set status = 'revocado' where user_id = '${U.diana}' and organization_id = '${A}'`)
+ok((await svc(`select count(*)::int n from public.invitations where email = 'diana@x.co' and accepted_at is null`)).rows[0].n === 0,
+  "Revocar un acceso cancela sus invitaciones pendientes")
+await throws(() => svc(`select public.accept_invitation('${H("e")}', '${U.diana}')`), "Diana revocada no recupera el acceso con una invitación vieja", "venció o ya fue usada")
+ok((await svc(`select count(*)::int n from public.audit_log where action = 'cancelar_invitacion' and entity_label = 'd***@x.co'`)).rows[0].n === 1,
+  "La cancelación por revocación queda en la traza con el correo enmascarado")
+
+// RA-04 y RA-10: devolución sin texto en la traza; firma solo del PDF verificado.
+const sha2 = "c".repeat(64)
+await svc(`select public.set_version_files('${U.laura}', '${v2}', '${A}/${DOC}/${v2}/doc.pdf', '${sha2}', 1000, '${A}/${DOC}/${v2}/doc.docx', '${sha2}', 'doc.docx', 2000)`)
+await as(db, U.laura, `select public.submit_version('${v2}')`)
+const REASON = "El alcance omite los registros electrónicos"
+await as(db, U.juan, `select public.return_version('${v2}', '${REASON}')`)
+const devol = (await as(db, U.oscar, `select diff::text d from public.audit_log where action = 'devolver'`)).rows
+ok(devol.length === 1 && !devol[0].d.includes(REASON) && devol[0].d.includes("comentario"),
+  "Óscar (admin sin rol) ve la devolución en la traza, pero no el texto del comentario (RA-04)")
+await as(db, U.laura, `select public.submit_version('${v2}')`)
+await throws(() => as(db, U.juan, `select public.sign_version_checked('${v2}', '${U.juan}', 'revision', 'Revisé', '1.1.1.1', 'x', '${sha2}')`),
+  "Un cliente no invoca sign_version_checked", "permission denied")
+await throws(() => svc(`select public.sign_version_checked('${v2}', '${U.juan}', 'revision', 'Revisé', '1.1.1.1', 'x', '${sha}')`),
+  "No se firma si el PDF no es el que verificó el servidor (RA-10)", "cambió mientras firmabas")
+ok(!!(await svc(`select public.sign_version_checked('${v2}', '${U.juan}', 'revision', 'Revisé', '1.1.1.1', 'x', '${sha2}') id`)).rows[0].id,
+  "Con el hash verificado la firma se registra")
+
+// RA-15: sin correos completos en la traza.
+const leaks = (await svc(`select count(*)::int n from public.audit_log where diff ? 'email' or entity_label ~ '^[^*@]+@'`)).rows[0].n
+ok(leaks === 0, `La traza no guarda correos completos (RA-15, ${leaks})`)
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

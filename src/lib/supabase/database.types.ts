@@ -1626,6 +1626,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      mask_email: { Args: { p_email: string }; Returns: string }
       member_contacts: {
         Args: { org: string }
         Returns: {
@@ -1740,6 +1741,18 @@ export type Database = {
       sign_version: {
         Args: {
           p_action: string
+          p_ip: unknown
+          p_meaning: string
+          p_signer: string
+          p_user_agent: string
+          p_version: string
+        }
+        Returns: string
+      }
+      sign_version_checked: {
+        Args: {
+          p_action: string
+          p_expected_sha256: string
           p_ip: unknown
           p_meaning: string
           p_signer: string
