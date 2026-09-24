@@ -2,10 +2,11 @@
 
 import { ArrowLeftIcon, MailCheckIcon } from "lucide-react"
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import type * as React from "react"
 
 import { FormAlert } from "@/components/auth/form-alert"
+import { CAPTCHA_ENABLED, CAPTCHA_PENDING, Turnstile, type TurnstileHandle } from "@/components/auth/turnstile"
 import { validateEmail } from "@/components/auth/validation"
 import { Button } from "@/components/ui/button"
 import { Field } from "@/components/ui/field"
@@ -31,6 +32,8 @@ export function RecoverForm() {
   const [error, setError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
+  const captcha = useRef<TurnstileHandle>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -41,11 +44,19 @@ export function RecoverForm() {
       document.getElementById("recover-email")?.focus()
       return
     }
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      setFormError(CAPTCHA_PENDING)
+      return
+    }
     setFormError(null)
     startTransition(async () => {
-      const res = await requestPasswordReset(email.trim())
-      if (res.ok) setSent(true)
-      else setFormError("No pudimos enviar el enlace. Inténtalo de nuevo en unos minutos.")
+      const res = await requestPasswordReset(email.trim(), captchaToken ?? "")
+      if (res.ok) {
+        setSent(true)
+        return
+      }
+      setFormError(res.error)
+      captcha.current?.reset()
     })
   }
 
@@ -85,6 +96,7 @@ export function RecoverForm() {
             />
           )}
         </Field>
+        <Turnstile ref={captcha} action="recuperar" onToken={setCaptchaToken} />
         <Button type="submit" loading={pending} className="w-full">
           {pending ? "Enviando…" : "Enviar enlace"}
         </Button>

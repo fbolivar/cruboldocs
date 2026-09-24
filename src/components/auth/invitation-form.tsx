@@ -1,13 +1,14 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import type * as React from "react"
 import { toast } from "sonner"
 
 import { DataPolicyConsent } from "@/components/auth/data-policy-consent"
 import { FormAlert } from "@/components/auth/form-alert"
 import { PasswordInput } from "@/components/auth/password-input"
+import { CAPTCHA_ENABLED, CAPTCHA_PENDING, Turnstile, type TurnstileHandle } from "@/components/auth/turnstile"
 import {
   PASSWORD_MIN_LENGTH,
   validateNewPassword,
@@ -41,6 +42,8 @@ export function InvitationForm({ token, email }: { token: string; email: string 
   const [errors, setErrors] = useState<Errors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const captcha = useRef<TurnstileHandle>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
 
   const setError = (key: Key, value: string | null) => setErrors((p) => ({ ...p, [key]: value }))
 
@@ -58,11 +61,21 @@ export function InvitationForm({ token, email }: { token: string; email: string 
       document.getElementById(FIELD_IDS[firstInvalid])?.focus()
       return
     }
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      setFormError(CAPTCHA_PENDING)
+      return
+    }
     setFormError(null)
     startTransition(async () => {
-      const res = await acceptInvitation(token, { fullName: fullName.trim(), password, acceptsDataPolicy: consent })
+      const res = await acceptInvitation(token, {
+        fullName: fullName.trim(),
+        password,
+        acceptsDataPolicy: consent,
+        captchaToken: captchaToken ?? "",
+      })
       if (!res.ok) {
         setFormError(res.error)
+        captcha.current?.reset()
         return
       }
       toast.success("Bienvenido a CrubolDocs")
@@ -125,6 +138,7 @@ export function InvitationForm({ token, email }: { token: string; email: string 
           if (v) setError("consent", null)
         }}
       />
+      <Turnstile ref={captcha} action="invitacion" onToken={setCaptchaToken} />
       <Button type="submit" loading={pending} className="w-full">
         {pending ? "Activando…" : "Activar mi cuenta"}
       </Button>

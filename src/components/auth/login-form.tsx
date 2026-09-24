@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import type * as React from "react"
 
 import { FormAlert } from "@/components/auth/form-alert"
 import { PasswordInput } from "@/components/auth/password-input"
+import { CAPTCHA_ENABLED, CAPTCHA_PENDING, Turnstile, type TurnstileHandle } from "@/components/auth/turnstile"
 import { validateEmail, validateRequired } from "@/components/auth/validation"
 import { Button } from "@/components/ui/button"
 import { Field } from "@/components/ui/field"
@@ -17,8 +18,10 @@ type Errors = { email?: string | null; password?: string | null }
 
 const passwordError = (v: string) => validateRequired(v, "Escribe tu contraseña.")
 
-export function LoginForm() {
+export function LoginForm({ redirectTo = "/app" }: { redirectTo?: string }) {
   const router = useRouter()
+  const captcha = useRef<TurnstileHandle>(null)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<Errors>({})
@@ -33,15 +36,20 @@ export function LoginForm() {
       document.getElementById(next.email ? "login-email" : "login-password")?.focus()
       return
     }
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      setFormError(CAPTCHA_PENDING)
+      return
+    }
     setFormError(null)
     startTransition(async () => {
-      const res = await login(email.trim(), password)
+      const res = await login(email.trim(), password, captchaToken ?? "")
       if (res.ok) {
-        router.push("/app")
+        router.push(redirectTo)
         return
       }
-      // Mensaje genérico: nunca indica si falló el correo o la contraseña.
-      setFormError("Correo o contraseña incorrectos.")
+      // El servidor responde genérico: nunca indica si falló el correo o la contraseña.
+      setFormError(res.error)
+      captcha.current?.reset()
     })
   }
 
@@ -81,6 +89,7 @@ export function LoginForm() {
       >
         ¿Olvidaste tu contraseña?
       </Link>
+      <Turnstile ref={captcha} action="login" onToken={setCaptchaToken} />
       <Button type="submit" loading={pending} className="w-full">
         {pending ? "Ingresando…" : "Ingresar"}
       </Button>

@@ -398,6 +398,8 @@ export interface Invitation {
   isExternal: boolean
   validUntil: string | null
   status: InvitationStatus
+  /** El correo invitado ya tiene cuenta: se acepta ingresando con ella, no creando otra. */
+  accountExists: boolean
 }
 
 // ---------- Resultado de mutaciones ----------

@@ -909,9 +909,10 @@ export async function getInvitation(token: string): Promise<Invitation | null> {
   const admin = createAdminClient()
   const { data: inv } = await admin.from("invitations").select("*").eq("token_hash", sha256Hex(token)).maybeSingle()
   if (!inv) return null
-  const [{ data: org }, { data: pos }] = await Promise.all([
+  const [{ data: org }, { data: pos }, { data: account }] = await Promise.all([
     admin.from("organizations").select("name, status").eq("id", inv.organization_id).single(),
     admin.from("positions").select("name").eq("id", inv.position_id).single(),
+    admin.from("profiles").select("id").eq("email", inv.email).maybeSingle(),
   ])
   const expired = new Date(inv.expires_at) < new Date() || org?.status !== "activa"
   return {
@@ -921,5 +922,6 @@ export async function getInvitation(token: string): Promise<Invitation | null> {
     isExternal: inv.is_external,
     validUntil: dateOnlyOrNull(inv.valid_until),
     status: inv.accepted_at ? "usada" : expired ? "vencida" : "valida",
+    accountExists: !!account,
   }
 }

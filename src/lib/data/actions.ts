@@ -31,7 +31,10 @@ import { EVIDENCE_EXT, isEvidenceName, isPdfName, isSourceName, SOURCE_EXT } fro
 import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
 import { flushOutbox, smtpConfigured } from "@/lib/email/outbox"
 import { formatDate, formatDateTime, todayIsoDate } from "@/lib/format"
-import { createAdminClient, createClient, createEphemeralClient } from "@/lib/supabase/server"
+import { clientIp } from "@/lib/security/client-ip"
+import { TOO_MANY, withinLimits } from "@/lib/security/rate-limit"
+import { CAPTCHA_FAILED, verifyTurnstile } from "@/lib/security/turnstile"
+import { createAdminClient, createAuthClient, createClient, createEphemeralClient } from "@/lib/supabase/server"
 import type { Json } from "@/lib/supabase/database.types"
 import type {
   AuditFilters,
@@ -95,9 +98,13 @@ const refresh = () => revalidatePath("/app", "layout")
 
 // ---------- Acceso ----------
 
-export async function login(email: string, password: string): Promise<Result> {
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+export async function login(email: string, password: string, captchaToken: string): Promise<Result> {
+  const normalized = email.trim().toLowerCase().slice(0, 254)
+  const ip = await clientIp()
+  if (!(await withinLimits([["login:ip", ip], ["login:correo", normalized]]))) return fail(TOO_MANY)
+  if (!(await verifyTurnstile(captchaToken, "login", ip))) return fail(CAPTCHA_FAILED)
+  const supabase = await createAuthClient(ip)
+  const { error } = await supabase.auth.signInWithPassword({ email: normalized, password })
   return error ? fail("Correo o contraseña incorrectos.") : ok(undefined)
 }
 
@@ -108,9 +115,14 @@ export async function logout(): Promise<void> {
 }
 
 /** Respuesta siempre genérica: no revela si el correo existe. */
-export async function requestPasswordReset(email: string): Promise<Result> {
-  const supabase = await createClient()
-  await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+export async function requestPasswordReset(email: string, captchaToken: string): Promise<Result> {
+  const normalized = email.trim().toLowerCase().slice(0, 254)
+  const ip = await clientIp()
+  if (!(await verifyTurnstile(captchaToken, "recuperar", ip))) return fail(CAPTCHA_FAILED)
+  // Al superar el límite no se envía nada, pero la respuesta sigue siendo la misma.
+  if (!(await withinLimits([["recuperar:ip", ip], ["recuperar:correo", normalized]]))) return ok(undefined)
+  const supabase = await createAuthClient(ip)
+  await supabase.auth.resetPasswordForEmail(normalized, {
     redirectTo: `${APP_URL()}/auth/confirmar?siguiente=/restablecer`,
   })
   return ok(undefined)
@@ -131,74 +143,74 @@ export async function updatePassword(password: string): Promise<Result> {
   return ok(undefined)
 }
 
+const INVITATION_GONE = "Esta invitación venció o ya fue usada."
+const isInvitationToken = (token: string) => /^[A-Za-z0-9_-]{20,100}$/.test(token)
+
+/** Límite de intentos por IP y por token para las dos formas de aceptar una invitación. */
+async function invitationAttemptAllowed(token: string, ip: string | null) {
+  return withinLimits([["invitacion:ip", ip], ["invitacion:token", token]])
+}
+
+/**
+ * Crea la cuenta desde una invitación (el correo aún no tiene cuenta). El token solo viaja
+ * por correo y la base guarda su hash: tenerlo prueba el control del buzón, por eso la cuenta
+ * se crea confirmada. Si el correo ya tiene cuenta, se acepta con sesión (joinOrganization).
+ */
 export async function acceptInvitation(
   token: string,
-  input: { fullName: string; password: string; acceptsDataPolicy: boolean }
+  input: { fullName: string; password: string; acceptsDataPolicy: boolean; captchaToken: string }
 ): Promise<Result> {
   return guard(async () => {
     if (!input.acceptsDataPolicy) return fail("Debes aceptar la política de tratamiento de datos.")
     if (input.password.length < 10) return fail("La contraseña debe tener al menos 10 caracteres.")
     const fullName = input.fullName.trim().slice(0, 200)
     if (fullName.length < 3) return fail("Escribe tu nombre completo.")
-    if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) return fail("Esta invitación venció o ya fue usada.")
+    if (!isInvitationToken(token)) return fail(INVITATION_GONE)
+    const ip = await clientIp()
+    if (!(await invitationAttemptAllowed(token, ip))) return fail(TOO_MANY)
+    if (!(await verifyTurnstile(input.captchaToken, "invitacion", ip))) return fail(CAPTCHA_FAILED)
 
     const admin = createAdminClient()
-    const { data: inv } = await admin.from("invitations").select("*").eq("token_hash", sha256Hex(token)).maybeSingle()
-    const { data: org } = inv
-      ? await admin.from("organizations").select("status").eq("id", inv.organization_id).single()
-      : { data: null }
-    if (!inv || inv.accepted_at || new Date(inv.expires_at) < new Date() || org?.status !== "activa") {
-      return fail("Esta invitación venció o ya fue usada.")
-    }
-
-    // ¿Ya tiene cuenta? Se exige su contraseña actual para vincular la organización.
+    const tokenHash = sha256Hex(token)
+    const { data: inv } = await admin.from("invitations").select("email, accepted_at, expires_at").eq("token_hash", tokenHash).maybeSingle()
+    if (!inv || inv.accepted_at || new Date(inv.expires_at) < new Date()) return fail(INVITATION_GONE)
     const { data: existing } = await admin.from("profiles").select("id").eq("email", inv.email).maybeSingle()
-    let userId = existing?.id
-    if (userId) {
-      const check = await createEphemeralClient().auth.signInWithPassword({ email: inv.email, password: input.password })
-      if (check.error) return fail("Ya tienes una cuenta con este correo. Escribe tu contraseña actual para unirte.")
-    } else {
-      const { data, error } = await admin.auth.admin.createUser({
-        email: inv.email,
-        password: input.password,
-        email_confirm: true,
-        user_metadata: { full_name: fullName },
-      })
-      if (error || !data.user) {
-        return fail(error?.code === "weak_password" ? "La contraseña es muy débil. Usa una más larga y difícil de adivinar." : GENERIC)
-      }
-      userId = data.user.id
-    }
+    if (existing) return fail("Ya tienes una cuenta con este correo. Ingresa con ella para unirte.")
 
-    const membership = {
-      organization_id: inv.organization_id,
-      user_id: userId,
-      position_id: inv.position_id,
-      is_org_admin: inv.is_org_admin,
-      is_external: inv.is_external,
-      valid_from: todayIsoDate(),
-      valid_until: inv.valid_until,
-      status: "activo",
-      last_recertified_at: new Date().toISOString(),
-    }
-    const { error: mErr } = await admin.from("memberships").upsert(membership, { onConflict: "organization_id,user_id" })
-    if (mErr) return fail(dbMessage(mErr))
-    await admin.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", inv.id)
-    await admin.from("profiles").update({ full_name: fullName, active_org: inv.organization_id }).eq("id", userId)
-    const { data: pos } = await admin.from("positions").select("name").eq("id", inv.position_id).single()
-    await admin.rpc("log_event", {
-      org: inv.organization_id,
-      p_action: "aceptar_invitacion",
-      p_entity_type: "Membresía",
-      p_entity_id: inv.id,
-      p_label: pos?.name ?? inv.email,
-      p_diff: { politica_datos: { before: null, after: `aceptada ${new Date().toISOString()}` } },
-      p_actor: userId,
+    const { data, error } = await admin.auth.admin.createUser({
+      email: inv.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName },
     })
+    if (error || !data.user) {
+      return fail(error?.code === "weak_password" ? "La contraseña es muy débil. Usa una más larga y difícil de adivinar." : GENERIC)
+    }
+    // Un solo uso y correo verificado en la base; si falla (p. ej. uso concurrente), la cuenta se descarta.
+    const { error: aErr } = await admin.rpc("accept_invitation", { p_token_hash: tokenHash, p_user: data.user.id, p_full_name: fullName })
+    if (aErr) {
+      await admin.auth.admin.deleteUser(data.user.id)
+      return fail(dbMessage(aErr, INVITATION_GONE))
+    }
 
-    const supabase = await createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email: inv.email, password: input.password })
-    return error ? fail("Tu cuenta quedó lista. Ingresa con tu correo y contraseña.") : ok(undefined)
+    const supabase = await createAuthClient(ip)
+    const { error: sErr } = await supabase.auth.signInWithPassword({ email: inv.email, password: input.password })
+    return sErr ? fail("Tu cuenta quedó lista. Ingresa con tu correo y contraseña.") : ok(undefined)
+  })
+}
+
+/** Une a la organización invitada la cuenta con sesión iniciada (debe ser la del correo invitado). */
+export async function joinOrganization(token: string, input: { acceptsDataPolicy: boolean }): Promise<Result> {
+  return guard(async () => {
+    if (!input.acceptsDataPolicy) return fail("Debes aceptar la política de tratamiento de datos.")
+    if (!isInvitationToken(token)) return fail(INVITATION_GONE)
+    const { data: auth } = await (await createClient()).auth.getUser()
+    if (!auth.user) return fail("Tu sesión terminó. Ingresa de nuevo para unirte.")
+    if (!(await invitationAttemptAllowed(token, await clientIp()))) return fail(TOO_MANY)
+    const { error } = await createAdminClient().rpc("accept_invitation", { p_token_hash: sha256Hex(token), p_user: auth.user.id })
+    if (error) return fail(dbMessage(error, INVITATION_GONE))
+    refresh()
+    return ok(undefined)
   })
 }
 
@@ -502,7 +514,9 @@ export async function signVersion(input: {
     if (!version) return fail("No encontramos esta versión del documento.")
     const id = version.id
 
-    const ephemeral = createEphemeralClient()
+    if (!(await withinLimits([["firma:usuario", user.id]]))) return fail(TOO_MANY)
+    const ip = await clientIp()
+    const ephemeral = createEphemeralClient(ip)
     const { data: reauth, error: authErr } = await ephemeral.auth.signInWithPassword({ email: user.email, password: input.password })
     if (authErr || reauth.user?.id !== user.id) return fail("La contraseña no es correcta. La firma no se registró.")
     await ephemeral.auth.signOut({ scope: "local" })
@@ -514,13 +528,12 @@ export async function signVersion(input: {
     }
 
     const h = await headers()
-    const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || null
     const { error } = await createAdminClient().rpc("sign_version", {
       p_version: id,
       p_signer: user.id,
       p_action: input.action,
       p_meaning: SIGNATURE_MEANING[input.action],
-      p_ip: ip && /^[0-9a-fA-F:.]+$/.test(ip) ? ip : undefined,
+      p_ip: ip ?? undefined,
       p_user_agent: (h.get("user-agent") ?? "").slice(0, 400),
     })
     if (error) return fail(dbMessage(error))
@@ -749,48 +762,36 @@ const INVITATION_PREFIX = "inv_"
 export type InviteResult = Result<{ link: string | null }>
 
 const invitationLink = (token: string) => `${APP_URL()}/invitacion/${token}`
-const linkIfNoMail = (token: string) => (smtpConfigured() ? null : invitationLink(token))
+/**
+ * Enlace para compartir a mano: solo en desarrollo y sin SMTP. En producción el token viaja
+ * únicamente por correo; si quien invita lo viera, podría activar la cuenta de otra persona.
+ */
+const linkIfNoMail = (token: string) =>
+  process.env.NODE_ENV !== "production" && !smtpConfigured() ? invitationLink(token) : null
 
-/** Crea la invitación (RLS: Admin o Líder SIG) y encola el correo con el enlace. */
+/** Crea la invitación en la base (permisos y traza en `create_invitation`) y encola el correo. */
 async function createInvitation(
   user: CurrentUser,
   org: { id: string; name: string },
   input: { email: string; positionId: string; isExternal: boolean; validUntil: string | null; isOrgAdmin: boolean }
 ): Promise<InviteResult> {
-  const supabase = await createClient()
-  const admin = createAdminClient()
   const email = input.email.trim().toLowerCase()
-
-  const { data: profile } = await admin.from("profiles").select("id").eq("email", email).maybeSingle()
-  if (profile) {
-    const { data: m } = await admin
-      .from("memberships")
-      .select("status")
-      .eq("organization_id", org.id)
-      .eq("user_id", profile.id)
-      .maybeSingle()
-    if (m?.status === "activo") return fail("Este correo ya pertenece a la organización.")
-  }
-
   const token = newToken()
-  const { data: inv, error } = await supabase
-    .from("invitations")
-    .insert({
-      organization_id: org.id,
-      email,
-      position_id: input.positionId,
-      is_org_admin: input.isOrgAdmin,
-      is_external: input.isExternal,
-      valid_until: input.isExternal ? input.validUntil : null,
-      token_hash: sha256Hex(token),
-      invited_by: user.id,
-    })
-    .select("id, expires_at")
-    .single()
+  const { data, error } = await createAdminClient().rpc("create_invitation", {
+    p_actor: user.id,
+    p_org: org.id,
+    p_email: email,
+    p_position: input.positionId,
+    p_is_org_admin: input.isOrgAdmin,
+    p_is_external: input.isExternal,
+    // Los tipos generados no marcan parámetros nulos; la función acepta null para internos.
+    p_valid_until: (input.isExternal ? input.validUntil : null) as string,
+    p_token_hash: sha256Hex(token),
+  })
+  const inv = data?.[0]
   if (error || !inv) return fail(dbMessage(error))
 
   await enqueueInvitationEmail(org.id, org.name, input.positionId, email, token, inv.expires_at)
-  await audit({ ...user, organization: org }, "invitar_usuario", "Membresía", inv.id, email, { externo: input.isExternal })
   sendMailLater()
   return ok({ link: linkIfNoMail(token) })
 }
@@ -847,16 +848,14 @@ export async function resendInvitation(membershipId: string): Promise<InviteResu
     if (!inv) return fail("Solo se reenvían invitaciones pendientes.")
     const user = await getCurrentUser()
     const token = newToken()
-    const expires = new Date(Date.now() + 7 * 86_400_000).toISOString()
-    const { error } = await createAdminClient()
-      .from("invitations")
-      .update({ token_hash: sha256Hex(token), expires_at: expires })
-      .eq("id", inv.id)
-    if (error) return fail(dbMessage(error))
-    // El correo anterior lleva un token que ya no sirve.
-    await createAdminClient().from("email_outbox").delete().eq("to_email", inv.email).eq("template", "invitacion").eq("status", "pendiente")
+    // Nuevo token y descarte de los correos pendientes con el anterior (solo de esta organización).
+    const { data: expires, error } = await createAdminClient().rpc("reissue_invitation", {
+      p_actor: user.id,
+      p_invitation: inv.id,
+      p_token_hash: sha256Hex(token),
+    })
+    if (error || !expires) return fail(dbMessage(error))
     await enqueueInvitationEmail(inv.organization_id, user.organization.name, inv.position_id, inv.email, token, expires)
-    await audit(user, "reenviar_invitacion", "Membresía", inv.id, inv.email)
     sendMailLater()
     return ok({ link: linkIfNoMail(token) })
   })

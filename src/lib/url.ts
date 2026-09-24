@@ -13,6 +13,12 @@ export function paramList(sp: SearchParams, key: string): string[] {
   return (Array.isArray(v) ? v : v.split(",")).filter(Boolean)
 }
 
+/** Destino tras ingresar: solo /app o una invitación (nunca una URL externa). */
+export function safeNextPath(next: string | undefined): string {
+  if (next && /^\/(app(\/[A-Za-z0-9/_-]*)?|invitacion\/[A-Za-z0-9_-]{20,100})$/.test(next)) return next
+  return "/app"
+}
+
 /** Devuelve `path?query` con `changes` aplicados; valores vacíos o null eliminan la clave. */
 export function withParams(path: string, sp: SearchParams, changes: Record<string, string | number | null | undefined>): string {
   const q = new URLSearchParams()

@@ -38,9 +38,37 @@ export function createAdminClient() {
   })
 }
 
+function secretKey() {
+  const key = process.env.SUPABASE_SECRET_KEY
+  if (!key) throw new Error("Falta SUPABASE_SECRET_KEY en el entorno del servidor.")
+  return key
+}
+
+/** `Sb-Forwarded-For`: Auth limita por la IP del usuario y no por la de Vercel (solo con clave secreta). */
+const forwardedFor = (ip: string | null): Record<string, string> => (ip ? { "sb-forwarded-for": ip } : {})
+
+/**
+ * Cliente con cookies solo para iniciar sesión o pedir recuperación desde el servidor.
+ * Usa la clave secreta para reenviar la IP real a Auth; el Turnstile y los límites de
+ * intentos se verifican antes, en la acción. No usar para consultar datos.
+ */
+export async function createAuthClient(ip: string | null) {
+  const store = await cookies()
+  return createServerClient<Database>(SUPABASE_URL, secretKey(), {
+    global: { headers: forwardedFor(ip) },
+    cookies: {
+      getAll: () => store.getAll(),
+      setAll: (list) => {
+        for (const { name, value, options } of list) store.set(name, value, options)
+      },
+    },
+  })
+}
+
 /** Cliente efímero sin cookies: reautenticación del firmante sin tocar la sesión del navegador. */
-export function createEphemeralClient() {
-  return createPlainClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export function createEphemeralClient(ip: string | null) {
+  return createPlainClient<Database>(SUPABASE_URL, secretKey(), {
+    global: { headers: forwardedFor(ip) },
     auth: { persistSession: false, autoRefreshToken: false },
   })
 }
