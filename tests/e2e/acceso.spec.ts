@@ -77,6 +77,13 @@ test.describe("páginas públicas", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Política de tratamiento de datos personales" })).toBeVisible()
   })
 
+  test("robots.txt deja fuera la app y las invitaciones", async ({ request }) => {
+    const body = await (await request.get("/robots.txt")).text()
+    expect(body).toContain("Disallow: /app")
+    expect(body).toContain("Disallow: /invitacion")
+    expect(body).toContain("Allow: /tratamiento-de-datos")
+  })
+
   test("página inexistente muestra el 404 propio", async ({ page }) => {
     const res = await page.goto("/no-existe-esta-ruta")
     expect(res?.status()).toBe(404)

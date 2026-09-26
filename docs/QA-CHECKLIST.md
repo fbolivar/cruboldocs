@@ -43,3 +43,4 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 
 ## Historial
 - 2026-09-24 — Primera versión (fase testing): 157 unitarias, 160 RLS, 44 E2E en dev + 2 solo de producción.
+- 2026-09-25 — Pre-lanzamiento: 167 RLS (anónimo sin privilegios, migración 015) y 48 E2E contra el build (se agrega robots.txt).

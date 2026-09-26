@@ -28,6 +28,7 @@ const plexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001"),
   title: { default: "CrubolDocs", template: "%s · CrubolDocs" },
   description: "Control documental y gestión de riesgos para tu sistema de gestión.",
 }

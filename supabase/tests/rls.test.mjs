@@ -388,5 +388,15 @@ await throws(() => as(db, U.laura, `update public.memberships set status = 'acti
 const ctl2 = (await as(db, U.juan, `select public.add_control('${risk.id}', 'Cifrado de respaldos con llave rotada', 'preventivo', 'mensual', '${POS.lider}') id`)).rows[0].id
 const ctlAudit = (await as(db, U.oscar, `select diff::text d from public.audit_log where action = 'agregar_control' and diff::text like '%${ctl2}%'`)).rows
 ok(ctlAudit.length === 1 && !ctlAudit[0].d.includes("Cifrado"), "La traza guarda el id del control, no su descripción (RA-04)")
+
+// ---------- Rol anónimo sin privilegios sobre tablas (015) ----------
+const anonQ = async (sql) => {
+  await db.exec("set role anon; select set_config('request.jwt.claim.sub', '', false);")
+  try { return await db.query(sql) } finally { await db.exec("reset role;") }
+}
+for (const t of ["documents", "organizations", "memberships", "signatures", "audit_log", "invitations"]) {
+  await throws(() => anonQ(`select * from public.${t} limit 1`), `Anónimo no puede leer ${t} (015)`, "permission denied")
+}
+await throws(() => anonQ(`insert into public.organizations (name, nit) values ('x', '900000000-0')`), "Anónimo no puede insertar organizaciones (015)", "permission denied")
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

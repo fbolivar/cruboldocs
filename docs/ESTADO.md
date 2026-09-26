@@ -3,7 +3,13 @@
 > Memoria del proyecto. Toda sesión empieza leyendo este archivo y termina actualizándolo.
 
 ## Fase actual
-testing — **cerrada** (2026-09-24). 157 unitarias (Vitest), 160 RLS (PGlite), 44 E2E en dev + 46 contra el build (Playwright, escritorio y móvil); `lint`, `tsc` y `build` en verde. Los E2E **no inician sesión** (sin rama de Supabase por decisión de Fernando): el camino dorado con sesión es manual, en `docs/QA-CHECKLIST.md` §2. Seguridad: veredicto APTO **aprobado por Fernando (2026-09-24)**, `docs/seguridad/AUD-20260924.md` §8. Siguiente: fase **deploy** (cumplir las condiciones de §7.5).
+pre-lanzamiento — **revisado (2026-09-25): código listo, aún NO lanzar.** `check` en verde (lint, tsc, 157 unitarias, 167 RLS, build) y 48 E2E contra el build. Seguridad APTO (§9 del informe: migración 015, el anónimo sin privilegios de tabla). **Bloquean el lanzamiento:**
+1. Camino dorado con sesión probado a mano (`docs/QA-CHECKLIST.md` §2): nunca se ha recorrido de punta a punta.
+2. Términos de servicio: no existen. Deben declarar que el cliente responde por el contenido que carga (decisión 7.6-1) y pasar por revisión legal.
+3. Supabase Auth: aviso de contraseña cambiada, vida del JWT ≤ 1 h y límite de verificación MFA (condición 7.5.4, en el panel).
+4. Fase deploy: repo en GitHub (hoy **sin remoto**; la rama principal es `master`, no `main`), proyecto de Vercel con las 14 variables de `.env.local`, dominio `cruboldocs.crubol.com` con DNS sin proxy de Cloudflare, `docs/DEPLOY.md` con rollback, y probar recuperar contraseña en producción.
+
+Advertencias: alerta de cuota en Upstash; fijar `EMPRESA.vigenciaDesde` de `/tratamiento-de-datos` el día de publicación; sin sitemap, OG ni JSON-LD porque v1 no tiene landing. Siguiente: Fernando cierra 1–3 → fase **deploy**.
 
 ## Fases completadas
 - arquitectura (2026-09-23): alcance del MVP aprobado por Fernando
@@ -12,6 +18,7 @@ testing — **cerrada** (2026-09-24). 157 unitarias (Vitest), 160 RLS (PGlite), 
 - backend (2026-09-24): esquema en Supabase, capa de datos real, Storage, correo y cron; `tsc`, `lint`, `build` y 49 pruebas RLS en verde
 - seguridad (2026-09-24): auditoría, remediación (bloques 1–4, 6) y re-auditoría; veredicto **APTO, aprobado por Fernando el 2026-09-24** (§8). Ver `docs/seguridad/AUD-20260924.md` secciones 6 y 7.
 - testing (2026-09-24): Vitest + Playwright + RLS en verde; `docs/QA-CHECKLIST.md`.
+- pre-lanzamiento (2026-09-25): verificación de testing, seguridad (migración 015), SEO (robots.txt, metadataBase) y deploy; pendientes bloqueantes en "Fase actual".
 
 ## Decisiones tomadas
 - Testing (2026-09-24): **sin rama de Supabase ni base de pruebas** (decisión de Fernando: sin costo adicional). Los E2E solo cubren flujos sin sesión y no escriben en la base real; el flujo con sesión se prueba a mano (QA-CHECKLIST §2). Dependencias de desarrollo: `vitest@4` (unitarias; la v5 exige `@types/node` ≥ 22) y `@playwright/test` (E2E).
