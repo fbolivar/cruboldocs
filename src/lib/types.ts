@@ -215,6 +215,7 @@ export type TaskType =
   | "recertificar_accesos"
   | "ejecutar_accion_nc"
   | "conducir_auditoria"
+  | "capturar_medicion"
 
 export type TaskCategory = "documentos" | "riesgos" | "accesos" | "mejora"
 
@@ -551,6 +552,89 @@ export interface AuditFilters {
   actor?: string
   action?: string
   entityType?: string
+}
+
+// ---------- Indicadores de gestión / KPIs (ISO 9001 9.1) ----------
+
+export type IndicatorDirection = "mayor_mejor" | "menor_mejor" | "rango"
+export type IndicatorFrequency = "mensual" | "bimestral" | "trimestral" | "semestral" | "anual"
+export type ComplianceStatus = "cumple" | "en_riesgo" | "no_cumple"
+export type IndicatorStatus = "activo" | "archivado"
+
+/** Punto de la mini-tendencia (sparkline) y de la gráfica. */
+export interface TrendPoint {
+  period: string
+  value: number
+  compliance: ComplianceStatus
+}
+
+/** Fila del tablero de indicadores. */
+export interface IndicatorListItem {
+  id: string
+  code: string
+  name: string
+  processName: string | null
+  unit: string
+  direction: IndicatorDirection
+  target: number
+  targetMax: number | null
+  frequency: IndicatorFrequency
+  status: IndicatorStatus
+  /** Último valor y su periodo; null si aún no hay mediciones. */
+  lastValue: number | null
+  lastPeriod: string | null
+  /** Cumplimiento del último periodo; null si no hay medición. */
+  lastCompliance: ComplianceStatus | null
+  /** Serie para el sparkline (orden ascendente por periodo). */
+  trend: TrendPoint[]
+}
+
+export interface IndicatorSummary {
+  active: number
+  /** % de indicadores activos con medición del periodo vigente en cumple. */
+  compliancePct: number | null
+  atRisk: number
+  notMeeting: number
+  /** Activos sin medición del periodo vigente. */
+  withoutMeasurement: number
+}
+
+export interface IndicatorMeasurementView {
+  id: string
+  period: string
+  value: number
+  numerator: number | null
+  denominator: number | null
+  compliance: ComplianceStatus
+  note: string | null
+  capturedByName: string
+  /** Código de la NC generada desde esta medición, si existe. */
+  nonconformityCode: string | null
+}
+
+export interface IndicatorDetail {
+  id: string
+  code: string
+  name: string
+  processName: string | null
+  description: string | null
+  unit: string
+  direction: IndicatorDirection
+  target: number
+  targetMax: number | null
+  tolerancePct: number | null
+  frequency: IndicatorFrequency
+  ownerName: string | null
+  isRate: boolean
+  status: IndicatorStatus
+  lastCompliance: ComplianceStatus | null
+  lastPeriod: string | null
+  measurements: IndicatorMeasurementView[]
+  timeline: NcTimelineEvent[]
+  /** Líder SIG: crear/editar/archivar la ficha. */
+  canManage: boolean
+  /** Líder SIG o líder del proceso dueño: registrar mediciones / generar NC. */
+  canMeasure: boolean
 }
 
 export type InvitationStatus = "valida" | "vencida" | "usada"

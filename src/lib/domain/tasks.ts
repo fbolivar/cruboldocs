@@ -12,6 +12,7 @@ export const TASK_META: Record<TaskType, { label: string; verb: string; category
   recertificar_accesos: { label: "Recertificar accesos", verb: "Recertificar", category: "accesos" },
   ejecutar_accion_nc: { label: "Ejecutar acción", verb: "Registrar avance", category: "mejora" },
   conducir_auditoria: { label: "Conducir auditoría", verb: "Conducir auditoría", category: "mejora" },
+  capturar_medicion: { label: "Capturar medición", verb: "Registrar medición", category: "mejora" },
 }
 
 export type TaskGroupId = "vencidas" | "hoy" | "proximas"

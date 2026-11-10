@@ -33,6 +33,21 @@ export function canAddFindings(user: CurrentUser): boolean {
   return hasRole(user, "auditor") || hasRole(user, "lider_sig")
 }
 
+/** Pantalla Indicadores (KPIs): mismos roles del SIG que riesgos/no conformidades/auditorías. */
+export function canSeeIndicators(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea, edita o archiva la ficha de un indicador: Líder SIG. */
+export function canManageIndicators(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig")
+}
+
+/** Registra mediciones / genera NC: Líder SIG o Líder del proceso dueño. */
+export function canMeasureIndicator(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
