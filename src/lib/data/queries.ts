@@ -544,15 +544,18 @@ export async function getIndicator(code: string): Promise<IndicatorDetail | null
   const { data: i } = await s.supabase.from("indicators").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
   if (!i) return null
 
-  const [{ data: meas }, { data: procs }, { data: positions }, { data: ncs }, { data: log }] = await Promise.all([
+  const [{ data: meas }, { data: procs }, { data: positions }, { data: log }] = await Promise.all([
     s.supabase.from("indicator_measurements").select("*").eq("indicator_id", i.id).order("period", { ascending: false }),
     s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
     s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
-    s.supabase.from("nonconformities").select("id, code").eq("organization_id", s.org),
     s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Indicador").eq("entity_id", i.id).order("at", { ascending: false }),
   ])
   const procCode = new Map((procs ?? []).map((p) => [p.id, p.code]))
   const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const ncIds = (meas ?? []).map((m) => m.nonconformity_id).filter((x): x is string => !!x)
+  const { data: ncs } = ncIds.length
+    ? await s.supabase.from("nonconformities").select("id, code").in("id", ncIds)
+    : { data: [] as { id: string; code: string }[] }
   const ncCode = new Map((ncs ?? []).map((n) => [n.id, n.code]))
   const person = await peopleOf(s.org, [...(meas ?? []).map((m) => m.captured_by), ...(log ?? []).map((x) => x.actor_id)])
 
