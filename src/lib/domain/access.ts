@@ -78,6 +78,16 @@ export function canManageSuppliers(user: CurrentUser, processId?: string): boole
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla PQRS: mismos roles del SIG que los demás módulos. */
+export function canSeePqrs(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Registra/gestiona/responde/cierra PQRS y registra satisfacción: Líder SIG o Líder del proceso del caso. */
+export function canManagePqrs(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)

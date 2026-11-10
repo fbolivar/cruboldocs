@@ -893,6 +893,64 @@ export interface SupplierDetail {
   canManage: boolean
 }
 
+// ---------- PQRS y satisfacción del cliente (ISO 9.1.2) ----------
+
+export type PqrsType = "peticion" | "queja" | "reclamo" | "sugerencia" | "felicitacion"
+export type PqrsChannel = "correo" | "telefono" | "web" | "presencial" | "otro"
+export type PqrsStatus = "recibida" | "en_gestion" | "resuelta" | "cerrada" | "anulada"
+export type SatisfactionMethod = "encuesta" | "nps" | "csat" | "otro"
+
+export interface PqrsListItem {
+  id: string
+  code: string
+  type: PqrsType
+  customerName: string | null
+  status: PqrsStatus
+  processName: string | null
+  dueDate: string
+}
+
+export interface SatisfactionMeasurementView {
+  id: string
+  period: string
+  method: SatisfactionMethod
+  score: number
+  responses: number | null
+  note: string | null
+}
+
+export interface PqrsSummary {
+  /** Casos en estado recibida/en_gestion/resuelta. */
+  open: number
+  /** Casos abiertos con due_date vencida. */
+  overdue: number
+  lastSatisfactionScore: number | null
+  lastSatisfactionPeriod: string | null
+}
+
+export interface PqrsDetail {
+  id: string
+  code: string
+  type: PqrsType
+  channel: PqrsChannel
+  customerName: string | null
+  customerContact: string | null
+  processName: string | null
+  processId: string | null
+  description: string
+  receivedDate: string
+  dueDate: string
+  status: PqrsStatus
+  responsibleName: string | null
+  response: string | null
+  satisfied: boolean | null
+  /** Código de la NC generada desde un reclamo, si existe. */
+  nonconformityCode: string | null
+  timeline: NcTimelineEvent[]
+  /** Líder SIG o Líder del proceso del caso: gestionar, responder, cerrar, anular, generar NC. */
+  canManage: boolean
+}
+
 export type InvitationStatus = "valida" | "vencida" | "usada"
 
 export interface Invitation {
