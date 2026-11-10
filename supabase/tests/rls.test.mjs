@@ -496,6 +496,20 @@ ok((await as(db, U.juan, `select status from public.nonconformities where id = '
 await throws(() => as(db, U.juan, `select public.verify_nc('${nc1.id}', true, 'x')`),
   "No se verifica una NC que no está en verificación (017)", "no está en verificación")
 
+// MED-01 (018): un miembro SIN cargo no puede verificar una NC SIN dueño (NULL is not distinct from NULL).
+const NOPOS = "00000000-0000-0000-0000-0000000000a1"
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${NOPOS}', 'nopos@x.co', '{"full_name":"SinCargo"}');
+  insert into public.memberships (organization_id, user_id, is_org_admin, is_external, valid_from) values ('${A}', '${NOPOS}', false, false, current_date - 10);`)
+const nc3 = (await as(db, U.sofia, `select id, code from public.report_nonconformity('${A}', 'mejora', '${P.tiA}', 'Mejora', 'descripción de la mejora', 'menor')`)).rows[0]
+await as(db, U.juan, `select public.set_nc_cause('${nc3.id}', 'causa sin dueño asignado')`)
+const act3 = (await as(db, U.juan, `select public.add_nc_action('${nc3.id}', 'preventiva', 'acción de mejora', '${POS.ti}', (current_date + 5)) a`)).rows[0].a
+await as(db, U.diana, `select public.complete_nc_action('${act3}')`)
+await throws(() => as(db, NOPOS, `select public.verify_nc('${nc3.id}', true, 'x')`),
+  "Miembro sin cargo no verifica una NC sin dueño (018, MED-01)", "Líder SIG o el dueño")
+await as(db, U.juan, `select public.verify_nc('${nc3.id}', true, 'ok')`)
+ok((await as(db, U.juan, `select status from public.nonconformities where id = '${nc3.id}'`)).rows[0].status === "cerrada",
+  "El Líder SIG sí verifica tras el arreglo (018)")
+
 await throws(() => as(db, U.juan, `insert into public.nonconformities (organization_id, code, source, title, description, severity, reported_by, detected_at) values ('${A}', 'NC-X', 'otro', 't', 'd', 'menor', '${U.juan}', current_date)`),
   "Nadie inserta NC por REST: sin política de escritura (017)", "row-level security")
 
