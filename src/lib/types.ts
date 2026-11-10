@@ -951,6 +951,86 @@ export interface PqrsDetail {
   canManage: boolean
 }
 
+// ---------- Actas/reuniones y Objetivos de calidad / BSC (ISO 6.2) ----------
+
+export type MinuteStatus = "borrador" | "cerrada"
+export type CommitmentStatus = "pendiente" | "cumplido"
+export type Perspective = "financiera" | "cliente" | "procesos" | "aprendizaje"
+export type ObjectiveStatus = "activo" | "cumplido" | "no_cumplido" | "archivado"
+
+export interface MinuteListItem {
+  id: string
+  code: string
+  title: string
+  meetingType: string
+  meetingDate: string
+  processName: string | null
+  status: MinuteStatus
+  commitmentCount: number
+  pendingCount: number
+}
+
+export interface MinutesSummary {
+  /** Actas con fecha de reunión del año en curso. */
+  totalYear: number
+  /** Actas en estado borrador. */
+  drafts: number
+  /** Compromisos pendientes en todas las actas visibles. */
+  pendingCommitments: number
+}
+
+export interface CommitmentView {
+  id: string
+  description: string
+  responsibleName: string | null
+  dueDate: string | null
+  status: CommitmentStatus
+}
+
+export interface MinuteDetail {
+  id: string
+  code: string
+  title: string
+  meetingType: string
+  meetingDate: string
+  processId: string | null
+  processName: string | null
+  /** Lista de asistentes (dato personal). */
+  attendees: string | null
+  /** Temas / orden del día. */
+  agenda: string | null
+  status: MinuteStatus
+  commitments: CommitmentView[]
+  timeline: NcTimelineEvent[]
+  /** Líder SIG o Líder del proceso del acta: editar, cerrar, agregar/cumplir compromisos. */
+  canManage: boolean
+}
+
+/** Indicador disponible para ligar a un objetivo (multi-select). */
+export interface ObjectiveIndicatorRef {
+  id: string
+  name: string
+}
+
+export interface ObjectiveCardView {
+  id: string
+  code: string
+  description: string
+  perspective: Perspective
+  processName: string | null
+  processId: string | null
+  targetText: string | null
+  horizonYear: number | null
+  status: ObjectiveStatus
+  /** Indicadores ligados. */
+  indicatorCount: number
+  /** Avance derivado (% de indicadores ligados que cumplen) o null = sin datos. */
+  progressPct: number | null
+  /** Ids de los indicadores ligados (para precargar el multi-select al editar). */
+  indicatorIds: string[]
+  canManage: boolean
+}
+
 export type InvitationStatus = "valida" | "vencida" | "usada"
 
 export interface Invitation {

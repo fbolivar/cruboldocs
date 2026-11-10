@@ -88,6 +88,26 @@ export function canManagePqrs(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla Actas de reunión: mismos roles del SIG que los demás módulos. */
+export function canSeeMinutes(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/cierra actas y agrega/cumple compromisos: Líder SIG o Líder del proceso del acta. */
+export function canManageMinutes(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
+/** Pantalla Objetivos de calidad (BSC): mismos roles del SIG que los demás módulos. */
+export function canSeeObjectives(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/liga indicadores/cambia estado de objetivos: Líder SIG o Líder del proceso dueño. */
+export function canManageObjectives(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
