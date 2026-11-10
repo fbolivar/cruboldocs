@@ -1389,6 +1389,163 @@ export type Database = {
           },
         ]
       }
+      meeting_commitments: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string
+          due_date: string | null
+          id: string
+          minute_id: string
+          organization_id: string
+          responsible_position_id: string | null
+          status: string
+          task_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          minute_id: string
+          organization_id: string
+          responsible_position_id?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          minute_id?: string
+          organization_id?: string
+          responsible_position_id?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_commitments_minute_id_organization_id_fkey"
+            columns: ["minute_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_minutes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "meeting_commitments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_commitments_responsible_position_id_organization_i_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "meeting_commitments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_minutes: {
+        Row: {
+          agenda: string | null
+          attendees: string | null
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          meeting_date: string
+          meeting_type: string
+          organization_id: string
+          process_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agenda?: string | null
+          attendees?: string | null
+          code: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          meeting_date: string
+          meeting_type: string
+          organization_id: string
+          process_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agenda?: string | null
+          attendees?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          meeting_date?: string
+          meeting_type?: string
+          organization_id?: string
+          process_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_minutes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_minutes_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           created_at: string
@@ -1740,6 +1897,81 @@ export type Database = {
             columns: ["verified_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      objective_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objective_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      objective_indicators: {
+        Row: {
+          created_at: string
+          id: string
+          indicator_id: string
+          is_active: boolean
+          objective_id: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          indicator_id: string
+          is_active?: boolean
+          objective_id: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          indicator_id?: string
+          is_active?: boolean
+          objective_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objective_indicators_indicator_id_organization_id_fkey"
+            columns: ["indicator_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "indicators"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "objective_indicators_objective_id_organization_id_fkey"
+            columns: ["objective_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "quality_objectives"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "objective_indicators_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2148,6 +2380,66 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      quality_objectives: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          horizon_year: number | null
+          id: string
+          organization_id: string
+          perspective: string
+          process_id: string | null
+          status: string
+          target_text: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string
+          description: string
+          horizon_year?: number | null
+          id?: string
+          organization_id: string
+          perspective: string
+          process_id?: string | null
+          status?: string
+          target_text?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          horizon_year?: number | null
+          id?: string
+          organization_id?: string
+          perspective?: string
+          process_id?: string | null
+          status?: string
+          target_text?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_objectives_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_objectives_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
           },
         ]
       }
@@ -2995,6 +3287,15 @@ export type Database = {
         Args: { p_body: string; p_version: string }
         Returns: string
       }
+      add_commitment: {
+        Args: {
+          p_description: string
+          p_due: string
+          p_minute: string
+          p_responsible: string
+        }
+        Returns: string
+      }
       add_control: {
         Args: {
           p_description: string
@@ -3113,8 +3414,16 @@ export type Database = {
         Returns: boolean
       }
       can_manage_indicators: { Args: { org: string }; Returns: boolean }
+      can_manage_minutes: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_nc: {
         Args: { org: string; process: string }
+        Returns: boolean
+      }
+      can_manage_objectives: {
+        Args: { org: string; process?: string }
         Returns: boolean
       }
       can_manage_org: { Args: { org: string }; Returns: boolean }
@@ -3139,7 +3448,9 @@ export type Database = {
       can_see_competencies: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
+      can_see_minutes: { Args: { org: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
+      can_see_objectives: { Args: { org: string }; Returns: boolean }
       can_see_person_competency: {
         Args: { p_membership: string; p_org: string }
         Returns: boolean
@@ -3171,6 +3482,7 @@ export type Database = {
         Args: { p_audit: string; p_conclusions: string }
         Returns: undefined
       }
+      close_minute: { Args: { p_minute: string }; Returns: undefined }
       close_pqrs: {
         Args: { p_case: string; p_satisfied: boolean }
         Returns: undefined
@@ -3197,6 +3509,10 @@ export type Database = {
             }
             Returns: undefined
           }
+      complete_commitment: {
+        Args: { p_commitment: string }
+        Returns: undefined
+      }
       complete_nc_action: { Args: { p_action: string }; Returns: undefined }
       complete_tasks: {
         Args: {
@@ -3272,6 +3588,36 @@ export type Database = {
         }
         Returns: {
           expires_at: string
+          id: string
+        }[]
+      }
+      create_minute: {
+        Args: {
+          p_agenda: string
+          p_attendees: string
+          p_date: string
+          p_org: string
+          p_process: string
+          p_title: string
+          p_type: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
+      create_objective: {
+        Args: {
+          p_description: string
+          p_horizon: number
+          p_indicator_ids: string[]
+          p_org: string
+          p_perspective: string
+          p_process: string
+          p_target: string
+        }
+        Returns: {
+          code: string
           id: string
         }[]
       }
@@ -3545,6 +3891,30 @@ export type Database = {
           user_id: string
         }[]
       }
+      minute_or_fail: {
+        Args: { p_minute: string }
+        Returns: {
+          agenda: string | null
+          attendees: string | null
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          meeting_date: string
+          meeting_type: string
+          organization_id: string
+          process_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_minutes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       my_position: { Args: { org: string }; Returns: string }
       nc_add_evidence: {
         Args: {
@@ -3603,6 +3973,45 @@ export type Database = {
           p_template: string
         }
         Returns: undefined
+      }
+      objective_or_fail: {
+        Args: { p_objective: string }
+        Returns: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          horizon_year: number | null
+          id: string
+          organization_id: string
+          perspective: string
+          process_id: string | null
+          status: string
+          target_text: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "quality_objectives"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      objectives_with_progress: {
+        Args: { p_org: string }
+        Returns: {
+          code: string
+          description: string
+          horizon_year: number
+          id: string
+          indicator_count: number
+          indicator_ids: string[]
+          perspective: string
+          process_id: string
+          progress_pct: number
+          status: string
+          target_text: string
+        }[]
       }
       org_directory: {
         Args: { org: string }
@@ -3814,6 +4223,10 @@ export type Database = {
         Args: { p_cause: string; p_nc: string; p_owner?: string }
         Returns: undefined
       }
+      set_objective_status: {
+        Args: { p_objective: string; p_status: string }
+        Returns: undefined
+      }
       set_position_requirement: {
         Args: {
           p_competency: string
@@ -3903,6 +4316,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      sync_objective_indicators: {
+        Args: { p_ids: string[]; p_objective: string; p_org: string }
+        Returns: undefined
+      }
       unarchive_indicator: { Args: { p_indicator: string }; Returns: undefined }
       update_competency: {
         Args: {
@@ -3926,6 +4343,31 @@ export type Database = {
           p_target_max: number
           p_tolerance: number
           p_unit: string
+        }
+        Returns: undefined
+      }
+      update_minute: {
+        Args: {
+          p_agenda: string
+          p_attendees: string
+          p_date: string
+          p_minute: string
+          p_process: string
+          p_title: string
+          p_type: string
+        }
+        Returns: undefined
+      }
+      update_objective: {
+        Args: {
+          p_description: string
+          p_horizon: number
+          p_indicator_ids: string[]
+          p_objective: string
+          p_perspective: string
+          p_process: string
+          p_status: string
+          p_target: string
         }
         Returns: undefined
       }
