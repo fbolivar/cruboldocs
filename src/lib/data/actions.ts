@@ -1530,3 +1530,140 @@ export async function cancelAudit(auditId: string, reason: string): Promise<Resu
     return ok(undefined)
   })
 }
+
+// ---------- Indicadores de gestión / KPIs ----------
+
+const DIRECTION = ["mayor_mejor", "menor_mejor", "rango"] as const
+const FREQUENCY = ["mensual", "bimestral", "trimestral", "semestral", "anual"] as const
+
+function revalidateIndicators() {
+  revalidatePath("/app/indicadores", "layout")
+  revalidatePath("/app")
+}
+
+const indicatorSchema = z.object({
+  name: z.string().trim().min(3).max(200),
+  processId: z.uuid(),
+  description: z.string().trim().max(2000).optional(),
+  unit: z.string().trim().min(1).max(20),
+  direction: z.enum(DIRECTION),
+  target: z.number().finite(),
+  targetMax: z.number().finite().nullish(),
+  tolerancePct: z.number().min(0).max(100).nullish(),
+  frequency: z.enum(FREQUENCY),
+  ownerId: z.uuid().nullish(),
+  isRate: z.boolean().optional(),
+})
+
+export async function createIndicator(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = indicatorSchema.safeParse(input)
+    if (!p.success) return fail("Indica nombre, proceso, unidad y meta.")
+    if (p.data.direction === "rango" && (p.data.targetMax === null || p.data.targetMax === undefined)) {
+      return fail("Indica la meta máxima del rango.")
+    }
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_indicator", {
+      p_org: user.organization.id,
+      p_name: p.data.name,
+      p_process: p.data.processId,
+      p_description: p.data.description ?? "",
+      p_unit: p.data.unit,
+      p_direction: p.data.direction,
+      p_target: p.data.target,
+      p_target_max: (p.data.targetMax ?? null) as unknown as number,
+      p_tolerance: (p.data.tolerancePct ?? null) as unknown as number,
+      p_frequency: p.data.frequency,
+      p_owner: (p.data.ownerId ?? null) as unknown as string,
+      p_is_rate: p.data.isRate ?? false,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateIndicators()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateIndicator(indicatorId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(indicatorId)) return fail(GENERIC)
+    const p = indicatorSchema.omit({ processId: true }).safeParse(input)
+    if (!p.success) return fail("Revisa los datos del indicador.")
+    if (p.data.direction === "rango" && (p.data.targetMax === null || p.data.targetMax === undefined)) {
+      return fail("Indica la meta máxima del rango.")
+    }
+    const { error } = await (await createClient()).rpc("update_indicator", {
+      p_indicator: indicatorId,
+      p_name: p.data.name,
+      p_description: p.data.description ?? "",
+      p_unit: p.data.unit,
+      p_direction: p.data.direction,
+      p_target: p.data.target,
+      p_target_max: (p.data.targetMax ?? null) as unknown as number,
+      p_tolerance: (p.data.tolerancePct ?? null) as unknown as number,
+      p_frequency: p.data.frequency,
+      p_owner: (p.data.ownerId ?? null) as unknown as string,
+      p_is_rate: p.data.isRate ?? false,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateIndicators()
+    return ok(undefined)
+  })
+}
+
+export async function archiveIndicator(indicatorId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(indicatorId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("archive_indicator", { p_indicator: indicatorId })
+    if (error) return fail(dbMessage(error))
+    revalidateIndicators()
+    return ok(undefined)
+  })
+}
+
+export async function unarchiveIndicator(indicatorId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(indicatorId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("unarchive_indicator", { p_indicator: indicatorId })
+    if (error) return fail(dbMessage(error))
+    revalidateIndicators()
+    return ok(undefined)
+  })
+}
+
+const measurementSchema = z.object({
+  indicatorId: z.uuid(),
+  period: isoDate,
+  value: z.number().finite().nullish(),
+  numerator: z.number().finite().nullish(),
+  denominator: z.number().finite().nullish(),
+  note: z.string().trim().max(2000).optional(),
+})
+
+export async function recordMeasurement(input: unknown): Promise<Result<{ compliance: string }>> {
+  return guard(async () => {
+    const p = measurementSchema.safeParse(input)
+    if (!p.success) return fail("Captura el periodo y el valor.")
+    const { data, error } = await (await createClient()).rpc("record_measurement", {
+      p_indicator: p.data.indicatorId,
+      p_period: p.data.period,
+      p_value: (p.data.value ?? null) as unknown as number,
+      p_numerator: (p.data.numerator ?? null) as unknown as number,
+      p_denominator: (p.data.denominator ?? null) as unknown as number,
+      p_note: p.data.note ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateIndicators()
+    return ok({ compliance: (data as unknown as string) ?? "" })
+  })
+}
+
+export async function generateNcFromMeasurement(measurementId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(measurementId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_from_measurement", { p_measurement: measurementId })
+    if (error) return fail(dbMessage(error))
+    revalidateIndicators()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}

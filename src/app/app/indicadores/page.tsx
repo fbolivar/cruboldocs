@@ -3,11 +3,10 @@ import type { Metadata } from "next"
 
 import { IndicatorBoard } from "@/components/indicadores/indicator-board"
 import { IndicatorSummaryBar } from "@/components/indicadores/indicator-summary"
-import { NewIndicatorSheet } from "@/components/indicadores/new-indicator-sheet"
+import { NewIndicatorSheet } from "@/components/indicadores/indicator-form-sheet"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getIndicatorSummaryMock, listIndicatorsMock, processOptionsMock } from "@/lib/data/indicators-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getIndicatorSummary, listIndicators, listPositions, listProcesses } from "@/lib/data/queries"
 import { canManageIndicators, canSeeIndicators } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Indicadores de gestión" }
@@ -27,16 +26,20 @@ export default async function IndicatorsPage() {
     )
   }
 
-  // Datos de ejemplo (fase frontend). El backend los reemplaza por queries reales.
-  const summary = getIndicatorSummaryMock()
-  const items = listIndicatorsMock()
-  const processOptions = processOptionsMock()
+  const [summary, items, processes, positions] = await Promise.all([
+    getIndicatorSummary(),
+    listIndicators(),
+    listProcesses(),
+    listPositions(),
+  ])
+  const processOptions = processes.map((p) => ({ id: p.id, code: p.code }))
+  const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
 
   return (
     <Page wide>
       <PageHeader
         title="Indicadores de gestión"
-        actions={canManageIndicators(user) ? <NewIndicatorSheet processes={processOptions} /> : null}
+        actions={canManageIndicators(user) ? <NewIndicatorSheet processes={processOptions} positions={positionOptions} /> : null}
       />
       <div className="flex flex-col gap-4 md:gap-6">
         <IndicatorSummaryBar summary={summary} />

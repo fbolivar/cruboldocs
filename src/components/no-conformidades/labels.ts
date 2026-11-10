@@ -12,6 +12,7 @@ export const SOURCE_LABELS: Record<NcSource, string> = {
   producto_servicio: "Producto o servicio",
   riesgo_materializado: "Riesgo materializado",
   mejora: "Mejora",
+  indicador: "Indicador",
   otro: "Otro",
 }
 

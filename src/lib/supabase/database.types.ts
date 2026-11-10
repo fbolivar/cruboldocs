@@ -900,6 +900,184 @@ export type Database = {
           },
         ]
       }
+      indicator_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indicator_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      indicator_measurements: {
+        Row: {
+          captured_at: string
+          captured_by: string
+          compliance: string
+          denominator: number | null
+          id: string
+          indicator_id: string
+          nonconformity_id: string | null
+          note: string | null
+          numerator: number | null
+          organization_id: string
+          period: string
+          value: number
+        }
+        Insert: {
+          captured_at?: string
+          captured_by?: string
+          compliance: string
+          denominator?: number | null
+          id?: string
+          indicator_id: string
+          nonconformity_id?: string | null
+          note?: string | null
+          numerator?: number | null
+          organization_id: string
+          period: string
+          value: number
+        }
+        Update: {
+          captured_at?: string
+          captured_by?: string
+          compliance?: string
+          denominator?: number | null
+          id?: string
+          indicator_id?: string
+          nonconformity_id?: string | null
+          note?: string | null
+          numerator?: number | null
+          organization_id?: string
+          period?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indicator_measurements_indicator_id_organization_id_fkey"
+            columns: ["indicator_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "indicators"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "indicator_measurements_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "indicator_measurements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      indicators: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          direction: string
+          frequency: string
+          id: string
+          is_rate: boolean
+          name: string
+          organization_id: string
+          owner_position_id: string | null
+          process_id: string
+          status: string
+          target: number
+          target_max: number | null
+          tolerance_pct: number | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          direction: string
+          frequency: string
+          id?: string
+          is_rate?: boolean
+          name: string
+          organization_id: string
+          owner_position_id?: string | null
+          process_id: string
+          status?: string
+          target: number
+          target_max?: number | null
+          tolerance_pct?: number | null
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          direction?: string
+          frequency?: string
+          id?: string
+          is_rate?: boolean
+          name?: string
+          organization_id?: string
+          owner_position_id?: string | null
+          process_id?: string
+          status?: string
+          target?: number
+          target_max?: number | null
+          tolerance_pct?: number | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indicators_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indicators_owner_position_id_organization_id_fkey"
+            columns: ["owner_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "indicators_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -2015,6 +2193,7 @@ export type Database = {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
       }
+      archive_indicator: { Args: { p_indicator: string }; Returns: undefined }
       audit_or_fail: {
         Args: { p_audit: string }
         Returns: {
@@ -2049,6 +2228,7 @@ export type Database = {
         Returns: boolean
       }
       can_manage_audits: { Args: { org: string }; Returns: boolean }
+      can_manage_indicators: { Args: { org: string }; Returns: boolean }
       can_manage_nc: {
         Args: { org: string; process: string }
         Returns: boolean
@@ -2064,6 +2244,7 @@ export type Database = {
       }
       can_see_audits: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
+      can_see_indicators: { Args: { org: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
@@ -2109,6 +2290,26 @@ export type Database = {
           p_type: string
         }
         Returns: string
+      }
+      create_indicator: {
+        Args: {
+          p_description: string
+          p_direction: string
+          p_frequency: string
+          p_is_rate: boolean
+          p_name: string
+          p_org: string
+          p_owner: string
+          p_process: string
+          p_target: number
+          p_target_max: number
+          p_tolerance: number
+          p_unit: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
       }
       create_invitation: {
         Args: {
@@ -2211,9 +2412,54 @@ export type Database = {
           code: string
         }[]
       }
+      generate_nc_from_measurement: {
+        Args: { p_measurement: string }
+        Returns: {
+          code: string
+        }[]
+      }
       has_role: {
         Args: { org: string; process?: string; r: string }
         Returns: boolean
+      }
+      indicator_compliance: {
+        Args: {
+          p_direction: string
+          p_target: number
+          p_target_max: number
+          p_tolerance: number
+          p_value: number
+        }
+        Returns: string
+      }
+      indicator_or_fail: {
+        Args: { p_indicator: string }
+        Returns: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          direction: string
+          frequency: string
+          id: string
+          is_rate: boolean
+          name: string
+          organization_id: string
+          owner_position_id: string | null
+          process_id: string
+          status: string
+          target: number
+          target_max: number | null
+          tolerance_pct: number | null
+          unit: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "indicators"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       is_active_member: { Args: { org: string }; Returns: boolean }
       is_document_participant: { Args: { p_doc: string }; Returns: boolean }
@@ -2347,6 +2593,17 @@ export type Database = {
         }[]
       }
       position_of: { Args: { org: string; p_user: string }; Returns: string }
+      record_measurement: {
+        Args: {
+          p_denominator: number
+          p_indicator: string
+          p_note: string
+          p_numerator: number
+          p_period: string
+          p_value: number
+        }
+        Returns: string
+      }
       register_evidence: {
         Args: {
           p_actor: string
@@ -2469,6 +2726,23 @@ export type Database = {
         Returns: boolean
       }
       submit_version: { Args: { p_version: string }; Returns: undefined }
+      unarchive_indicator: { Args: { p_indicator: string }; Returns: undefined }
+      update_indicator: {
+        Args: {
+          p_description: string
+          p_direction: string
+          p_frequency: string
+          p_indicator: string
+          p_is_rate: boolean
+          p_name: string
+          p_owner: string
+          p_target: number
+          p_target_max: number
+          p_tolerance: number
+          p_unit: string
+        }
+        Returns: undefined
+      }
       verify_nc: {
         Args: { p_effective: boolean; p_nc: string; p_notes?: string }
         Returns: undefined

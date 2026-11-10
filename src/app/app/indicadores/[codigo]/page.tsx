@@ -12,8 +12,7 @@ import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { Page } from "@/components/shell/page"
 import { Badge, Chip } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getIndicatorMock } from "@/lib/data/indicators-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getIndicator, listPositions, listProcesses } from "@/lib/data/queries"
 import { canSeeIndicators } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Indicador" }
@@ -23,9 +22,14 @@ export default async function IndicatorPage({ params }: { params: Promise<{ codi
   const user = await getCurrentUser()
   if (!canSeeIndicators(user)) notFound()
 
-  const indicator = getIndicatorMock(decodeURIComponent(codigo))
+  const indicator = await getIndicator(decodeURIComponent(codigo))
   if (!indicator) notFound()
 
+  const [processes, positions] = await Promise.all([listProcesses(), listPositions()])
+  const processOptions = processes.map((p) => ({ id: p.id, code: p.code }))
+  const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
+
+  // Las mediciones vienen desc por periodo; la gráfica las necesita ascendentes.
   const trend = indicator.measurements.map((m) => ({ period: m.period, value: m.value, compliance: m.compliance })).reverse()
 
   return (
@@ -41,7 +45,7 @@ export default async function IndicatorPage({ params }: { params: Promise<{ codi
               <p className="font-mono text-small text-texto-sec">{indicator.code}</p>
               <h1 className="mt-0.5">{indicator.name}</h1>
             </div>
-            {indicator.canManage && <IndicatorActions indicatorId={indicator.id} status={indicator.status} />}
+            {indicator.canManage && <IndicatorActions indicator={indicator} processes={processOptions} positions={positionOptions} />}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <ComplianceBadge status={indicator.lastCompliance} />

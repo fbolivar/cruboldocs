@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageNonconformities, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageIndicators, canManageNonconformities, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -35,7 +35,16 @@ import type {
   DocumentSummary,
   DocumentType,
   DocumentVersion,
+  ComplianceStatus,
   HomeSummary,
+  IndicatorDetail,
+  IndicatorDirection,
+  IndicatorFrequency,
+  IndicatorListItem,
+  IndicatorMeasurementView,
+  IndicatorStatus,
+  IndicatorSummary,
+  TrendPoint,
   Invitation,
   Member,
   NcActionStatus,
@@ -448,6 +457,134 @@ export async function getAudit(code: string): Promise<AuditDetail | null> {
     timeline: (audit ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: AUDIT_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageAudits(s.user),
     canAddFinding: canAddFindings(s.user),
+  }
+}
+
+// ---------- Indicadores de gestión / KPIs (ISO 9.1) ----------
+
+const INDICATOR_EVENT_TEXT: Record<string, string> = {
+  crear_indicador: "Creó el indicador.",
+  editar_indicador: "Editó la definición.",
+  archivar_indicador: "Archivó el indicador.",
+  reactivar_indicador: "Reactivó el indicador.",
+  registrar_medicion: "Registró una medición.",
+  generar_nc_medicion: "Generó una no conformidad desde una medición.",
+}
+
+/** Primer día del mes actual (ISO), el "periodo vigente" del tablero. */
+function currentMonthIso(): string {
+  const d = new Date()
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`
+}
+
+export async function listIndicators(): Promise<IndicatorListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: inds }, { data: procs }, { data: meas }] = await Promise.all([
+    s.supabase.from("indicators").select("id, code, name, process_id, unit, direction, target, target_max, frequency, status").eq("organization_id", s.org).order("code"),
+    s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("indicator_measurements").select("indicator_id, period, value, compliance").eq("organization_id", s.org).order("period"),
+  ])
+  const procCode = new Map((procs ?? []).map((p) => [p.id, p.code]))
+  const byInd = new Map<string, TrendPoint[]>()
+  for (const m of meas ?? []) {
+    const list = byInd.get(m.indicator_id) ?? []
+    list.push({ period: m.period, value: Number(m.value), compliance: m.compliance as ComplianceStatus })
+    byInd.set(m.indicator_id, list)
+  }
+  return (inds ?? []).map((i) => {
+    const trend = byInd.get(i.id) ?? []
+    const last = trend[trend.length - 1] ?? null
+    return {
+      id: i.id, code: i.code, name: i.name,
+      processName: i.process_id ? procCode.get(i.process_id) ?? null : null,
+      unit: i.unit, direction: i.direction as IndicatorDirection,
+      target: Number(i.target), targetMax: i.target_max === null ? null : Number(i.target_max),
+      frequency: i.frequency as IndicatorFrequency, status: i.status as IndicatorStatus,
+      lastValue: last ? last.value : null,
+      lastPeriod: last ? last.period : null,
+      lastCompliance: last ? last.compliance : null,
+      trend,
+    }
+  })
+}
+
+export async function getIndicatorSummary(): Promise<IndicatorSummary> {
+  const empty: IndicatorSummary = { active: 0, compliancePct: null, atRisk: 0, notMeeting: 0, withoutMeasurement: 0 }
+  const s = await scope()
+  if (!s) return empty
+  const period = currentMonthIso()
+  const [{ data: inds }, { data: meas }] = await Promise.all([
+    s.supabase.from("indicators").select("id, status").eq("organization_id", s.org),
+    s.supabase.from("indicator_measurements").select("indicator_id, compliance").eq("organization_id", s.org).eq("period", period),
+  ])
+  const active = (inds ?? []).filter((i) => i.status === "activo")
+  const activeIds = new Set(active.map((i) => i.id))
+  const byInd = new Map((meas ?? []).filter((m) => activeIds.has(m.indicator_id)).map((m) => [m.indicator_id, m.compliance as ComplianceStatus]))
+  let cumple = 0, atRisk = 0, notMeeting = 0
+  for (const id of activeIds) {
+    const c = byInd.get(id)
+    if (c === "cumple") cumple++
+    else if (c === "en_riesgo") atRisk++
+    else if (c === "no_cumple") notMeeting++
+  }
+  const measured = byInd.size
+  return {
+    active: active.length,
+    compliancePct: measured ? Math.round((cumple / measured) * 100) : null,
+    atRisk, notMeeting,
+    withoutMeasurement: active.length - measured,
+  }
+}
+
+/** Ficha completa de un indicador por su código. null si no existe o no es visible. */
+export async function getIndicator(code: string): Promise<IndicatorDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: i } = await s.supabase.from("indicators").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!i) return null
+
+  const [{ data: meas }, { data: procs }, { data: positions }, { data: ncs }, { data: log }] = await Promise.all([
+    s.supabase.from("indicator_measurements").select("*").eq("indicator_id", i.id).order("period", { ascending: false }),
+    s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("nonconformities").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Indicador").eq("entity_id", i.id).order("at", { ascending: false }),
+  ])
+  const procCode = new Map((procs ?? []).map((p) => [p.id, p.code]))
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const ncCode = new Map((ncs ?? []).map((n) => [n.id, n.code]))
+  const person = await peopleOf(s.org, [...(meas ?? []).map((m) => m.captured_by), ...(log ?? []).map((x) => x.actor_id)])
+
+  const measurements: IndicatorMeasurementView[] = (meas ?? []).map((m) => ({
+    id: m.id,
+    period: m.period,
+    value: Number(m.value),
+    numerator: m.numerator === null ? null : Number(m.numerator),
+    denominator: m.denominator === null ? null : Number(m.denominator),
+    compliance: m.compliance as ComplianceStatus,
+    note: m.note,
+    capturedByName: m.captured_by ? person(m.captured_by).fullName : "—",
+    nonconformityCode: m.nonconformity_id ? ncCode.get(m.nonconformity_id) ?? null : null,
+  }))
+  const last = measurements[0] ?? null // ya viene desc por periodo
+
+  return {
+    id: i.id, code: i.code, name: i.name,
+    processName: i.process_id ? procCode.get(i.process_id) ?? null : null,
+    description: i.description,
+    unit: i.unit, direction: i.direction as IndicatorDirection,
+    target: Number(i.target), targetMax: i.target_max === null ? null : Number(i.target_max),
+    tolerancePct: i.tolerance_pct === null ? null : Number(i.tolerance_pct),
+    frequency: i.frequency as IndicatorFrequency,
+    ownerName: i.owner_position_id ? posName.get(i.owner_position_id) ?? null : null,
+    isRate: i.is_rate, status: i.status as IndicatorStatus,
+    lastCompliance: last ? last.compliance : null,
+    lastPeriod: last ? last.period : null,
+    measurements,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: INDICATOR_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageIndicators(s.user),
+    canMeasure: canMeasureIndicator(s.user, i.process_id),
   }
 }
 

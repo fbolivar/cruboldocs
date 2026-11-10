@@ -553,5 +553,68 @@ ok((await as(db, U.juan, `select status from public.audits where id = '${aud.id}
 await throws(() => as(db, U.juan, `insert into public.audits (organization_id, code, title, planned_date) values ('${A}', 'AUD-X', 't', current_date)`),
   "Nadie inserta auditorías por REST (020)", "row-level security")
 
+// ---------- Indicadores de gestión / KPIs (022) ----------
+// Juan = Líder SIG; Laura = líder de proceso de sigA; Carlos = auditor; Sofía = consulta.
+
+await throws(() => as(db, U.sofia, `select public.create_indicator('${A}', 'KPI', '${P.tiA}', null, '%', 'mayor_mejor', 95, null, 5, 'mensual', null, false)`),
+  "Sofía (consulta) no crea indicadores (022)", "Solo el Líder SIG")
+await throws(() => as(db, U.beto, `select public.create_indicator('${A}', 'Intruso', '${P.tiA}', null, '%', 'mayor_mejor', 95, null, 5, 'mensual', null, false)`),
+  "Beto (org B) no crea indicadores en A (022)", "Solo el Líder SIG")
+
+const indTi = (await as(db, U.juan, `select id, code from public.create_indicator('${A}', 'Disponibilidad TI', '${P.tiA}', 'uptime', '%', 'mayor_mejor', 95, null, 5, 'mensual', '${POS.ti}', false)`)).rows[0]
+ok(indTi?.code === `IND-${Y}-001`, `Juan (Líder SIG) crea un indicador → IND-${Y}-001 (022)`)
+const indSig = (await as(db, U.juan, `select id, code from public.create_indicator('${A}', 'Reprocesos', '${P.sigA}', null, '%', 'menor_mejor', 3, null, 10, 'mensual', null, false)`)).rows[0]
+ok(indSig?.code === `IND-${Y}-002`, "La numeración de indicadores es secuencial por año (022)")
+
+ok((await as(db, U.carlos, `select count(*)::int n from public.indicators where id = '${indTi.id}'`)).rows[0].n === 1, "Carlos (auditor) ve el indicador (022)")
+ok((await as(db, U.oscar, `select count(*)::int n from public.indicators where id = '${indTi.id}'`)).rows[0].n === 0, "Óscar (admin sin rol SIG) no ve el indicador (022)")
+ok((await as(db, U.beto, `select count(*)::int n from public.indicators where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve indicadores de A (022)")
+
+// Cumplimiento derivado por sentido (mayor_mejor, meta 95, tol 5%).
+const c1 = (await as(db, U.juan, `select public.record_measurement('${indTi.id}', current_date, 97, null, null, null) c`)).rows[0].c
+ok(c1 === "cumple", "mayor_mejor: 97 ≥ 95 → cumple (022)")
+const c2 = (await as(db, U.juan, `select public.record_measurement('${indTi.id}', (current_date - interval '1 month')::date, 92, null, null, 'bajó') c`)).rows[0].c
+ok(c2 === "en_riesgo", "mayor_mejor: 92 dentro de la tolerancia → en_riesgo (022)")
+const c3 = (await as(db, U.juan, `select public.record_measurement('${indTi.id}', (current_date - interval '2 month')::date, 80, null, null, 'caída') c`)).rows[0].c
+ok(c3 === "no_cumple", "mayor_mejor: 80 fuera de la tolerancia → no_cumple (022)")
+
+// Captura por el líder del proceso dueño; rechazo si el proceso no es suyo o sin rol.
+const cL = (await as(db, U.laura, `select public.record_measurement('${indSig.id}', current_date, 2, null, null, null) c`)).rows[0].c
+ok(cL === "cumple", "Laura (líder de sigA) captura su indicador; menor_mejor 2 ≤ 3 → cumple (022)")
+await throws(() => as(db, U.laura, `select public.record_measurement('${indTi.id}', current_date, 90, null, null, null)`),
+  "Laura no captura mediciones de un indicador de otro proceso (022)", "no puede registrar")
+await throws(() => as(db, U.sofia, `select public.record_measurement('${indSig.id}', current_date, 1, null, null, null)`),
+  "Sofía (consulta) no captura mediciones (022)", "no puede registrar")
+
+// El upsert por periodo corrige, no duplica.
+await as(db, U.juan, `select public.record_measurement('${indTi.id}', current_date, 99, null, null, null)`)
+ok((await as(db, U.juan, `select count(*)::int n from public.indicator_measurements where indicator_id = '${indTi.id}' and period = date_trunc('month', current_date)::date`)).rows[0].n === 1,
+  "Re-registrar el mismo periodo corrige (upsert), no duplica (022)")
+
+// Indicador de tasa: división por cero rechazada.
+const indRate = (await as(db, U.juan, `select id from public.create_indicator('${A}', 'Entregas a tiempo', '${P.tiA}', null, '%', 'mayor_mejor', 95, null, 5, 'mensual', null, true)`)).rows[0]
+await throws(() => as(db, U.juan, `select public.record_measurement('${indRate.id}', current_date, null, 10, 0, null)`),
+  "Indicador de tasa: denominador cero rechazado (022)", "denominador no puede ser cero")
+const cR = (await as(db, U.juan, `select public.record_measurement('${indRate.id}', current_date, null, 97, 100, null) c`)).rows[0].c
+ok(cR === "cumple", "Indicador de tasa: 97/100 → 97% → cumple (022)")
+
+// Medición no_cumple genera una NC (un clic, idempotente, solo si no cumple).
+const measNo = (await as(db, U.juan, `select id from public.indicator_measurements where indicator_id = '${indTi.id}' and compliance = 'no_cumple' limit 1`)).rows[0].id
+const ncFromMeas = (await as(db, U.juan, `select public.generate_nc_from_measurement('${measNo}') c`)).rows[0].c
+ok(/^NC-\d{4}-\d{3}$/.test(ncFromMeas), `La medición que no cumple genera una NC (${ncFromMeas}) (022)`)
+await throws(() => as(db, U.juan, `select public.generate_nc_from_measurement('${measNo}')`),
+  "No se duplica la NC de una medición: idempotente (022)", "ya tiene una no conformidad")
+const measOk = (await as(db, U.juan, `select id from public.indicator_measurements where indicator_id = '${indTi.id}' and compliance = 'cumple' limit 1`)).rows[0].id
+await throws(() => as(db, U.juan, `select public.generate_nc_from_measurement('${measOk}')`),
+  "Una medición que cumple no genera NC (022)", "no genera no conformidad")
+
+// Solo el Líder SIG archiva.
+await throws(() => as(db, U.laura, `select public.archive_indicator('${indTi.id}')`), "Laura no archiva indicadores (022)", "Solo el Líder SIG")
+await as(db, U.juan, `select public.archive_indicator('${indTi.id}')`)
+ok((await as(db, U.juan, `select status from public.indicators where id = '${indTi.id}'`)).rows[0].status === "archivado", "El Líder SIG archiva el indicador (022)")
+
+await throws(() => as(db, U.juan, `insert into public.indicators (organization_id, code, name, process_id, unit, direction, target, frequency) values ('${A}', 'IND-X', 't', '${P.tiA}', '%', 'mayor_mejor', 1, 'mensual')`),
+  "Nadie inserta indicadores por REST (022)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

@@ -228,6 +228,7 @@ export type NcSource =
   | "producto_servicio"
   | "riesgo_materializado"
   | "mejora"
+  | "indicador"
   | "otro"
 
 export type NcSeverity = "observacion" | "menor" | "mayor"

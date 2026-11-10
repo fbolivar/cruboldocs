@@ -5,9 +5,12 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { useRouter } from "next/navigation"
+import { useTransition } from "react"
+
 import { ComplianceBadge } from "@/components/indicadores/badges"
-import { formatPeriod, formatValue } from "@/components/indicadores/labels"
-import { computeCompliance } from "@/lib/data/indicators-mock"
+import { estimateCompliance, formatPeriod, formatValue } from "@/components/indicadores/labels"
+import { generateNcFromMeasurement, recordMeasurement } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
@@ -19,11 +22,19 @@ import type { ComplianceStatus, IndicatorDetail, IndicatorMeasurementView } from
 
 export function MeasurementList({ indicator }: { indicator: IndicatorDetail }) {
   const { measurements, canMeasure } = indicator
+  const router = useRouter()
+  const [pending, start] = useTransition()
 
   function generateNc(id: string) {
-    // TODO(backend): server action generateNcFromMeasurement.
-    toast.success("No conformidad generada desde la medición.")
-    void id
+    start(async () => {
+      const r = await generateNcFromMeasurement(id)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(`No conformidad ${r.data.code} generada desde la medición.`)
+      router.refresh()
+    })
   }
 
   if (measurements.length === 0) {
@@ -58,7 +69,7 @@ export function MeasurementList({ indicator }: { indicator: IndicatorDetail }) {
                 <Td><ComplianceBadge status={m.compliance} /></Td>
                 <Td className="max-w-xs truncate text-texto-sec">{m.note ?? "—"}</Td>
                 <Td className="whitespace-nowrap text-texto-sec">{m.capturedByName}</Td>
-                <Td>{renderNc(m, canMeasure, generateNc)}</Td>
+                <Td>{renderNc(m, canMeasure, generateNc, pending)}</Td>
               </Tr>
             ))}
           </tbody>
@@ -78,7 +89,7 @@ export function MeasurementList({ indicator }: { indicator: IndicatorDetail }) {
             </p>
             {m.note && <p className="mt-1 text-small text-texto-sec">{m.note}</p>}
             <p className="mt-1 text-caption text-texto-sec">Capturó: {m.capturedByName}</p>
-            <div className="mt-2">{renderNc(m, canMeasure, generateNc)}</div>
+            <div className="mt-2">{renderNc(m, canMeasure, generateNc, pending)}</div>
           </li>
         ))}
       </ul>
@@ -87,7 +98,7 @@ export function MeasurementList({ indicator }: { indicator: IndicatorDetail }) {
   )
 }
 
-function renderNc(m: IndicatorMeasurementView, canMeasure: boolean, generateNc: (id: string) => void) {
+function renderNc(m: IndicatorMeasurementView, canMeasure: boolean, generateNc: (id: string) => void, pending: boolean) {
   if (m.compliance !== "no_cumple") return null
   if (m.nonconformityCode) {
     return (
@@ -97,11 +108,13 @@ function renderNc(m: IndicatorMeasurementView, canMeasure: boolean, generateNc: 
     )
   }
   return canMeasure ? (
-    <Button size="sm" variant="outline" onClick={() => generateNc(m.id)}>Generar NC</Button>
+    <Button size="sm" variant="outline" onClick={() => generateNc(m.id)} disabled={pending}>Generar NC</Button>
   ) : null
 }
 
 function MeasurementSheet({ indicator }: { indicator: IndicatorDetail }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [period, setPeriod] = useState("")
   const [value, setValue] = useState("")
@@ -109,13 +122,13 @@ function MeasurementSheet({ indicator }: { indicator: IndicatorDetail }) {
   const [den, setDen] = useState("")
   const [note, setNote] = useState("")
 
-  // Cumplimiento estimado en vivo (mismo cálculo que el RPC).
+  // Cumplimiento estimado en vivo (espejo del RPC; el valor persistido lo decide el servidor).
   const estimate = useMemo<{ v: number; c: ComplianceStatus } | null>(() => {
     const v = indicator.isRate
       ? (Number(num) && Number(den) ? (Number(num) / Number(den)) * (indicator.unit === "%" ? 100 : 1) : NaN)
       : Number(value)
     if (!Number.isFinite(v)) return null
-    return { v, c: computeCompliance(indicator.direction, indicator.target, indicator.targetMax, indicator.tolerancePct, v) }
+    return { v, c: estimateCompliance(indicator.direction, indicator.target, indicator.targetMax, indicator.tolerancePct, v) }
   }, [indicator, value, num, den])
 
   function submit() {
@@ -123,9 +136,24 @@ function MeasurementSheet({ indicator }: { indicator: IndicatorDetail }) {
     if (indicator.isRate ? (!num || !den) : value.trim() === "") { toast.error("Captura el valor."); return }
     if (indicator.isRate && Number(den) === 0) { toast.error("El denominador no puede ser cero."); return }
     if (estimate?.c === "no_cumple" && note.trim().length < 3) { toast.error("Explica la desviación en la nota."); return }
-    // TODO(backend): server action recordMeasurement.
-    toast.success("Medición registrada.")
-    setOpen(false)
+    start(async () => {
+      const r = await recordMeasurement({
+        indicatorId: indicator.id,
+        period: `${period}-01`,
+        value: indicator.isRate ? null : Number(value),
+        numerator: indicator.isRate ? Number(num) : null,
+        denominator: indicator.isRate ? Number(den) : null,
+        note: note || undefined,
+      })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Medición registrada.")
+      setOpen(false)
+      setPeriod(""); setValue(""); setNum(""); setDen(""); setNote("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -164,7 +192,7 @@ function MeasurementSheet({ indicator }: { indicator: IndicatorDetail }) {
           </div>
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Guardar medición</Button>
+          <Button onClick={submit} loading={pending}>Guardar medición</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

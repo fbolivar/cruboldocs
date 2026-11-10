@@ -16,7 +16,7 @@ import {
 const TONES = ["exito", "advertencia", "error", "info", "neutro"]
 const STATUSES = ["abierta", "analisis_causa", "plan_accion", "en_ejecucion", "verificacion", "cerrada", "anulada"]
 const SEVERITIES = ["observacion", "menor", "mayor"]
-const SOURCES = ["auditoria_interna", "auditoria_externa", "queja_pqrs", "producto_servicio", "riesgo_materializado", "mejora", "otro"]
+const SOURCES = ["auditoria_interna", "auditoria_externa", "queja_pqrs", "producto_servicio", "riesgo_materializado", "mejora", "indicador", "otro"]
 const ACTION_TYPES = ["correccion", "correctiva", "preventiva"]
 const ACTION_STATUSES = ["pendiente", "en_curso", "hecha", "cancelada"]
 
