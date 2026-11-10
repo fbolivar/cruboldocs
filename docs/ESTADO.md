@@ -12,6 +12,8 @@
    - **Las `NEXT_PUBLIC_*` en Vercel deben ser tipo *Config* (texto plano), NO *Secret*** — las Sensitive no llegan al build y Next las incrusta mal (síntoma: `NEXT_PUBLIC_APP_URL` salió `localhost` → Turnstile rechazaba el login por hostname). Cualquier cambio a una `NEXT_PUBLIC_*` exige **rebuild** (no basta redeploy con caché).
    - Se quitó `remoteip` de la verificación de Turnstile (`turnstile.ts`): detrás del CDN la IP no coincide y daba `success:false`. El control por IP vive en el rate limiting.
 
+**Mejoras 2026-11-10 (post-cierre):** (1) Crubol-Agent atado al onboarding — el `SetupChecklist` muestra "O pídeselo a Crubol-Agent" en los pasos de procesos/cargos cuando el agente está activo (`agentEnabled` vía `isAgentEnabled`). (2) Indicador de uso del agente en Administración — `getAgentUsage()` (RLS `ai_usage_select`), caption "Agente: N/límite este mes" en el encabezado y el panel muestra el restante desde el inicio; `currentPeriod`/`monthlyLimit` extraídos a `src/lib/agente/limits.ts`. (3) SEO de páginas legales — `src/app/sitemap.ts` (inicio + 2 legales), `robots.ts` referencia el sitemap, y OpenGraph + canonical en `/terminos` y `/tratamiento-de-datos`.
+
 Advertencias: alerta de cuota en Upstash; fijar `EMPRESA.vigenciaDesde` de `/tratamiento-de-datos` el día de publicación; sin sitemap, OG ni JSON-LD porque v1 no tiene landing. Siguiente: Fernando cierra 1–3 → fase **deploy**.
 
 ## Fases completadas

@@ -7,6 +7,15 @@ import { LogoHex, Wordmark } from "@/components/ui/logo-hex"
 export const metadata: Metadata = {
   title: "Política de tratamiento de datos personales",
   description: "Cómo CrubolDocs trata los datos personales conforme a la Ley 1581 de 2012.",
+  alternates: { canonical: "/tratamiento-de-datos" },
+  openGraph: {
+    title: "Política de tratamiento de datos personales · CrubolDocs",
+    description: "Cómo CrubolDocs trata los datos personales conforme a la Ley 1581 de 2012.",
+    url: "/tratamiento-de-datos",
+    siteName: "CrubolDocs",
+    locale: "es_CO",
+    type: "article",
+  },
 }
 
 // Texto aprobado tras revisión legal (2026-09-24) y re-aprobado por el abogado de Fernando el

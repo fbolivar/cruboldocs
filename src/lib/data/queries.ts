@@ -7,6 +7,7 @@ import "server-only"
 import { redirect } from "next/navigation"
 import { cache } from "react"
 
+import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
 import { canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
@@ -143,6 +144,22 @@ export async function isAgentEnabled(): Promise<boolean> {
     .eq("id", s.org)
     .maybeSingle()
   return data?.ai_agent_enabled ?? false
+}
+
+/** Uso del agente en el período actual para la organización activa. null si no hay sesión.
+ * La RLS (`ai_usage_select`) solo deja leer a quien administra el catálogo. */
+export async function getAgentUsage(): Promise<{ used: number; limit: number; remaining: number } | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data } = await s.supabase
+    .from("ai_agent_usage")
+    .select("used")
+    .eq("organization_id", s.org)
+    .eq("period", currentPeriod())
+    .maybeSingle()
+  const used = data?.used ?? 0
+  const limit = monthlyLimit()
+  return { used, limit, remaining: Math.max(0, limit - used) }
 }
 
 // ---------- Personas ----------

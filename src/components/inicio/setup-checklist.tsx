@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, SparklesIcon } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
@@ -6,14 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { SetupProgress } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-const STEPS: { key: keyof SetupProgress; title: string; description: string; action: string; tab: string }[] = [
-  { key: "hasProcesses", title: "Crear procesos", description: "Define el mapa de procesos de tu organización.", action: "Crear procesos", tab: "procesos" },
+// `agentHelps`: pasos que Crubol-Agent puede armar por conversación (procesos y cargos). Si el
+// agente está activo, se ofrece como atajo además del flujo manual.
+const STEPS: { key: keyof SetupProgress; title: string; description: string; action: string; tab: string; agentHelps?: boolean }[] = [
+  { key: "hasProcesses", title: "Crear procesos", description: "Define el mapa de procesos de tu organización.", action: "Crear procesos", tab: "procesos", agentHelps: true },
   {
     key: "hasPositionsWithRoles",
     title: "Crear cargos y asignar roles",
     description: "Los permisos se otorgan al cargo, no a la persona.",
     action: "Crear cargos",
     tab: "cargos",
+    agentHelps: true,
   },
   { key: "hasInvitedUsers", title: "Invitar usuarios", description: "Envía la invitación y asigna un cargo a cada persona.", action: "Invitar usuarios", tab: "usuarios" },
 ]
@@ -21,7 +24,7 @@ const STEPS: { key: keyof SetupProgress; title: string; description: string; act
 const BAR_WIDTH = ["w-0", "w-1/3", "w-2/3", "w-full"] as const
 
 /** Primer uso del Admin: 3 pasos de configuración con progreso x/3. */
-export function SetupChecklist({ progress }: { progress: SetupProgress }) {
+export function SetupChecklist({ progress, agentEnabled = false }: { progress: SetupProgress; agentEnabled?: boolean }) {
   const done = STEPS.filter((s) => progress[s.key]).length
   const nextIndex = STEPS.findIndex((s) => !progress[s.key])
   return (
@@ -67,6 +70,15 @@ export function SetupChecklist({ progress }: { progress: SetupProgress }) {
                     {complete && <span className="ml-2 text-small font-normal text-exito-texto">Completado</span>}
                   </p>
                   <p className="text-small text-texto-sec">{step.description}</p>
+                  {!complete && step.agentHelps && agentEnabled && (
+                    <Link
+                      href="/app/admin?tab=procesos"
+                      className="mt-1 inline-flex items-center gap-1 text-small font-medium text-acento underline-offset-4 hover:underline"
+                    >
+                      <SparklesIcon className="size-3.5" />
+                      O pídeselo a Crubol-Agent
+                    </Link>
+                  )}
                 </div>
                 {!complete && (
                   <Button asChild size="sm" variant={i === nextIndex ? "default" : "outline"} className="w-full md:w-auto">

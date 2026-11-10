@@ -3,13 +3,17 @@ import { ClockIcon, FileTextIcon, ListChecksIcon, ShieldCheckIcon } from "lucide
 import { SetupChecklist } from "@/components/inicio/setup-checklist"
 import { SummaryCard } from "@/components/inicio/summary-card"
 import { SectionError } from "@/components/ui/section-error"
-import { getHomeSummary, getSetupProgress } from "@/lib/data/queries"
+import { getHomeSummary, getSetupProgress, isAgentEnabled } from "@/lib/data/queries"
 import type { CurrentUser, HomeSummary, SetupProgress } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-async function load(user: CurrentUser): Promise<[HomeSummary, SetupProgress | null] | null> {
+async function load(user: CurrentUser): Promise<[HomeSummary, SetupProgress | null, boolean] | null> {
   try {
-    return await Promise.all([getHomeSummary(user), user.isOrgAdmin ? getSetupProgress() : null])
+    return await Promise.all([
+      getHomeSummary(user),
+      user.isOrgAdmin ? getSetupProgress() : null,
+      user.isOrgAdmin ? isAgentEnabled() : Promise.resolve(false),
+    ])
   } catch {
     return null
   }
@@ -22,8 +26,9 @@ async function load(user: CurrentUser): Promise<[HomeSummary, SetupProgress | nu
 export async function SummarySection({ user }: { user: CurrentUser }) {
   const data = await load(user)
   if (!data) return <SectionError title="No pudimos cargar el resumen." />
-  const [summary, setup] = data
-  if (setup && !(setup.hasProcesses && setup.hasPositionsWithRoles)) return <SetupChecklist progress={setup} />
+  const [summary, setup, agentEnabled] = data
+  if (setup && !(setup.hasProcesses && setup.hasPositionsWithRoles))
+    return <SetupChecklist progress={setup} agentEnabled={agentEnabled} />
 
   const overdue = summary.overdueTasks > 0
   return (

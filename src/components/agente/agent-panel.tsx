@@ -57,13 +57,22 @@ function toolUsesOf(m: Msg): ToolUseBlock[] {
   return m.content.filter((b): b is ToolUseBlock => b.type === "tool_use")
 }
 
-export function AgentPanel({ orgName }: { orgName: string }) {
+export function AgentPanel({
+  orgName,
+  initialRemaining = null,
+  monthlyLimit = null,
+}: {
+  orgName: string
+  /** Acciones restantes del mes al abrir (uso ya conocido en el servidor). */
+  initialRemaining?: number | null
+  monthlyLimit?: number | null
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [history, setHistory] = useState<Msg[]>([])
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
-  const [remaining, setRemaining] = useState<number | null>(null)
+  const [remaining, setRemaining] = useState<number | null>(initialRemaining)
   const [resolved, setResolved] = useState<Record<string, string>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -246,7 +255,10 @@ export function AgentPanel({ orgName }: { orgName: string }) {
 
         <div className="border-t border-borde p-3">
           {remaining !== null && (
-            <p className="mb-2 text-caption text-texto-sec">Acciones disponibles este mes: {remaining}</p>
+            <p className="mb-2 text-caption text-texto-sec">
+              Acciones disponibles este mes: {remaining}
+              {monthlyLimit ? ` de ${monthlyLimit}` : ""}
+            </p>
           )}
           <div className="flex items-end gap-2">
             <Textarea

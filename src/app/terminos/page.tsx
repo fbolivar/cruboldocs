@@ -7,6 +7,15 @@ import { LogoHex, Wordmark } from "@/components/ui/logo-hex"
 export const metadata: Metadata = {
   title: "Términos de servicio",
   description: "Condiciones de uso del servicio CrubolDocs de Crubol Technology S.A.S.",
+  alternates: { canonical: "/terminos" },
+  openGraph: {
+    title: "Términos de servicio · CrubolDocs",
+    description: "Condiciones de uso del servicio CrubolDocs de Crubol Technology S.A.S.",
+    url: "/terminos",
+    siteName: "CrubolDocs",
+    locale: "es_CO",
+    type: "article",
+  },
 }
 
 // Texto aprobado por el abogado de Fernando (2026-11-10), incluida la §9 "Asistente de IA

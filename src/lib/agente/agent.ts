@@ -2,8 +2,11 @@ import "server-only"
 
 import Anthropic from "@anthropic-ai/sdk"
 
+import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
 import { createClient } from "@/lib/supabase/server"
 import type { DocumentType, Position, Process, Result } from "@/lib/types"
+
+export { currentPeriod, monthlyLimit }
 
 // Modelo híbrido: Sonnet para la conversación y el catálogo (rápido y económico). El trabajo
 // complejo podría escalar a Opus en el futuro; por ahora el agente solo cataloga.
@@ -17,24 +20,6 @@ export function agentConfigured(): boolean {
 
 export function anthropic(): Anthropic {
   return new Anthropic() // lee ANTHROPIC_API_KEY del entorno
-}
-
-/** Período 'YYYY-MM' en America/Bogota (igual que el contador de uso en la base). */
-export function currentPeriod(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-    .format(new Date())
-    .slice(0, 7)
-}
-
-/** Límite mensual de acciones del agente por organización (configurable por entorno). */
-export function monthlyLimit(): number {
-  const n = Number(process.env.AI_AGENT_MONTHLY_LIMIT)
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 200
 }
 
 /**
