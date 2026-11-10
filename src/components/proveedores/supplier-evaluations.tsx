@@ -1,11 +1,13 @@
 "use client"
 
 import { ClipboardListIcon } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { ResultBadge } from "@/components/proveedores/badges"
 import { CRITERIA, RESULT_LABELS, estimateEvaluation, formatScore } from "@/components/proveedores/labels"
+import { evaluateSupplier } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -68,7 +70,9 @@ export function EvaluationHistory({ evaluations }: { evaluations: SupplierEvalua
   )
 }
 
-export function EvaluateSupplierSheet({ hasEvaluations }: { hasEvaluations: boolean }) {
+export function EvaluateSupplierSheet({ supplierId, hasEvaluations }: { supplierId: string; hasEvaluations: boolean }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState<EvaluationKind>(hasEvaluations ? "periodica" : "inicial")
   const [date, setDate] = useState("")
@@ -87,9 +91,17 @@ export function EvaluateSupplierSheet({ hasEvaluations }: { hasEvaluations: bool
       const n = Number(v)
       if (v === "" || Number.isNaN(n) || n < 0 || n > 100) { toast.error("Cada criterio va de 0 a 100."); return }
     }
-    // TODO(backend): evaluateSupplier({ kind, date, ...scores, next, note })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await evaluateSupplier({
+        supplierId, kind, evalDate: date, quality: scores.quality, delivery: scores.delivery, service: scores.service,
+        nextEval: next || null, note: note.trim() || undefined,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(`Evaluación guardada: ${RESULT_LABELS[r.data.result as keyof typeof RESULT_LABELS] ?? r.data.result}.`)
+      setOpen(false)
+      setQuality(""); setDelivery(""); setService(""); setNext(""); setNote("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -140,7 +152,7 @@ export function EvaluateSupplierSheet({ hasEvaluations }: { hasEvaluations: bool
             <Textarea id="ev-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Guardar evaluación</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar evaluación</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

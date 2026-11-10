@@ -2411,6 +2411,185 @@ export type Database = {
           },
         ]
       }
+      supplier_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_evaluations: {
+        Row: {
+          created_at: string
+          eval_date: string
+          evaluated_by: string
+          id: string
+          kind: string
+          next_eval_date: string | null
+          note: string | null
+          organization_id: string
+          result: string
+          score_delivery: number
+          score_quality: number
+          score_service: number
+          supplier_id: string
+          total_score: number
+          weight_delivery: number
+          weight_quality: number
+          weight_service: number
+        }
+        Insert: {
+          created_at?: string
+          eval_date: string
+          evaluated_by?: string
+          id?: string
+          kind: string
+          next_eval_date?: string | null
+          note?: string | null
+          organization_id: string
+          result: string
+          score_delivery: number
+          score_quality: number
+          score_service: number
+          supplier_id: string
+          total_score: number
+          weight_delivery: number
+          weight_quality: number
+          weight_service: number
+        }
+        Update: {
+          created_at?: string
+          eval_date?: string
+          evaluated_by?: string
+          id?: string
+          kind?: string
+          next_eval_date?: string | null
+          note?: string | null
+          organization_id?: string
+          result?: string
+          score_delivery?: number
+          score_quality?: number
+          score_service?: number
+          supplier_id?: string
+          total_score?: number
+          weight_delivery?: number
+          weight_quality?: number
+          weight_service?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_evaluations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_evaluations_supplier_id_organization_id_fkey"
+            columns: ["supplier_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          category: string | null
+          code: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string
+          criticality: string
+          id: string
+          is_active: boolean
+          kind: string
+          name: string
+          next_eval_date: string | null
+          nit: string | null
+          organization_id: string
+          process_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          code: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string
+          criticality: string
+          id?: string
+          is_active?: boolean
+          kind: string
+          name: string
+          next_eval_date?: string | null
+          nit?: string | null
+          organization_id: string
+          process_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          code?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string
+          criticality?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name?: string
+          next_eval_date?: string | null
+          nit?: string | null
+          organization_id?: string
+          process_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suppliers_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_position_id: string
@@ -2783,6 +2962,10 @@ export type Database = {
         Args: { org: string; process: string }
         Returns: boolean
       }
+      can_manage_suppliers: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_see_audits: { Args: { org: string }; Returns: boolean }
       can_see_competencies: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
@@ -2794,6 +2977,7 @@ export type Database = {
       }
       can_see_reviews: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
+      can_see_suppliers: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
       can_view_content: { Args: { org: string }; Returns: boolean }
       cancel_audit: {
@@ -2959,6 +3143,24 @@ export type Database = {
           id: string
         }[]
       }
+      create_supplier: {
+        Args: {
+          p_category: string
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_criticality: string
+          p_kind: string
+          p_name: string
+          p_nit: string
+          p_org: string
+          p_process: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       create_task: {
         Args: {
           org: string
@@ -3017,6 +3219,23 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      evaluate_supplier: {
+        Args: {
+          p_delivery: number
+          p_eval_date: string
+          p_kind: string
+          p_next_eval: string
+          p_note: string
+          p_quality: number
+          p_service: number
+          p_supplier: string
+        }
+        Returns: {
+          id: string
+          result: string
+          total: number
+        }[]
       }
       frequency_interval: { Args: { f: string }; Returns: string }
       generate_nc_from_finding: {
@@ -3350,6 +3569,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_supplier_active: {
+        Args: { p_active: boolean; p_supplier: string }
+        Returns: undefined
+      }
       set_version_files: {
         Args: {
           p_actor: string
@@ -3396,6 +3619,35 @@ export type Database = {
         Returns: boolean
       }
       submit_version: { Args: { p_version: string }; Returns: undefined }
+      supplier_or_fail: {
+        Args: { p_supplier: string }
+        Returns: {
+          category: string | null
+          code: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string
+          criticality: string
+          id: string
+          is_active: boolean
+          kind: string
+          name: string
+          next_eval_date: string | null
+          nit: string | null
+          organization_id: string
+          process_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "suppliers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       unarchive_indicator: { Args: { p_indicator: string }; Returns: undefined }
       update_competency: {
         Args: {
@@ -3428,6 +3680,20 @@ export type Database = {
           p_inputs: Json
           p_review: string
           p_scope: string
+        }
+        Returns: undefined
+      }
+      update_supplier: {
+        Args: {
+          p_category: string
+          p_contact_email: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_criticality: string
+          p_kind: string
+          p_name: string
+          p_nit: string
+          p_supplier: string
         }
         Returns: undefined
       }

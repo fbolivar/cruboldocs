@@ -1,10 +1,14 @@
 "use client"
 
 import { DownloadIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { CRITICALITY_LABELS, KIND_LABELS } from "@/components/proveedores/labels"
+import { createSupplier, exportSuppliersCsv } from "@/lib/data/actions"
+import { downloadCsv } from "@/lib/csv"
+import { todayIsoDate } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,14 +21,27 @@ const KINDS = Object.keys(KIND_LABELS) as SupplierKind[]
 const CRITS = Object.keys(CRITICALITY_LABELS) as SupplierCriticality[]
 
 export function ExportSuppliersButton() {
+  const [pending, start] = useTransition()
+  function run() {
+    start(async () => {
+      try {
+        const csv = await exportSuppliersCsv()
+        downloadCsv(`proveedores-${todayIsoDate()}.csv`, csv)
+      } catch {
+        toast.error("No pudimos exportar el CSV.")
+      }
+    })
+  }
   return (
-    <Button variant="outline" onClick={() => toast.success("Exportación disponible cuando se conecte el backend.")}>
+    <Button variant="outline" onClick={run} loading={pending}>
       <DownloadIcon /> Exportar CSV
     </Button>
   )
 }
 
 export function NewSupplierSheet({ processes }: { processes: ProcessOption[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [nit, setNit] = useState("")
@@ -38,9 +55,18 @@ export function NewSupplierSheet({ processes }: { processes: ProcessOption[] }) 
 
   function submit() {
     if (name.trim().length < 2) { toast.error("Escribe la razón social."); return }
-    // TODO(backend): createSupplier({ name, nit, kind, category, criticality, processId, contact… })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await createSupplier({
+        name, nit: nit.trim() || undefined, kind, category: category.trim() || undefined, criticality,
+        processId: processId || null, contactName: contactName.trim() || undefined,
+        contactEmail: contactEmail.trim() || undefined, contactPhone: contactPhone.trim() || undefined,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(`Proveedor ${r.data.code} registrado.`)
+      setOpen(false)
+      setName(""); setNit(""); setCategory(""); setProcessId(""); setContactName(""); setContactEmail(""); setContactPhone("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -101,7 +127,7 @@ export function NewSupplierSheet({ processes }: { processes: ProcessOption[] }) 
           </div>
           <p className="text-caption text-texto-sec">El proveedor nace «Pendiente»; haz su evaluación inicial desde la ficha.</p>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Registrar proveedor</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Registrar proveedor</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

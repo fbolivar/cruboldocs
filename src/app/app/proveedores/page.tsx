@@ -6,8 +6,7 @@ import { SupplierBoard } from "@/components/proveedores/supplier-board"
 import { SupplierSummaryBar } from "@/components/proveedores/summary"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getSupplierSummary, listSuppliers } from "@/lib/data/proveedores-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getSupplierSummary, listProcesses, listSuppliers } from "@/lib/data/queries"
 import { canManageSuppliers, canSeeSuppliers } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Proveedores" }
@@ -27,8 +26,9 @@ export default async function ProveedoresPage() {
     )
   }
 
-  const [summary, items] = await Promise.all([getSupplierSummary(), listSuppliers()])
+  const [summary, items, processes] = await Promise.all([getSupplierSummary(), listSuppliers(), listProcesses()])
   const canManage = canManageSuppliers(user)
+  const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
 
   return (
     <Page wide>
@@ -37,7 +37,7 @@ export default async function ProveedoresPage() {
         actions={
           <div className="flex gap-2">
             <ExportSuppliersButton />
-            {canManage && <NewSupplierSheet processes={[]} />}
+            {canManage && <NewSupplierSheet processes={processOptions} />}
           </div>
         }
       />

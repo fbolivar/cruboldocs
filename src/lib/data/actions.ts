@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, listSuppliers, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -1980,4 +1980,111 @@ export async function assessCompetency(input: unknown): Promise<Result<{ status:
     revalidateCompetencies()
     return ok({ status: data?.[0]?.status ?? "" })
   })
+}
+
+// ---------- Proveedores (ISO 8.4) ----------
+
+function revalidateSuppliers() {
+  revalidatePath("/app/proveedores", "layout")
+  revalidatePath("/app")
+}
+
+const supplierSchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  nit: z.string().trim().max(40).optional(),
+  kind: z.enum(["bien", "servicio", "ambos"]),
+  category: z.string().trim().max(120).optional(),
+  criticality: z.enum(["alta", "media", "baja"]),
+  processId: z.uuid().nullish(),
+  contactName: z.string().trim().max(160).optional(),
+  contactEmail: z.string().trim().max(200).optional(),
+  contactPhone: z.string().trim().max(60).optional(),
+})
+
+export async function createSupplier(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = supplierSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del proveedor.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_supplier", {
+      p_org: user.organization.id, p_name: p.data.name, p_nit: p.data.nit ?? "", p_kind: p.data.kind,
+      p_category: p.data.category ?? "", p_criticality: p.data.criticality,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_contact_name: p.data.contactName ?? "", p_contact_email: p.data.contactEmail ?? "", p_contact_phone: p.data.contactPhone ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateSupplier(supplierId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(supplierId)) return fail(GENERIC)
+    const p = supplierSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del proveedor.")
+    const { error } = await (await createClient()).rpc("update_supplier", {
+      p_supplier: supplierId, p_name: p.data.name, p_nit: p.data.nit ?? "", p_kind: p.data.kind,
+      p_category: p.data.category ?? "", p_criticality: p.data.criticality,
+      p_contact_name: p.data.contactName ?? "", p_contact_email: p.data.contactEmail ?? "", p_contact_phone: p.data.contactPhone ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok(undefined)
+  })
+}
+
+export async function setSupplierActive(supplierId: string, active: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(supplierId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_supplier_active", { p_supplier: supplierId, p_active: active })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok(undefined)
+  })
+}
+
+const score = z.number().int().min(0).max(100)
+const evaluateSchema = z.object({
+  supplierId: z.uuid(),
+  kind: z.enum(["inicial", "periodica"]),
+  evalDate: isoDate,
+  quality: score,
+  delivery: score,
+  service: score,
+  nextEval: isoDate.nullish(),
+  note: z.string().trim().max(2000).optional(),
+})
+
+export async function evaluateSupplier(input: unknown): Promise<Result<{ result: string }>> {
+  return guard(async () => {
+    const p = evaluateSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la evaluación: cada criterio va de 0 a 100.")
+    if (p.data.evalDate > todayIsoDate()) return fail("La fecha de evaluación no puede ser futura.")
+    const { data, error } = await (await createClient()).rpc("evaluate_supplier", {
+      p_supplier: p.data.supplierId, p_kind: p.data.kind, p_eval_date: p.data.evalDate,
+      p_quality: p.data.quality, p_delivery: p.data.delivery, p_service: p.data.service,
+      p_next_eval: (p.data.nextEval ?? null) as unknown as string, p_note: p.data.note ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok({ result: data?.[0]?.result ?? "" })
+  })
+}
+
+export async function exportSuppliersCsv(): Promise<string> {
+  const rows = await listSuppliers()
+  const STATUS: Record<string, string> = { pendiente: "Pendiente", aprobado: "Aprobado", condicionado: "Condicionado", rechazado: "Rechazado", inactivo: "Inactivo" }
+  const KIND: Record<string, string> = { bien: "Bien", servicio: "Servicio", ambos: "Bien y servicio" }
+  const CRIT: Record<string, string> = { alta: "Alta", media: "Media", baja: "Baja" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Proveedor", value: (r) => r.name },
+    { header: "Tipo", value: (r) => KIND[r.kind] },
+    { header: "Criticidad", value: (r) => CRIT[r.criticality] },
+    { header: "Estado", value: (r) => STATUS[r.status] },
+    { header: "Proceso", value: (r) => r.processName },
+    { header: "Próxima reevaluación", value: (r) => (r.nextEvalDate ? formatDate(r.nextEvalDate) : null) },
+  ])
 }

@@ -10,8 +10,7 @@ import { SupplierActions } from "@/components/proveedores/supplier-actions"
 import { EvaluateSupplierSheet, EvaluationHistory } from "@/components/proveedores/supplier-evaluations"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getSupplier } from "@/lib/data/proveedores-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getSupplier } from "@/lib/data/queries"
 import { canSeeSuppliers } from "@/lib/domain/access"
 import { formatDate, todayIsoDate } from "@/lib/format"
 
@@ -54,7 +53,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ codig
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle>Estado vigente</CardTitle>
-            {canManage && supplier.isActive && <EvaluateSupplierSheet hasEvaluations={supplier.evaluations.length > 0} />}
+            {canManage && supplier.isActive && <EvaluateSupplierSheet supplierId={supplier.id} hasEvaluations={supplier.evaluations.length > 0} />}
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             <ScoreMeter total={supplier.lastScore} />

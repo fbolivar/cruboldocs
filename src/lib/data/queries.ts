@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageNonconformities, canManageReviews, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageNonconformities, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -91,6 +91,10 @@ import type {
   RiskSummaryRow,
   Role,
   SetupProgress,
+  SupplierDetail,
+  SupplierEvaluationView,
+  SupplierListItem,
+  SupplierSummary,
   Task,
   TaskType,
   VersionStatus,
@@ -1712,4 +1716,76 @@ function competencyEventText(action: string): string {
     evaluar_competencia: "Evaluó una competencia.",
   }
   return map[action] ?? action
+}
+
+// ---------- Proveedores (ISO 8.4) ----------
+
+const SUPPLIER_EVENT_TEXT: Record<string, string> = {
+  crear_proveedor: "Registró al proveedor.",
+  editar_proveedor: "Editó los datos del proveedor.",
+  evaluar_proveedor: "Evaluó al proveedor.",
+  baja_proveedor: "Dio de baja al proveedor.",
+  reactivar_proveedor: "Reactivó al proveedor.",
+}
+
+export async function getSupplierSummary(): Promise<SupplierSummary> {
+  const s = await scope()
+  if (!s) return { approved: 0, conditionedOrRejected: 0, dueForReeval: 0 }
+  const { data } = await s.supabase.from("suppliers").select("status, next_eval_date, is_active").eq("organization_id", s.org)
+  const rows = data ?? []
+  const soon = addDays(todayIsoDate(), 30)
+  return {
+    approved: rows.filter((r) => r.status === "aprobado").length,
+    conditionedOrRejected: rows.filter((r) => r.status === "condicionado" || r.status === "rechazado").length,
+    dueForReeval: rows.filter((r) => r.is_active && r.next_eval_date !== null && r.next_eval_date <= soon).length,
+  }
+}
+
+export async function listSuppliers(): Promise<SupplierListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.from("suppliers").select("id, code, name, kind, criticality, status, process_id, next_eval_date").eq("organization_id", s.org).order("name"),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((r) => ({
+    id: r.id, code: r.code, name: r.name,
+    kind: r.kind as SupplierListItem["kind"], criticality: r.criticality as SupplierListItem["criticality"],
+    status: r.status as SupplierListItem["status"],
+    processName: r.process_id ? procMap.get(r.process_id) ?? null : null,
+    nextEvalDate: r.next_eval_date,
+  }))
+}
+
+export async function getSupplier(code: string): Promise<SupplierDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: r } = await s.supabase.from("suppliers").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!r) return null
+  const [{ data: evals }, { data: proc }, { data: log }] = await Promise.all([
+    s.supabase.from("supplier_evaluations").select("*").eq("supplier_id", r.id).order("eval_date", { ascending: false }).order("created_at", { ascending: false }),
+    r.process_id ? s.supabase.from("processes").select("name").eq("id", r.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Proveedor").eq("entity_id", r.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, [...(evals ?? []).map((e) => e.evaluated_by), ...(log ?? []).map((x) => x.actor_id)])
+  const evaluations: SupplierEvaluationView[] = (evals ?? []).map((e) => ({
+    id: e.id, kind: e.kind as SupplierEvaluationView["kind"], evalDate: e.eval_date,
+    scoreQuality: e.score_quality, scoreDelivery: e.score_delivery, scoreService: e.score_service,
+    totalScore: Number(e.total_score), result: e.result as SupplierEvaluationView["result"],
+    nextEvalDate: e.next_eval_date, note: e.note, evaluatedBy: e.evaluated_by ? person(e.evaluated_by).fullName : null,
+  }))
+  const last = evaluations[0] ?? null
+  return {
+    id: r.id, code: r.code, name: r.name, nit: r.nit,
+    kind: r.kind as SupplierDetail["kind"], category: r.category,
+    criticality: r.criticality as SupplierDetail["criticality"],
+    processName: proc?.name ?? null, processId: r.process_id,
+    contactName: r.contact_name, contactEmail: r.contact_email, contactPhone: r.contact_phone,
+    status: r.status as SupplierDetail["status"], isActive: r.is_active,
+    lastScore: last ? last.totalScore : null, lastResult: last ? last.result : null,
+    nextEvalDate: r.next_eval_date, evaluations,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: SUPPLIER_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageSuppliers(s.user, r.process_id ?? undefined),
+  }
 }

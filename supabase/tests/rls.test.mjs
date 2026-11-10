@@ -734,5 +734,47 @@ ok((await as(db, U.beto, `select count(*)::int n from public.competencies where 
 await throws(() => as(db, U.sofia, `insert into public.competencies (organization_id, name, kind) values ('${A}', 'X', 'habilidad')`),
   "Nadie inserta competencias por REST (025)", "row-level security")
 
+
+// ========== 026 · Proveedores (ISO 8.4) ==========
+// Alta: Líder SIG o Líder del proceso; no la consulta ni otra org.
+const prov = (await as(db, U.juan, `select id, code from public.create_supplier('${A}', 'Transportes del Valle', '900.1-2', 'servicio', 'Logística', 'alta', '${P.sigA}', 'Ana', 'ana@valle.co', '3100000000')`)).rows[0]
+ok(prov.code === "PRV-" + new Date().getFullYear() + "-001", "Numeración PRV-AAAA-001 (026)")
+const prov2 = (await as(db, U.laura, `select code from public.create_supplier('${A}', 'Insumos Andinos', null, 'bien', 'Insumos', 'media', '${P.sigA}', null, null, null)`)).rows[0]
+ok(prov2.code === "PRV-" + new Date().getFullYear() + "-002", "Numeración incremental PRV-AAAA-002 (026)")
+await throws(() => as(db, U.sofia, `select public.create_supplier('${A}', 'Intrusa', null, 'bien', null, 'baja', null, null, null, null)`),
+  "Sofía (consulta) no registra proveedores (026)", "No puedes registrar")
+await throws(() => as(db, U.beto, `select public.create_supplier('${A}', 'Intrusa B', null, 'bien', null, 'baja', null, null, null, null)`),
+  "Beto (org B) no registra proveedores en A (026)", "No puedes registrar")
+
+// Evaluación: total y resultado calculados en el servidor por umbral.
+const r1 = (await as(db, U.juan, `select result, total from public.evaluate_supplier('${prov.id}', 'inicial', current_date, 90::smallint, 85::smallint, 80::smallint, current_date + 365, null)`)).rows[0]
+ok(Number(r1.total) === 86.5 && r1.result === "aprobado", "90/85/80 → 86.5 aprobado (026)")
+const r2 = (await as(db, U.juan, `select result, total from public.evaluate_supplier('${prov.id}', 'periodica', current_date, 50::smallint, 50::smallint, 50::smallint, null, null)`)).rows[0]
+ok(Number(r2.total) === 50 && r2.result === "rechazado", "50/50/50 → 50 rechazado (026)")
+const r3 = (await as(db, U.juan, `select result, total from public.evaluate_supplier('${prov.id}', 'periodica', current_date, 60::smallint, 60::smallint, 60::smallint, current_date + 30, null)`)).rows[0]
+ok(Number(r3.total) === 60 && r3.result === "condicionado", "60/60/60 → 60 condicionado, límite inferior (026)")
+
+// El estado vigente y la próxima reevaluación del proveedor reflejan la última evaluación.
+const after = (await as(db, U.juan, `select status, next_eval_date from public.suppliers where id = '${prov.id}'`)).rows[0]
+ok(after.status === "condicionado", "El estado vigente = resultado de la última evaluación (026)")
+ok(after.next_eval_date !== null, "La próxima reevaluación se guarda en el proveedor (026)")
+
+// Autorización de la evaluación.
+await throws(() => as(db, U.sofia, `select public.evaluate_supplier('${prov.id}', 'periodica', current_date, 90::smallint, 90::smallint, 90::smallint, null, null)`),
+  "Sofía no evalúa proveedores (026)", "No puedes evaluar")
+
+// Baja lógica y reactivación (vuelve al resultado de la última evaluación).
+await as(db, U.juan, `select public.set_supplier_active('${prov.id}', false)`)
+ok((await as(db, U.juan, `select status, is_active from public.suppliers where id = '${prov.id}'`)).rows[0].status === "inactivo", "Baja lógica → inactivo (026)")
+await throws(() => as(db, U.juan, `select public.evaluate_supplier('${prov.id}', 'periodica', current_date, 90::smallint, 90::smallint, 90::smallint, null, null)`),
+  "No se evalúa un proveedor inactivo (026)", "inactivo")
+await as(db, U.juan, `select public.set_supplier_active('${prov.id}', true)`)
+ok((await as(db, U.juan, `select status from public.suppliers where id = '${prov.id}'`)).rows[0].status === "condicionado", "Reactivar vuelve al último resultado (026)")
+
+// Aislamiento entre organizaciones y bloqueo de INSERT por REST.
+ok((await as(db, U.beto, `select count(*)::int n from public.suppliers where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve proveedores de A (026)")
+await throws(() => as(db, U.sofia, `insert into public.suppliers (organization_id, code, name, kind, criticality) values ('${A}', 'X', 'X', 'bien', 'baja')`),
+  "Nadie inserta proveedores por REST (026)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

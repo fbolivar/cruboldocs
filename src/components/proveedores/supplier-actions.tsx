@@ -1,10 +1,12 @@
 "use client"
 
 import { PencilIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { CRITICALITY_LABELS, KIND_LABELS } from "@/components/proveedores/labels"
+import { setSupplierActive, updateSupplier } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,14 +19,20 @@ const CRITS = Object.keys(CRITICALITY_LABELS) as SupplierCriticality[]
 
 /** Editar datos y dar de baja / reactivar. Stubs; backend. */
 export function SupplierActions({ supplier }: { supplier: SupplierDetail }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  function toggleActive() {
+    start(async () => {
+      const r = await setSupplierActive(supplier.id, !supplier.isActive)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(supplier.isActive ? "Proveedor dado de baja." : "Proveedor reactivado.")
+      router.refresh()
+    })
+  }
   return (
     <div className="flex flex-wrap gap-2">
       <EditSupplierSheet supplier={supplier} />
-      <Button
-        variant={supplier.isActive ? "outline" : "default"}
-        size="sm"
-        onClick={() => toast.success("Disponible cuando se conecte el backend.")}
-      >
+      <Button variant={supplier.isActive ? "outline" : "default"} size="sm" onClick={toggleActive} loading={pending}>
         {supplier.isActive ? "Dar de baja" : "Reactivar"}
       </Button>
     </div>
@@ -32,6 +40,8 @@ export function SupplierActions({ supplier }: { supplier: SupplierDetail }) {
 }
 
 function EditSupplierSheet({ supplier }: { supplier: SupplierDetail }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(supplier.name)
   const [nit, setNit] = useState(supplier.nit ?? "")
@@ -44,9 +54,17 @@ function EditSupplierSheet({ supplier }: { supplier: SupplierDetail }) {
 
   function submit() {
     if (name.trim().length < 2) { toast.error("Escribe la razón social."); return }
-    // TODO(backend): updateSupplier(supplier.id, { name, nit, kind, category, criticality, contact… })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await updateSupplier(supplier.id, {
+        name, nit: nit.trim() || undefined, kind, category: category.trim() || undefined, criticality,
+        contactName: contactName.trim() || undefined, contactEmail: contactEmail.trim() || undefined,
+        contactPhone: contactPhone.trim() || undefined,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Proveedor actualizado.")
+      setOpen(false)
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -86,7 +104,7 @@ function EditSupplierSheet({ supplier }: { supplier: SupplierDetail }) {
             <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="Teléfono" />
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Guardar cambios</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar cambios</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )
