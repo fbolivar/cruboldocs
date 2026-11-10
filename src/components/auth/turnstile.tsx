@@ -89,7 +89,9 @@ export function Turnstile({
     }
   }, [action])
 
-  return <div ref={container} className="min-h-[65px]" />
+  // Sin alto reservado: con el widget en modo "Invisible" (configurado en Cloudflare) no deja
+  // hueco; en modo visible crece a su tamaño al cargar. Nunca display:none (Turnstile debe renderizar).
+  return <div ref={container} />
 }
 
 /** Sin clave de sitio (desarrollo) el formulario no espera token; el servidor decide. */
