@@ -214,6 +214,7 @@ export type TaskType =
   | "revisar_documento_vencido"
   | "recertificar_accesos"
   | "ejecutar_accion_nc"
+  | "conducir_auditoria"
 
 export type TaskCategory = "documentos" | "riesgos" | "accesos" | "mejora"
 
@@ -319,6 +320,62 @@ export interface NcDetail {
   timeline: NcTimelineEvent[]
   /** Si el usuario actual puede gestionar (Líder SIG o Líder del proceso). */
   canManage: boolean
+}
+
+// ---------- Auditorías internas (ISO 9001 9.2) ----------
+
+export type AuditStatus = "planificada" | "en_ejecucion" | "cerrada" | "cancelada"
+export type FindingType = "no_conformidad" | "observacion" | "oportunidad_mejora" | "conformidad"
+export type FindingSeverity = "menor" | "mayor"
+
+/** Fila del tablero de auditorías. */
+export interface AuditListItem {
+  id: string
+  code: string
+  title: string
+  processNames: string[]
+  leadAuditorName: string | null
+  plannedDate: string
+  status: AuditStatus
+  findingCount: number
+}
+
+export interface AuditSummary {
+  planned: number
+  inProgress: number
+  closedThisYear: number
+  ncFindings: number
+}
+
+export interface AuditFindingView {
+  id: string
+  type: FindingType
+  severity: FindingSeverity | null
+  processName: string | null
+  description: string
+  criteriaRef: string | null
+  /** Código de la NC generada desde este hallazgo, si existe. */
+  nonconformityCode: string | null
+}
+
+/** Ficha completa de una auditoría. */
+export interface AuditDetail {
+  id: string
+  code: string
+  title: string
+  objective: string | null
+  criteria: string | null
+  processNames: string[]
+  leadAuditorName: string | null
+  plannedDate: string
+  status: AuditStatus
+  conclusions: string | null
+  findings: AuditFindingView[]
+  timeline: NcTimelineEvent[]
+  /** Líder SIG: planificar/iniciar/cerrar/cancelar/generar NC. */
+  canManage: boolean
+  /** Rol auditor o líder: registrar hallazgos (solo en ejecución). */
+  canAddFinding: boolean
 }
 
 export interface Task {

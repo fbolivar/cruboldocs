@@ -18,6 +18,21 @@ export function canManageNonconformities(user: CurrentUser, processId?: string):
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla Auditorías: mismos roles del SIG que riesgos/no conformidades. */
+export function canSeeAudits(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Planifica, inicia, cierra o cancela auditorías: Líder SIG. */
+export function canManageAudits(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig")
+}
+
+/** Registra hallazgos (solo en ejecución): rol auditor o Líder SIG. */
+export function canAddFindings(user: CurrentUser): boolean {
+  return hasRole(user, "auditor") || hasRole(user, "lider_sig")
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)

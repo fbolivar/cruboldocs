@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeNonconformities, canSeeRisks } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeAudits, canSeeNonconformities, canSeeRisks } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "documentos" | "riesgos" | "noconf" | "admin"
+export type NavIcon = "inicio" | "documentos" | "riesgos" | "noconf" | "auditorias" | "admin"
 
 export interface NavItem {
   href: string
@@ -19,6 +19,7 @@ export function navItemsFor(user: CurrentUser): NavItem[] {
   ]
   if (canSeeRisks(user)) items.push({ href: "/app/riesgos", label: "Riesgos", icon: "riesgos" })
   if (canSeeNonconformities(user)) items.push({ href: "/app/no-conformidades", label: "No conformidades", icon: "noconf" })
+  if (canSeeAudits(user)) items.push({ href: "/app/auditorias", label: "Auditorías", icon: "auditorias" })
   if (canSeeAdmin(user)) items.push({ href: "/app/admin", label: "Administración", icon: "admin", separated: true })
   return items
 }
