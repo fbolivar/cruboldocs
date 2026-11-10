@@ -4,6 +4,8 @@ import { NextResponse } from "next/server"
 import { AGENT_MAX_TOKENS, AGENT_MODEL, agentConfigured, anthropic, consumeAgentUse, systemPrompt } from "@/lib/agente/agent"
 import { TOOL_SPECS } from "@/lib/agente/tools"
 import { getCurrentUser, listDocumentTypes, listPositions, listProcesses } from "@/lib/data/queries"
+import { isSameOrigin } from "@/lib/http/same-origin"
+import { TOO_MANY, withinLimits } from "@/lib/security/rate-limit"
 
 // Chat de Crubol-Agent. Cada turno cuesta una unidad de uso (control de costo), que la función de
 // base consume solo si el agente está habilitado para la organización y quien escribe puede
@@ -13,22 +15,30 @@ export const runtime = "nodejs"
 export const maxDuration = 30
 
 const ROLES = new Set(["user", "assistant"])
+// Tope de tamaño de la conversación enviada (control de costo de tokens de entrada).
+const MAX_TOTAL_CHARS = 24_000
 
 function parseMessages(body: unknown): Anthropic.MessageParam[] | null {
   if (!body || typeof body !== "object") return null
   const msgs = (body as { messages?: unknown }).messages
   if (!Array.isArray(msgs) || msgs.length === 0 || msgs.length > 50) return null
+  let total = 0
   for (const m of msgs) {
     if (!m || typeof m !== "object") return null
     const role = (m as { role?: unknown }).role
     const content = (m as { content?: unknown }).content
     if (typeof role !== "string" || !ROLES.has(role)) return null
-    if (typeof content !== "string" && !Array.isArray(content)) return null
+    if (typeof content === "string") total += content.length
+    else if (Array.isArray(content)) total += JSON.stringify(content).length
+    else return null
   }
+  if (total > MAX_TOTAL_CHARS) return null
   return msgs as Anthropic.MessageParam[]
 }
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Origen no permitido" }, { status: 403 })
+
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   if (!user.organization.id) return NextResponse.json({ error: "Sin organización activa" }, { status: 400 })
@@ -44,6 +54,11 @@ export async function POST(request: Request) {
   }
   const messages = parseMessages(body)
   if (!messages) return NextResponse.json({ error: "Mensajes inválidos" }, { status: 400 })
+
+  // Ráfaga por usuario (además del tope mensual por organización).
+  if (!(await withinLimits([["agente:usuario", user.id]]))) {
+    return NextResponse.json({ error: TOO_MANY }, { status: 429 })
+  }
 
   // Cobra el uso (valida habilitación, permiso y límite de forma atómica en la base).
   const used = await consumeAgentUse(user.organization.id)

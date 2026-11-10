@@ -134,7 +134,9 @@ describe("verifyTurnstile", () => {
     const { verifyTurnstile } = await import("@/lib/security/turnstile")
     expect(await verifyTurnstile("tok", "login", "1.2.3.4")).toBe(true)
     const sent = fetchMock.mock.calls[0] as unknown as [string, { body: URLSearchParams }]
-    expect(sent[1].body.get("remoteip")).toBe("1.2.3.4")
+    // `remoteip` ya NO se envía (frágil tras CDN); el control por IP vive en el rate limiting.
+    expect(sent[1].body.get("remoteip")).toBeNull()
+    expect(sent[1].body.get("response")).toBe("tok")
   })
   it("token de otra acción (reutilizado de recuperar) → false", async () => {
     prod()

@@ -1,18 +1,26 @@
 import { NextResponse } from "next/server"
 
 import { runTool, TOOL_NAMES } from "@/lib/agente/tools"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, isAgentEnabled } from "@/lib/data/queries"
+import { isSameOrigin } from "@/lib/http/same-origin"
+import { canManageCatalog } from "@/lib/domain/access"
 
 // Ejecuta una acción del agente que el usuario YA confirmó. No llama a Claude ni consume uso: solo
 // corre la acción de dominio (crear proceso / tipo / cargo) con la sesión del usuario, de modo que
-// RLS y validación aplican igual que desde la interfaz. Un usuario sin permiso recibe el mismo
-// error que en la UI; este endpoint no otorga nada extra.
+// RLS y validación aplican igual que desde la interfaz. Además se exige que el agente esté
+// habilitado para la organización y que el usuario administre el catálogo, para que este endpoint
+// no opere cuando la función está apagada (defensa en profundidad; RLS ya impide lo demás).
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Origen no permitido" }, { status: 403 })
+
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   if (!user.organization.id) return NextResponse.json({ error: "Sin organización activa" }, { status: 400 })
+  if (!canManageCatalog(user) || !(await isAgentEnabled())) {
+    return NextResponse.json({ error: "El agente no está disponible." }, { status: 403 })
+  }
 
   let body: unknown
   try {

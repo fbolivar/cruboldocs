@@ -22,6 +22,8 @@ const RULES = {
   "firma:usuario": { limit: 5, window: "15 m" },
   "mfa:usuario": { limit: 5, window: "15 m" },
   "contrasena:usuario": { limit: 5, window: "15 m" },
+  // Crubol-Agent: ráfaga por usuario además del tope mensual por organización (control de costo).
+  "agente:usuario": { limit: 20, window: "10 m" },
 } satisfies Record<string, Rule>
 
 export type LimitKey = keyof typeof RULES
