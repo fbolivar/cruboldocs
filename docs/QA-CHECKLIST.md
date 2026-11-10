@@ -8,7 +8,7 @@
 | Suite | Comando | Qué cubre |
 |---|---|---|
 | Unitarias (Vitest) | `npm test` | Rol × estado de la ficha, permisos, segregación de funciones, riesgo P×I, bandeja, fechas en Bogotá, CSV (inyección de fórmulas), firmas binarias de archivos, redirección segura, filtros de URL, CSP, límites de intentos y Turnstile |
-| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos, de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración) y de **auditorías internas** (planificar→ejecutar→cerrar, autorización por rol, hallazgo→NC, numeración), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
+| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos, de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración) y de **auditorías internas** (planificar→ejecutar→cerrar, autorización por rol, hallazgo→NC, numeración) y de **indicadores/KPIs** (crear/archivar por rol, captura por líder del proceso dueño, cumplimiento derivado por sentido, medición→NC, numeración), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
 | E2E dev (Playwright) | `npm run test:e2e` | Rutas protegidas, login/recuperar (validación y CAPTCHA), invitación inválida, 404, cabeceras, nonce, cron sin secreto; escritorio y móvil |
 | E2E producción | `npm run build` y luego `npm run test:e2e:prod` | Lo anterior sobre el build, más HSTS y CSP estricta |
 | Todo | `npm run check` | lint + tsc + unitarias + RLS + build (**no correrlo con el dev de 3001 activo**) |
@@ -54,18 +54,30 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 23. [ ] **Cancelar:** en otra auditoría no cerrada, el Líder SIG la **cancela** con motivo; queda *Cancelada* y sus tareas pendientes se cierran.
 24. [ ] **Visibilidad/permisos:** un cargo con rol SIG de solo lectura (p. ej. *consulta*) ve el tablero pero **no** puede planificar/iniciar/registrar/cerrar; un cargo sin ningún rol SIG **no** ve el ítem "Auditorías" en el menú. Solo el **auditor** (o el Líder SIG) registra hallazgos.
 
+### 2.3 Indicadores de gestión / KPIs (Módulo 3)
+
+> Requiere un usuario con rol **Líder SIG** (crea/edita/archiva) y, para probar la captura por proceso, un cargo con rol **líder de proceso** del proceso dueño del indicador.
+
+25. [ ] **Líder SIG** usa **Nuevo indicador** (nombre, proceso, unidad, sentido, meta, frecuencia, responsable): aparece `IND-AAAA-001` en el tablero con estado "Sin medición". Prueba los tres sentidos (mayor/menor/rango → aparece Meta máx) y un indicador de **tasa** (marca la casilla).
+26. [ ] **Registrar medición** (Líder SIG o Líder del proceso dueño): el Sheet muestra el **cumplimiento estimado en vivo**; guarda un valor que **cumple**, otro **en riesgo** y otro **no cumple** (en periodos distintos). Para el de tasa, captura numerador/denominador y verifica el valor calculado. La nota es obligatoria si no cumple.
+27. [ ] **Tendencia:** la ficha dibuja la gráfica con la línea de meta (o banda en rango) y los puntos coloreados por cumplimiento; la tabla de mediciones coincide. El tablero muestra la mini-tendencia (sparkline) y el badge del último periodo.
+28. [ ] **Generar NC** en una medición **no cumple**: se crea una `NC-AAAA-###` (origen *Indicador*), la fila muestra el enlace a la NC y el botón no reaparece (idempotente). La NC existe en el Módulo 1.
+29. [ ] **Editar / archivar:** el Líder SIG edita la definición (el histórico conserva su cumplimiento — no se recalcula) y archiva el indicador (sale del tablero activo salvo "Ver archivados"); puede reactivarlo.
+30. [ ] **Visibilidad/permisos:** un cargo de solo lectura (*consulta*) ve el tablero pero **no** crea/edita/archivca ni registra; un Líder de proceso solo captura mediciones de **su** proceso; un cargo sin rol SIG **no** ve el ítem "Indicadores" en el menú.
+
 ## 3. Regresión
 
-25. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades** y **auditorías** (tablero y ficha) sin desplazamiento horizontal. La barra inferior funciona.
-26. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades ni auditorías (checklist de configuración en Inicio; tableros vacíos de NC y de auditorías).
-27. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
-28. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
-29. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
-30. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
-31. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
+31. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades**, **auditorías** e **indicadores** (tablero, sparkline y ficha con gráfica) sin desplazamiento horizontal. La barra inferior funciona.
+32. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades, auditorías ni indicadores (checklist de configuración en Inicio; tableros vacíos; la ficha de indicador sin mediciones muestra el mensaje de tendencia).
+33. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
+34. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
+35. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
+36. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
+37. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
 
 ## Historial
 - 2026-09-24 — Primera versión (fase testing): 157 unitarias, 160 RLS, 44 E2E en dev + 2 solo de producción.
 - 2026-09-25 — Pre-lanzamiento: 167 RLS (anónimo sin privilegios, migración 015) y 48 E2E contra el build (se agrega robots.txt).
 - 2026-11-10 — Módulo No Conformidades/CAPA (migraciones 017–018): 171 unitarias, **201 RLS**, E2E con las rutas del módulo; camino dorado manual §2.1.
 - 2026-11-10 — Módulo Auditorías internas (migraciones 020–021): 175 unitarias, **218 RLS**, E2E con las rutas del módulo (`/app/auditorias` y la ficha); camino dorado manual §2.2.
+- 2026-11-10 — Módulo Indicadores de gestión / KPIs (migración 022): 185 unitarias, **240 RLS**, E2E con las rutas del módulo (`/app/indicadores` y la ficha); camino dorado manual §2.3.
