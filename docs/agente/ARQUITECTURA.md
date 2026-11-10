@@ -108,11 +108,33 @@ siguientes, apoyar la redacción de documentos y la medición de riesgos.
 2. **Fase B:** redacción asistida de documentos (borradores), con el usuario como autor/firmante.
 3. **Fase C:** apoyo a riesgos (identificación, valoración sugerida, controles).
 
-## 9. Decisiones abiertas (para Fernando)
-- **Modelo:** ¿híbrido Sonnet/Opus (recomendado), solo Sonnet (más barato) o solo Opus (máxima calidad)?
-- **Activación:** ¿opt-in por organización desde el panel de administración?
-- **Límites de uso:** ¿cuántas acciones/tokens por organización al mes?
-- **Alcance del MVP:** ¿confirmas que arranca solo con catálogo (sin redacción ni riesgos todavía)?
+## 9. Decisiones confirmadas (Fernando, 2026-11-09)
+- **Modelo:** **híbrido** — `claude-sonnet-5-5` para conversación y acciones de catálogo; `claude-opus-5-5`
+  reservado para tareas complejas (redacción) en fases siguientes.
+- **Alcance MVP:** **solo catálogo** (procesos/tipos/cargos/roles) con confirmación humana + onboarding
+  guiado. Sin redacción de documentos ni riesgos en el MVP.
+- **Activación:** **opt-in por organización** (bandera que enciende el agente para esa org).
+- **Límites de uso:** **por organización**. Default propuesto (configurable): ~200 acciones del agente/mes
+  por org; ajustable por Fernando.
+
+## 10bis. Plan de implementación del MVP (orden)
+1. **Prerrequisitos de privacidad (bloqueante):** declarar a Anthropic como encargado + transferencia
+   internacional en `/tratamiento-de-datos`; nota de uso de IA en `/terminos`; flujo de consentimiento
+   (opt-in) por organización. *Hacer cuando se vaya a activar, no antes.*
+2. **Esquema:** bandera `ai_agent_enabled` (u opt-in) en `organizations`; tabla/contador de uso del agente
+   por organización (para los límites). Migración versionada + pruebas RLS.
+3. **Backend del agente:** route handler server-only con `@anthropic-ai/sdk`; `ANTHROPIC_API_KEY` como
+   secreto en Vercel; definición de **tools** (`crear_proceso`, `crear_tipo_documento`, `crear_cargo`,
+   `asignar_rol`, …) que invocan la lógica de dominio existente **con la sesión del usuario** (RLS);
+   streaming; rate limiting por organización (Upstash).
+4. **UI:** panel de chat lateral en `/app` con streaming y **tarjetas de confirmación** para cada acción
+   de escritura; historial por sesión.
+5. **Seguridad/QA:** pruebas de que el agente no obtiene privilegios extra (RLS), blindaje anti-inyección,
+   y revisión de seguridad del diff antes de activar.
+6. **Activación gradual:** encender primero para la organización de Crubol; luego a clientes con consentimiento.
+
+> Recomendación de proceso: construir esto en una **sesión/fase dedicada** (contexto limpio), siguiendo
+> el método del proyecto (`/fase` o `/feature`). Es un feature grande; no conviene improvisarlo.
 
 ## 10. Riesgos
 - **Privacidad/legal** si se activa sin cerrar §6 → bloqueante.
