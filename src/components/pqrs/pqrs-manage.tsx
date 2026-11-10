@@ -2,44 +2,186 @@
 
 import { ExternalLinkIcon, PencilIcon } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { CHANNEL_LABELS, PQRS_STATUS_LABELS, PQRS_TYPE_LABELS } from "@/components/pqrs/labels"
+import { cancelPqrs, closePqrs, generateNcFromPqrs, managePqrs, respondPqrs, updatePqrs } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
-import type { PqrsDetail } from "@/lib/types"
+import type { PqrsChannel, PqrsDetail, PqrsType } from "@/lib/types"
 
-const stub = () => toast.success("Disponible cuando se conecte el backend.")
+type Option = { id: string; name: string }
+const TYPES = Object.keys(PQRS_TYPE_LABELS) as PqrsType[]
+const CHANNELS = Object.keys(CHANNEL_LABELS) as PqrsChannel[]
+const MANAGE_STATUS: PqrsDetail["status"][] = ["recibida", "en_gestion", "resuelta"]
 const isOpenStatus = (s: PqrsDetail["status"]) => s === "recibida" || s === "en_gestion" || s === "resuelta"
+const field = "flex flex-col gap-1.5"
 
-/** Acciones del encabezado: editar y anular (en estados abiertos). Stubs; backend. */
-export function PqrsHeaderActions({ pqrs }: { pqrs: PqrsDetail }) {
+export function PqrsHeaderActions({ pqrs, processes }: { pqrs: PqrsDetail; processes: Option[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   if (!isOpenStatus(pqrs.status)) return null
+  function anular() {
+    if (!confirm("¿Anular esta PQRS?")) return
+    start(async () => {
+      const r = await cancelPqrs(pqrs.id, "")
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("PQRS anulada."); router.refresh()
+    })
+  }
   return (
     <div className="flex flex-wrap gap-2">
-      <Button variant="outline" size="sm" onClick={stub}><PencilIcon /> Editar</Button>
-      <Button variant="outline" size="sm" onClick={stub}>Anular</Button>
+      <EditPqrsSheet pqrs={pqrs} processes={processes} />
+      <Button variant="outline" size="sm" onClick={anular} loading={pending}>Anular</Button>
     </div>
   )
 }
 
-/** Sección de gestión: asignar / cambiar estado. Stub; backend. */
-export function PqrsManageActions({ pqrs }: { pqrs: PqrsDetail }) {
-  if (!isOpenStatus(pqrs.status)) return null
-  return <Button variant="outline" size="sm" onClick={stub}>Asignar / cambiar estado</Button>
+function EditPqrsSheet({ pqrs, processes }: { pqrs: PqrsDetail; processes: Option[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [open, setOpen] = useState(false)
+  const [type, setType] = useState<PqrsType>(pqrs.type)
+  const [channel, setChannel] = useState<PqrsChannel>(pqrs.channel)
+  const [customerName, setCustomerName] = useState(pqrs.customerName ?? "")
+  const [customerContact, setCustomerContact] = useState(pqrs.customerContact ?? "")
+  const [processId, setProcessId] = useState(pqrs.processId ?? "")
+  const [description, setDescription] = useState(pqrs.description)
+  const [received, setReceived] = useState(pqrs.receivedDate)
+  const [due, setDue] = useState(pqrs.dueDate)
+
+  function submit() {
+    if (description.trim().length < 5) { toast.error("Describe la PQRS."); return }
+    start(async () => {
+      const r = await updatePqrs(pqrs.id, {
+        type, channel, customerName: customerName.trim() || undefined, customerContact: customerContact.trim() || undefined,
+        processId: processId || null, description, receivedDate: received, dueDate: due,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("PQRS actualizada."); setOpen(false); router.refresh()
+    })
+  }
+
+  const dateInput = "h-11 rounded-md border border-borde-fuerte bg-superficie px-3 text-body md:h-9"
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild><Button variant="outline" size="sm"><PencilIcon /> Editar</Button></SheetTrigger>
+      <SheetContent size="sm" className="gap-0 p-0">
+        <SheetHeader className="border-b border-borde"><SheetTitle>Editar PQRS</SheetTitle></SheetHeader>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className={field}><Label>Tipo</Label>
+              <Select value={type} onValueChange={(v) => setType(v as PqrsType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{TYPES.map((t) => <SelectItem key={t} value={t}>{PQRS_TYPE_LABELS[t]}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className={field}><Label>Canal</Label>
+              <Select value={channel} onValueChange={(v) => setChannel(v as PqrsChannel)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{CHANNELS.map((c) => <SelectItem key={c} value={c}>{CHANNEL_LABELS[c]}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className={field}><Label htmlFor="ed-cn">Cliente</Label>
+            <Input id="ed-cn" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre" />
+            <Input value={customerContact} onChange={(e) => setCustomerContact(e.target.value)} placeholder="Contacto" />
+          </div>
+          <div className={field}><Label>Proceso</Label>
+            <Select value={processId} onValueChange={setProcessId}>
+              <SelectTrigger><SelectValue placeholder="Proceso dueño" /></SelectTrigger>
+              <SelectContent>{processes.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className={field}><Label htmlFor="ed-desc">Descripción</Label>
+            <Textarea id="ed-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className={field}><Label htmlFor="ed-rec">Recepción</Label>
+              <input id="ed-rec" type="date" value={received} onChange={(e) => setReceived(e.target.value)} className={dateInput} />
+            </div>
+            <div className={field}><Label htmlFor="ed-due">Plazo</Label>
+              <input id="ed-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} className={dateInput} />
+            </div>
+          </div>
+        </div>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar cambios</Button></SheetFooter>
+      </SheetContent>
+    </Sheet>
+  )
 }
 
-/** Respuesta al cliente: muestra la registrada o permite registrarla (requerida para cerrar). */
-export function PqrsResponse({ pqrs }: { pqrs: PqrsDetail }) {
+export function PqrsManageActions({ pqrs, positions, processes }: { pqrs: PqrsDetail; positions: Option[]; processes: Option[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
-  const [text, setText] = useState("")
+  const [responsible, setResponsible] = useState("")
+  const [processId, setProcessId] = useState(pqrs.processId ?? "")
+  const [status, setStatus] = useState<PqrsDetail["status"]>(pqrs.status)
+  if (!isOpenStatus(pqrs.status)) return null
+
+  function submit() {
+    start(async () => {
+      const r = await managePqrs(pqrs.id, {
+        responsibleId: responsible || null, processId: processId || null,
+        status: (MANAGE_STATUS.includes(status) ? status : "en_gestion"),
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("PQRS actualizada."); setOpen(false); router.refresh()
+    })
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild><Button variant="outline" size="sm">Asignar / cambiar estado</Button></SheetTrigger>
+      <SheetContent size="sm" className="gap-0 p-0">
+        <SheetHeader className="border-b border-borde"><SheetTitle>Gestión de la PQRS</SheetTitle></SheetHeader>
+        <div className="flex flex-1 flex-col gap-4 p-4">
+          <div className={field}><Label>Responsable</Label>
+            <Select value={responsible} onValueChange={setResponsible}>
+              <SelectTrigger><SelectValue placeholder="Cargo responsable" /></SelectTrigger>
+              <SelectContent>{positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className={field}><Label>Proceso</Label>
+            <Select value={processId} onValueChange={setProcessId}>
+              <SelectTrigger><SelectValue placeholder="Proceso dueño" /></SelectTrigger>
+              <SelectContent>{processes.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className={field}><Label>Estado</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as PqrsDetail["status"])}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{MANAGE_STATUS.map((s) => <SelectItem key={s} value={s}>{PQRS_STATUS_LABELS[s]}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        </div>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar</Button></SheetFooter>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+export function PqrsResponse({ pqrs }: { pqrs: PqrsDetail }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState(pqrs.response ?? "")
   const editable = isOpenStatus(pqrs.status) && pqrs.canManage
 
   function submit() {
     if (text.trim().length < 3) { toast.error("Escribe la respuesta al cliente."); return }
-    stub(); setOpen(false)
+    start(async () => {
+      const r = await respondPqrs(pqrs.id, text)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Respuesta registrada."); setOpen(false); router.refresh()
+    })
   }
 
   return (
@@ -56,7 +198,7 @@ export function PqrsResponse({ pqrs }: { pqrs: PqrsDetail }) {
               <Label htmlFor="pq-resp">Respuesta / resolución</Label>
               <Textarea id="pq-resp" rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder="Qué se le responde al cliente" />
             </div>
-            <SheetFooter className="border-t border-borde"><Button onClick={submit}>Guardar respuesta</Button></SheetFooter>
+            <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar respuesta</Button></SheetFooter>
           </SheetContent>
         </Sheet>
       )}
@@ -64,15 +206,20 @@ export function PqrsResponse({ pqrs }: { pqrs: PqrsDetail }) {
   )
 }
 
-/** Cierre con conformidad del cliente (exige respuesta registrada). Stub; backend. */
 export function PqrsClose({ pqrs }: { pqrs: PqrsDetail }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [satisfied, setSatisfied] = useState<"si" | "no">("si")
   if (!isOpenStatus(pqrs.status) || !pqrs.canManage) return null
 
   function submit() {
     if (!pqrs.response) { toast.error("Registra la respuesta antes de cerrar."); return }
-    stub(); setOpen(false)
+    start(async () => {
+      const r = await closePqrs(pqrs.id, satisfied === "si")
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("PQRS cerrada."); setOpen(false); router.refresh()
+    })
   }
 
   return (
@@ -88,14 +235,15 @@ export function PqrsClose({ pqrs }: { pqrs: PqrsDetail }) {
             <Button variant={satisfied === "no" ? "default" : "outline"} size="sm" onClick={() => setSatisfied("no")}>No</Button>
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit} disabled={!pqrs.response}>Cerrar PQRS</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending} disabled={!pqrs.response}>Cerrar PQRS</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )
 }
 
-/** Generar NC desde un reclamo (idempotente) o enlace a la NC existente. Stub; backend. */
 export function PqrsNcAction({ pqrs }: { pqrs: PqrsDetail }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   if (pqrs.type !== "reclamo") return null
   if (pqrs.nonconformityCode) {
     return (
@@ -105,5 +253,12 @@ export function PqrsNcAction({ pqrs }: { pqrs: PqrsDetail }) {
     )
   }
   if (!pqrs.canManage) return <p className="text-small text-texto-sec">Un reclamo puede generar una no conformidad.</p>
-  return <Button size="sm" variant="outline" onClick={stub}>Generar no conformidad</Button>
+  function generate() {
+    start(async () => {
+      const r = await generateNcFromPqrs(pqrs.id)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(`No conformidad ${r.data.code} generada.`); router.refresh()
+    })
+  }
+  return <Button size="sm" variant="outline" onClick={generate} loading={pending}>Generar no conformidad</Button>
 }

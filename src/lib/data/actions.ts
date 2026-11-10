@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, listSuppliers, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, listPqrs, listSuppliers, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -2086,5 +2086,159 @@ export async function exportSuppliersCsv(): Promise<string> {
     { header: "Estado", value: (r) => STATUS[r.status] },
     { header: "Proceso", value: (r) => r.processName },
     { header: "Próxima reevaluación", value: (r) => (r.nextEvalDate ? formatDate(r.nextEvalDate) : null) },
+  ])
+}
+
+// ---------- PQRS y satisfacción del cliente (ISO 9.1.2) ----------
+
+function revalidatePqrs() {
+  revalidatePath("/app/pqrs", "layout")
+  revalidatePath("/app")
+}
+
+const PQRS_TYPES = ["peticion", "queja", "reclamo", "sugerencia", "felicitacion"] as const
+const PQRS_CHANNELS = ["correo", "telefono", "web", "presencial", "otro"] as const
+const pqrsSchema = z.object({
+  type: z.enum(PQRS_TYPES),
+  channel: z.enum(PQRS_CHANNELS),
+  customerName: z.string().trim().max(200).optional(),
+  customerContact: z.string().trim().max(200).optional(),
+  processId: z.uuid().nullish(),
+  description: z.string().trim().min(5).max(4000),
+  receivedDate: isoDate,
+})
+
+export async function createPqrs(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = pqrsSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la PQRS.")
+    if (p.data.receivedDate > todayIsoDate()) return fail("La fecha de recepción no puede ser futura.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_pqrs", {
+      p_org: user.organization.id, p_type: p.data.type, p_channel: p.data.channel,
+      p_customer_name: p.data.customerName ?? "", p_customer_contact: p.data.customerContact ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string, p_description: p.data.description,
+      p_received: p.data.receivedDate, p_due_days: 15,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+const pqrsEditSchema = pqrsSchema.extend({ dueDate: isoDate })
+export async function updatePqrs(caseId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(caseId)) return fail(GENERIC)
+    const p = pqrsEditSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la PQRS.")
+    const { error } = await (await createClient()).rpc("update_pqrs", {
+      p_case: caseId, p_type: p.data.type, p_channel: p.data.channel,
+      p_customer_name: p.data.customerName ?? "", p_customer_contact: p.data.customerContact ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string, p_description: p.data.description,
+      p_received: p.data.receivedDate, p_due: p.data.dueDate,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok(undefined)
+  })
+}
+
+const manageSchema = z.object({
+  responsibleId: z.uuid().nullish(),
+  processId: z.uuid().nullish(),
+  status: z.enum(["recibida", "en_gestion", "resuelta"]),
+})
+export async function managePqrs(caseId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(caseId)) return fail(GENERIC)
+    const p = manageSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la gestión de la PQRS.")
+    const { error } = await (await createClient()).rpc("manage_pqrs", {
+      p_case: caseId, p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_process: (p.data.processId ?? null) as unknown as string, p_status: p.data.status,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok(undefined)
+  })
+}
+
+export async function respondPqrs(caseId: string, response: string): Promise<Result> {
+  return guard(async () => {
+    const text = response.trim()
+    if (!isUuid(caseId) || text.length < 3 || text.length > 4000) return fail("Escribe la respuesta al cliente.")
+    const { error } = await (await createClient()).rpc("respond_pqrs", { p_case: caseId, p_response: text })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok(undefined)
+  })
+}
+
+export async function closePqrs(caseId: string, satisfied: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(caseId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("close_pqrs", { p_case: caseId, p_satisfied: satisfied })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok(undefined)
+  })
+}
+
+export async function cancelPqrs(caseId: string, reason: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(caseId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("cancel_pqrs", { p_case: caseId, p_reason: reason.trim().slice(0, 2000) })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok(undefined)
+  })
+}
+
+export async function generateNcFromPqrs(caseId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(caseId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_from_pqrs", { p_case: caseId })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+const satisfactionSchema = z.object({
+  period: isoDate,
+  method: z.enum(["encuesta", "nps", "csat", "otro"]),
+  score: z.number().min(0).max(100),
+  responses: z.number().int().min(0).max(1_000_000).nullish(),
+  note: z.string().trim().max(2000).optional(),
+})
+export async function recordSatisfaction(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = satisfactionSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la medición: el puntaje va de 0 a 100.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { error } = await (await createClient()).rpc("record_satisfaction", {
+      p_org: user.organization.id, p_period: p.data.period, p_method: p.data.method,
+      p_score: p.data.score, p_responses: (p.data.responses ?? null) as unknown as number, p_note: p.data.note ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok(undefined)
+  })
+}
+
+export async function exportPqrsCsv(): Promise<string> {
+  const rows = await listPqrs()
+  const TYPE: Record<string, string> = { peticion: "Petición", queja: "Queja", reclamo: "Reclamo", sugerencia: "Sugerencia", felicitacion: "Felicitación" }
+  const STATUS: Record<string, string> = { recibida: "Recibida", en_gestion: "En gestión", resuelta: "Resuelta", cerrada: "Cerrada", anulada: "Anulada" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Tipo", value: (r) => TYPE[r.type] },
+    { header: "Cliente", value: (r) => r.customerName },
+    { header: "Estado", value: (r) => STATUS[r.status] },
+    { header: "Proceso", value: (r) => r.processName },
+    { header: "Vence", value: (r) => formatDate(r.dueDate) },
   ])
 }

@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageNonconformities, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageNonconformities, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -81,6 +81,10 @@ import type {
   Paginated,
   PersonRef,
   Position,
+  PqrsDetail,
+  PqrsListItem,
+  PqrsSummary,
+  SatisfactionMeasurementView,
   Process,
   ProcessType,
   RecertificationInfo,
@@ -1787,5 +1791,90 @@ export async function getSupplier(code: string): Promise<SupplierDetail | null> 
     nextEvalDate: r.next_eval_date, evaluations,
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: SUPPLIER_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageSuppliers(s.user, r.process_id ?? undefined),
+  }
+}
+
+// ---------- PQRS y satisfacción del cliente (ISO 9.1.2) ----------
+
+const PQRS_EVENT_TEXT: Record<string, string> = {
+  crear_pqrs: "Registró la PQRS.",
+  editar_pqrs: "Editó la PQRS.",
+  gestionar_pqrs: "Actualizó la gestión de la PQRS.",
+  responder_pqrs: "Registró la respuesta al cliente.",
+  cerrar_pqrs: "Cerró la PQRS.",
+  anular_pqrs: "Anuló la PQRS.",
+  generar_nc_pqrs: "Generó una no conformidad desde el reclamo.",
+}
+
+async function satisfactionList(s: NonNullable<Awaited<ReturnType<typeof scope>>>): Promise<SatisfactionMeasurementView[]> {
+  const { data } = await s.supabase.from("satisfaction_measurements")
+    .select("id, period, method, score, responses, note").eq("organization_id", s.org)
+    .order("period", { ascending: false }).order("method")
+  return (data ?? []).map((m) => ({
+    id: m.id, period: m.period, method: m.method as SatisfactionMeasurementView["method"],
+    score: Number(m.score), responses: m.responses, note: m.note,
+  }))
+}
+
+export async function getPqrsSummary(): Promise<PqrsSummary> {
+  const s = await scope()
+  if (!s) return { open: 0, overdue: 0, lastSatisfactionScore: null, lastSatisfactionPeriod: null }
+  const today = todayIsoDate()
+  const [{ data: rows }, sat] = await Promise.all([
+    s.supabase.from("pqrs_cases").select("status, due_date").eq("organization_id", s.org),
+    satisfactionList(s),
+  ])
+  const openRows = (rows ?? []).filter((r) => r.status === "recibida" || r.status === "en_gestion" || r.status === "resuelta")
+  const last = sat[0] ?? null
+  return {
+    open: openRows.length,
+    overdue: openRows.filter((r) => r.due_date < today).length,
+    lastSatisfactionScore: last ? last.score : null,
+    lastSatisfactionPeriod: last ? last.period : null,
+  }
+}
+
+export async function listPqrs(): Promise<PqrsListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.from("pqrs_cases").select("id, code, type, customer_name, status, process_id, due_date").eq("organization_id", s.org).order("received_date", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((r) => ({
+    id: r.id, code: r.code, type: r.type as PqrsListItem["type"], customerName: r.customer_name,
+    status: r.status as PqrsListItem["status"], processName: r.process_id ? procMap.get(r.process_id) ?? null : null,
+    dueDate: r.due_date,
+  }))
+}
+
+export async function listSatisfaction(): Promise<SatisfactionMeasurementView[]> {
+  const s = await scope()
+  if (!s) return []
+  return satisfactionList(s)
+}
+
+export async function getPqrs(code: string): Promise<PqrsDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: r } = await s.supabase.from("pqrs_cases").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!r) return null
+  const [{ data: proc }, { data: pos }, { data: nc }, { data: log }] = await Promise.all([
+    r.process_id ? s.supabase.from("processes").select("name").eq("id", r.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    r.responsible_position_id ? s.supabase.from("positions").select("name").eq("id", r.responsible_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    r.nonconformity_id ? s.supabase.from("nonconformities").select("code").eq("id", r.nonconformity_id).maybeSingle() : Promise.resolve({ data: null as { code: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "PQRS").eq("entity_id", r.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: r.id, code: r.code, type: r.type as PqrsDetail["type"], channel: r.channel as PqrsDetail["channel"],
+    customerName: r.customer_name, customerContact: r.customer_contact,
+    processName: proc?.name ?? null, processId: r.process_id,
+    description: r.description, receivedDate: r.received_date, dueDate: r.due_date,
+    status: r.status as PqrsDetail["status"], responsibleName: pos?.name ?? null,
+    response: r.response, satisfied: r.satisfied, nonconformityCode: nc?.code ?? null,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: PQRS_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManagePqrs(s.user, r.process_id ?? undefined),
   }
 }

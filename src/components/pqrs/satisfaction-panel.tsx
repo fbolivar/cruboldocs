@@ -1,11 +1,13 @@
 "use client"
 
 import { PlusIcon, SmileIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { SATISFACTION_METHOD_LABELS, formatPeriod, satisfactionLabel } from "@/components/pqrs/labels"
 import { SatisfactionGauge } from "@/components/pqrs/satisfaction-gauge"
+import { recordSatisfaction } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -46,6 +48,8 @@ export function SatisfactionPanel({ items, canManage }: { items: SatisfactionMea
 }
 
 function RecordSatisfactionSheet() {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [period, setPeriod] = useState("")
   const [method, setMethod] = useState<SatisfactionMethod>("encuesta")
@@ -59,9 +63,16 @@ function RecordSatisfactionSheet() {
   function submit() {
     if (!period) { toast.error("Indica el periodo."); return }
     if (!valid) { toast.error("El puntaje va de 0 a 100."); return }
-    // TODO(backend): recordSatisfaction({ period, method, score, responses, note })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await recordSatisfaction({
+        period, method, score: n, responses: responses ? Number(responses) : null, note: note.trim() || undefined,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Satisfacción registrada.")
+      setOpen(false)
+      setPeriod(""); setScore(""); setResponses(""); setNote("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -105,7 +116,7 @@ function RecordSatisfactionSheet() {
             <Textarea id="sat-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Guardar</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

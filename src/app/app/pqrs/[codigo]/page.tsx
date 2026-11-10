@@ -10,8 +10,7 @@ import { PqrsStepper } from "@/components/pqrs/pqrs-stepper"
 import { isOpen } from "@/components/pqrs/labels"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getPqrs } from "@/lib/data/pqrs-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getPqrs, listPositions, listProcesses } from "@/lib/data/queries"
 import { canSeePqrs } from "@/lib/domain/access"
 import { formatDate, todayIsoDate } from "@/lib/format"
 
@@ -25,6 +24,9 @@ export default async function PqrsDetailPage({ params }: { params: Promise<{ cod
   const pqrs = await getPqrs(decodeURIComponent(codigo))
   if (!pqrs) notFound()
 
+  const [processes, positions] = pqrs.canManage ? await Promise.all([listProcesses(), listPositions()]) : [[], []]
+  const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
+  const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
   const overdue = isOpen(pqrs.status) && pqrs.dueDate < todayIsoDate()
 
   return (
@@ -40,7 +42,7 @@ export default async function PqrsDetailPage({ params }: { params: Promise<{ cod
               <p className="font-mono text-small text-texto-sec">{pqrs.code}</p>
               <h1 className="mt-0.5">{pqrs.customerName ?? "Cliente no identificado"}</h1>
             </div>
-            {pqrs.canManage && <PqrsHeaderActions pqrs={pqrs} />}
+            {pqrs.canManage && <PqrsHeaderActions pqrs={pqrs} processes={processOptions} />}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PqrsTypeChip type={pqrs.type} />
@@ -57,7 +59,7 @@ export default async function PqrsDetailPage({ params }: { params: Promise<{ cod
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle>Datos</CardTitle>
-            {pqrs.canManage && <PqrsManageActions pqrs={pqrs} />}
+            {pqrs.canManage && <PqrsManageActions pqrs={pqrs} positions={positionOptions} processes={processOptions} />}
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-body whitespace-pre-wrap">{pqrs.description}</p>

@@ -1947,6 +1947,127 @@ export type Database = {
           },
         ]
       }
+      pqrs_cases: {
+        Row: {
+          channel: string
+          code: string
+          created_at: string
+          created_by: string
+          customer_contact: string | null
+          customer_name: string | null
+          description: string
+          due_date: string
+          id: string
+          nonconformity_id: string | null
+          organization_id: string
+          process_id: string | null
+          received_date: string
+          response: string | null
+          responsible_position_id: string | null
+          satisfied: boolean | null
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          code: string
+          created_at?: string
+          created_by?: string
+          customer_contact?: string | null
+          customer_name?: string | null
+          description: string
+          due_date: string
+          id?: string
+          nonconformity_id?: string | null
+          organization_id: string
+          process_id?: string | null
+          received_date: string
+          response?: string | null
+          responsible_position_id?: string | null
+          satisfied?: boolean | null
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          code?: string
+          created_at?: string
+          created_by?: string
+          customer_contact?: string | null
+          customer_name?: string | null
+          description?: string
+          due_date?: string
+          id?: string
+          nonconformity_id?: string | null
+          organization_id?: string
+          process_id?: string | null
+          received_date?: string
+          response?: string | null
+          responsible_position_id?: string | null
+          satisfied?: boolean | null
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pqrs_cases_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "pqrs_cases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pqrs_cases_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "pqrs_cases_responsible_position_id_organization_id_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      pqrs_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pqrs_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processes: {
         Row: {
           code: string
@@ -2341,6 +2462,50 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "processes"
             referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      satisfaction_measurements: {
+        Row: {
+          created_at: string
+          id: string
+          measured_by: string
+          method: string
+          note: string | null
+          organization_id: string
+          period: string
+          responses: number | null
+          score: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          measured_by?: string
+          method: string
+          note?: string | null
+          organization_id: string
+          period: string
+          responses?: number | null
+          score: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          measured_by?: string
+          method?: string
+          note?: string | null
+          organization_id?: string
+          period?: string
+          responses?: number | null
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satisfaction_measurements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2957,6 +3122,10 @@ export type Database = {
         Args: { org: string; p_user: string }
         Returns: boolean
       }
+      can_manage_pqrs: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_reviews: { Args: { org: string }; Returns: boolean }
       can_manage_risk: {
         Args: { org: string; process: string }
@@ -2975,6 +3144,7 @@ export type Database = {
         Args: { p_membership: string; p_org: string }
         Returns: boolean
       }
+      can_see_pqrs: { Args: { org: string }; Returns: boolean }
       can_see_reviews: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
       can_see_suppliers: { Args: { org: string }; Returns: boolean }
@@ -2989,12 +3159,20 @@ export type Database = {
         Returns: undefined
       }
       cancel_nc_action: { Args: { p_action: string }; Returns: undefined }
+      cancel_pqrs: {
+        Args: { p_case: string; p_reason: string }
+        Returns: undefined
+      }
       cancel_review: {
         Args: { p_reason: string; p_review: string }
         Returns: undefined
       }
       close_audit: {
         Args: { p_audit: string; p_conclusions: string }
+        Returns: undefined
+      }
+      close_pqrs: {
+        Args: { p_case: string; p_satisfied: boolean }
         Returns: undefined
       }
       close_review:
@@ -3109,6 +3287,23 @@ export type Database = {
           expires_at: string
           organization_id: string
           position_id: string
+        }[]
+      }
+      create_pqrs: {
+        Args: {
+          p_channel: string
+          p_customer_contact: string
+          p_customer_name: string
+          p_description: string
+          p_due_days: number
+          p_org: string
+          p_process: string
+          p_received: string
+          p_type: string
+        }
+        Returns: {
+          code: string
+          id: string
         }[]
       }
       create_review: {
@@ -3256,6 +3451,12 @@ export type Database = {
           code: string
         }[]
       }
+      generate_nc_from_pqrs: {
+        Args: { p_case: string }
+        Returns: {
+          code: string
+        }[]
+      }
       has_role: {
         Args: { org: string; process?: string; r: string }
         Returns: boolean
@@ -3323,6 +3524,15 @@ export type Database = {
           p_entity_id: string
           p_entity_type: string
           p_label: string
+        }
+        Returns: undefined
+      }
+      manage_pqrs: {
+        Args: {
+          p_case: string
+          p_process: string
+          p_responsible: string
+          p_status: string
         }
         Returns: undefined
       }
@@ -3431,6 +3641,36 @@ export type Database = {
         }[]
       }
       position_of: { Args: { org: string; p_user: string }; Returns: string }
+      pqrs_or_fail: {
+        Args: { p_case: string }
+        Returns: {
+          channel: string
+          code: string
+          created_at: string
+          created_by: string
+          customer_contact: string | null
+          customer_name: string | null
+          description: string
+          due_date: string
+          id: string
+          nonconformity_id: string | null
+          organization_id: string
+          process_id: string | null
+          received_date: string
+          response: string | null
+          responsible_position_id: string | null
+          satisfied: boolean | null
+          status: string
+          type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqrs_cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       record_measurement: {
         Args: {
           p_denominator: number
@@ -3439,6 +3679,17 @@ export type Database = {
           p_numerator: number
           p_period: string
           p_value: number
+        }
+        Returns: string
+      }
+      record_satisfaction: {
+        Args: {
+          p_method: string
+          p_note: string
+          p_org: string
+          p_period: string
+          p_responses: number
+          p_score: number
         }
         Returns: string
       }
@@ -3492,6 +3743,10 @@ export type Database = {
         Returns: string
       }
       resolve_comment: { Args: { p_comment: string }; Returns: undefined }
+      respond_pqrs: {
+        Args: { p_case: string; p_response: string }
+        Returns: undefined
+      }
       return_version: {
         Args: { p_reason: string; p_version: string }
         Returns: undefined
@@ -3671,6 +3926,20 @@ export type Database = {
           p_target_max: number
           p_tolerance: number
           p_unit: string
+        }
+        Returns: undefined
+      }
+      update_pqrs: {
+        Args: {
+          p_case: string
+          p_channel: string
+          p_customer_contact: string
+          p_customer_name: string
+          p_description: string
+          p_due: string
+          p_process: string
+          p_received: string
+          p_type: string
         }
         Returns: undefined
       }

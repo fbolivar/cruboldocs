@@ -7,8 +7,7 @@ import { SatisfactionPanel } from "@/components/pqrs/satisfaction-panel"
 import { PqrsSummaryBar } from "@/components/pqrs/summary"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getPqrsSummary, listPqrs, listSatisfaction } from "@/lib/data/pqrs-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getPqrsSummary, listPqrs, listProcesses, listSatisfaction } from "@/lib/data/queries"
 import { canManagePqrs, canSeePqrs } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "PQRS" }
@@ -28,8 +27,9 @@ export default async function PqrsPage() {
     )
   }
 
-  const [summary, items, satisfaction] = await Promise.all([getPqrsSummary(), listPqrs(), listSatisfaction()])
+  const [summary, items, satisfaction, processes] = await Promise.all([getPqrsSummary(), listPqrs(), listSatisfaction(), listProcesses()])
   const canManage = canManagePqrs(user)
+  const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
 
   return (
     <Page wide>
@@ -38,7 +38,7 @@ export default async function PqrsPage() {
         actions={
           <div className="flex gap-2">
             <ExportPqrsButton />
-            {canManage && <NewPqrsSheet processes={[]} />}
+            {canManage && <NewPqrsSheet processes={processOptions} />}
           </div>
         }
       />

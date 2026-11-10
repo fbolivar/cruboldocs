@@ -776,5 +776,59 @@ ok((await as(db, U.beto, `select count(*)::int n from public.suppliers where org
 await throws(() => as(db, U.sofia, `insert into public.suppliers (organization_id, code, name, kind, criticality) values ('${A}', 'X', 'X', 'bien', 'baja')`),
   "Nadie inserta proveedores por REST (026)", "row-level security")
 
+
+// ========== 027 · PQRS y satisfacción (ISO 9.1.2) ==========
+// Alta: Líder SIG o Líder del proceso; no la consulta ni otra org.
+const pq = (await as(db, U.juan, `select id, code from public.create_pqrs('${A}', 'reclamo', 'correo', 'Juan Cliente', 'juan@x.co', '${P.sigA}', 'El pedido llegó incompleto y con retraso.', current_date, 15)`)).rows[0]
+ok(pq.code === "PQRS-" + new Date().getFullYear() + "-001", "Numeración PQRS-AAAA-001 (027)")
+const pet = (await as(db, U.juan, `select id, code from public.create_pqrs('${A}', 'peticion', 'web', 'María', null, '${P.sigA}', 'Solicita copia de la factura.', current_date, 15)`)).rows[0]
+ok(pet.code === "PQRS-" + new Date().getFullYear() + "-002", "Numeración incremental PQRS-AAAA-002 (027)")
+await throws(() => as(db, U.sofia, `select public.create_pqrs('${A}', 'queja', 'web', null, null, null, 'Intrusa', current_date, 15)`),
+  "Sofía (consulta) no registra PQRS (027)", "No puedes registrar")
+await throws(() => as(db, U.beto, `select public.create_pqrs('${A}', 'queja', 'web', null, null, null, 'Intrusa B', current_date, 15)`),
+  "Beto (org B) no registra PQRS en A (027)", "No puedes registrar")
+
+// El plazo se fija a +15 días.
+ok((await as(db, U.juan, `select (due_date - received_date) d from public.pqrs_cases where id = '${pq.id}'`)).rows[0].d === 15, "El plazo se fija en +15 días (027)")
+
+// Cierre exige respuesta registrada.
+await throws(() => as(db, U.juan, `select public.close_pqrs('${pq.id}', true)`),
+  "No se cierra sin respuesta (027)", "Registra la respuesta")
+await as(db, U.juan, `select public.respond_pqrs('${pq.id}', 'Se repuso el pedido y se ofreció disculpa.')`)
+ok((await as(db, U.juan, `select status from public.pqrs_cases where id = '${pq.id}'`)).rows[0].status === "en_gestion", "Al responder pasa a en gestión (027)")
+
+// Reclamo → NC (reusa report_nonconformity 'queja_pqrs'); idempotente.
+const nc = (await as(db, U.juan, `select code from public.generate_nc_from_pqrs('${pq.id}')`)).rows[0]
+ok(/^NC-\d{4}-\d{3}$/.test(nc.code), "El reclamo genera una NC (027)")
+ok((await as(db, U.juan, `select source from public.nonconformities where code = '${nc.code}' and organization_id = '${A}'`)).rows[0].source === "queja_pqrs", "La NC tiene source queja_pqrs (027)")
+await throws(() => as(db, U.juan, `select public.generate_nc_from_pqrs('${pq.id}')`),
+  "No se duplica la NC del reclamo: idempotente (027)", "ya tiene una no conformidad")
+await throws(() => as(db, U.juan, `select public.generate_nc_from_pqrs('${pet.id}')`),
+  "Una petición no genera NC (027)", "Solo un reclamo")
+
+// Cierre con conformidad.
+await as(db, U.juan, `select public.close_pqrs('${pq.id}', true)`)
+const closed = (await as(db, U.juan, `select status, satisfied from public.pqrs_cases where id = '${pq.id}'`)).rows[0]
+ok(closed.status === "cerrada" && closed.satisfied === true, "Se cierra con conformidad del cliente (027)")
+await throws(() => as(db, U.juan, `select public.respond_pqrs('${pq.id}', 'Tardía')`),
+  "No se edita una PQRS cerrada (027)", "ya no es editable")
+
+// Anular (desde abierto).
+await as(db, U.juan, `select public.cancel_pqrs('${pet.id}', 'Duplicada')`)
+ok((await as(db, U.juan, `select status from public.pqrs_cases where id = '${pet.id}'`)).rows[0].status === "anulada", "Se anula la PQRS (027)")
+
+// Satisfacción: upsert por periodo+método; score fuera de rango rechazado.
+await as(db, U.juan, `select public.record_satisfaction('${A}', date_trunc('month', current_date)::date, 'encuesta', 84.5, 30, 'Buen mes')`)
+await as(db, U.juan, `select public.record_satisfaction('${A}', date_trunc('month', current_date)::date, 'encuesta', 90, 31, null)`)
+const sat = (await as(db, U.juan, `select count(*)::int n, max(score) s from public.satisfaction_measurements where organization_id = '${A}' and method = 'encuesta'`)).rows[0]
+ok(sat.n === 1 && Number(sat.s) === 90, "Satisfacción: upsert por periodo+método (027)")
+await throws(() => as(db, U.juan, `select public.record_satisfaction('${A}', date_trunc('month', current_date)::date, 'nps', 120, null, null)`),
+  "Puntaje de satisfacción fuera de rango rechazado (027)", "de 0 a 100")
+
+// Aislamiento entre organizaciones y bloqueo de INSERT por REST.
+ok((await as(db, U.beto, `select count(*)::int n from public.pqrs_cases where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve PQRS de A (027)")
+await throws(() => as(db, U.sofia, `insert into public.pqrs_cases (organization_id, code, type, channel, description, received_date, due_date) values ('${A}', 'X', 'queja', 'web', 'x intrusa', current_date, current_date)`),
+  "Nadie inserta PQRS por REST (027)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

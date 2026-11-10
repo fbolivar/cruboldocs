@@ -1,10 +1,14 @@
 "use client"
 
 import { DownloadIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { CHANNEL_LABELS, PQRS_TYPE_LABELS } from "@/components/pqrs/labels"
+import { createPqrs, exportPqrsCsv } from "@/lib/data/actions"
+import { downloadCsv } from "@/lib/csv"
+import { todayIsoDate } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,14 +22,27 @@ const TYPES = Object.keys(PQRS_TYPE_LABELS) as PqrsType[]
 const CHANNELS = Object.keys(CHANNEL_LABELS) as PqrsChannel[]
 
 export function ExportPqrsButton() {
+  const [pending, start] = useTransition()
+  function run() {
+    start(async () => {
+      try {
+        const csv = await exportPqrsCsv()
+        downloadCsv(`pqrs-${todayIsoDate()}.csv`, csv)
+      } catch {
+        toast.error("No pudimos exportar el CSV.")
+      }
+    })
+  }
   return (
-    <Button variant="outline" onClick={() => toast.success("Exportación disponible cuando se conecte el backend.")}>
+    <Button variant="outline" onClick={run} loading={pending}>
       <DownloadIcon /> Exportar CSV
     </Button>
   )
 }
 
 export function NewPqrsSheet({ processes }: { processes: ProcessOption[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<PqrsType>("peticion")
   const [channel, setChannel] = useState<PqrsChannel>("correo")
@@ -38,9 +55,17 @@ export function NewPqrsSheet({ processes }: { processes: ProcessOption[] }) {
   function submit() {
     if (description.trim().length < 5) { toast.error("Describe la PQRS."); return }
     if (!received) { toast.error("Indica la fecha de recepción."); return }
-    // TODO(backend): createPqrs({ type, channel, customerName, customerContact, processId, description, received })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await createPqrs({
+        type, channel, customerName: customerName.trim() || undefined, customerContact: customerContact.trim() || undefined,
+        processId: processId || null, description, receivedDate: received,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(`PQRS ${r.data.code} registrada.`)
+      setOpen(false)
+      setCustomerName(""); setCustomerContact(""); setProcessId(""); setDescription(""); setReceived("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -96,7 +121,7 @@ export function NewPqrsSheet({ processes }: { processes: ProcessOption[] }) {
             <p className="text-caption text-texto-sec">El plazo se fija en +15 días; podrás ajustarlo en la ficha.</p>
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Registrar PQRS</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Registrar PQRS</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )
