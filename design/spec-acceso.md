@@ -57,6 +57,64 @@
 - Mensajes de error genéricos: no filtrar existencia de usuarios.
 - Aceptación de datos en la invitación: es el momento de consentimiento de la Ley 1581.
 
+## 7. Rediseño del login (2026-11-09 — **pendiente de aprobación de Fernando**)
+
+Inspiración: login split-screen con panel de bienvenida ilustrado + tarjeta de formulario limpia.
+**Adaptado a la realidad de CrubolDocs:** sin registro/"sign in", sin login social, sin "keep connected"
+(acceso solo por invitación, ADR-005). Solo cambia `/login`; `/recuperar` e `/invitacion` conservan su spec.
+
+### Wireframe (escritorio)
+```
+┌────────────────────────────────────┬─────────────────────────────────────┐
+│  PANEL DE MARCA (gradiente + hex)   │                                     │
+│  ⬡ CrubolDocs                       │     Ingresa a CrubolDocs      (h1)   │
+│                                     │                                     │
+│  "Tu sistema de gestión,            │     ✉  Correo                        │
+│   bajo control."            (h1)    │     ────────────────────────         │
+│                                     │     🔒 Contraseña            👁       │
+│  Párrafo de valor (body-lg):        │     ────────────────────────         │
+│  control documental, trazabilidad   │     ¿Olvidaste tu contraseña?        │
+│  de firmas/lecturas y riesgos        │     [ widget Turnstile ]            │
+│  medidos. Preciso y confiable.      │     (  Ingresar  )  ← pill           │
+│                                     │                                     │
+│  ◇ Ilustración geométrica (hex/     │     Crubol Technology S.A.S ·        │
+│    cubos isométricos + anillos,     │     Tratamiento de datos (Ley 1581) │
+│    colores de marca)                │                                     │
+│  patrón hexagonal de fondo ≤6%      │                                     │
+└────────────────────────────────────┴─────────────────────────────────────┘
+```
+
+### Cambios respecto a la versión actual
+- **Panel de marca enriquecido:** además del logo y la promesa (h1), un **párrafo de valor** (body-lg,
+  texto blanco/mentolado) y una **ilustración geométrica** (cubos/hexágonos isométricos con anillos
+  orbitales, construida con los colores de marca sobre el gradiente; sin imágenes externas, SVG inline).
+  Mantiene el patrón hexagonal ≤6%. Sigue siendo el único lugar con gradiente.
+- **Tarjeta de formulario más limpia:** campos con **ícono guía** (correo, candado) y **línea inferior**
+  (en reposo `borde-fuerte`; en foco `acento` 2px). Label flotante o superior `label`. Contraste AA y
+  foco visible intactos. Mostrar/ocultar contraseña con `aria-label`.
+- **Botón primario tipo pill** (`rounded-full`) `acento` → `acento-hover`, full-width, alto 44 (táctil).
+- **Sin** pestañas de registro, **sin** botones sociales, **sin** "recordarme". El widget **Turnstile**
+  va sobre el botón (como hoy). Pie con enlace a tratamiento de datos.
+
+### Móvil (≤640px)
+- El panel de marca se reduce a una franja superior (~140px): logo + promesa en una línea; la ilustración
+  se oculta o se reduce a un hexágono. La tarjeta ocupa el ancho (gutter 16), inputs de 44px.
+
+### Estados
+Iguales a §4 (carga: "Ingresando…" con spinner; error: alerta `error-suave` "Correo o contraseña
+incorrectos."). La línea inferior del campo con error pasa a `error`.
+
+### Accesibilidad
+- Los íconos guía son decorativos (`aria-hidden`); cada campo conserva su `<label>`.
+- Contraste del texto sobre el gradiente ≥ 4.5:1 (texto blanco; el párrafo usa blanco o `acento-suave`,
+  nunca `acento-claro`/`acento-medio` como texto).
+
+### Componentes
+- `BrandPanel` (actualizar: + párrafo + ilustración SVG). `LoginForm` (actualizar estilo de inputs y botón).
+  Tokens sin cambios; no se inventan colores nuevos.
+
+Mockup de aprobación: `design/mockup/login-rediseno.html` (y versión publicada para revisar en pantalla).
+
 ---
 
 > CONTRATO: implementar exactamente según design/tokens.md + esta spec. Desviaciones requieren actualizar la spec primero.
