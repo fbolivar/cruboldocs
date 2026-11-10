@@ -1,15 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { setNcCause } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Textarea } from "@/components/ui/textarea"
 import { SearchIcon } from "lucide-react"
 
-/** Análisis de causa raíz (texto libre). Editable por el gestor. Envío se conecta en backend. */
-export function NcCause({ cause, canManage }: { cause: string | null; canManage: boolean }) {
+/** Análisis de causa raíz (texto libre). Editable por el gestor. */
+export function NcCause({ ncId, cause, canManage }: { ncId: string; cause: string | null; canManage: boolean }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(cause ?? "")
 
@@ -18,9 +22,16 @@ export function NcCause({ cause, canManage }: { cause: string | null; canManage:
       toast.error("Describe la causa raíz.")
       return
     }
-    // TODO(backend): server action set_nc_cause.
-    toast.success("Causa guardada.")
-    setEditing(false)
+    start(async () => {
+      const r = await setNcCause(ncId, value)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Causa guardada.")
+      setEditing(false)
+      router.refresh()
+    })
   }
 
   if (editing) {
@@ -28,7 +39,7 @@ export function NcCause({ cause, canManage }: { cause: string | null; canManage:
       <div className="flex flex-col gap-2">
         <Textarea rows={4} value={value} onChange={(e) => setValue(e.target.value)} placeholder="¿Por qué ocurrió? (causa raíz)" />
         <div className="flex gap-2">
-          <Button size="sm" onClick={save}>Guardar causa</Button>
+          <Button size="sm" onClick={save} loading={pending}>Guardar causa</Button>
           <Button size="sm" variant="outline" onClick={() => { setEditing(false); setValue(cause ?? "") }}>Cancelar</Button>
         </div>
       </div>

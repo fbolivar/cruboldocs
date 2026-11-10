@@ -69,6 +69,6 @@ describe("bandeja", () => {
       task("c", due, "recertificar_accesos"),
       task("d", due, "confirmar_lectura"),
     ]
-    expect(countByCategory(tasks)).toEqual({ todas: 4, documentos: 2, riesgos: 1, accesos: 1 })
+    expect(countByCategory(tasks)).toEqual({ todas: 4, documentos: 2, riesgos: 1, accesos: 1, mejora: 0 })
   })
 })

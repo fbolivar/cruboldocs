@@ -828,6 +828,294 @@ export type Database = {
           },
         ]
       }
+      nc_actions: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string
+          description: string
+          due_date: string
+          id: string
+          nonconformity_id: string
+          organization_id: string
+          responsible_position_id: string
+          status: string
+          type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string
+          description: string
+          due_date: string
+          id?: string
+          nonconformity_id: string
+          organization_id: string
+          responsible_position_id: string
+          status?: string
+          type: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string
+          due_date?: string
+          id?: string
+          nonconformity_id?: string
+          organization_id?: string
+          responsible_position_id?: string
+          status?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nc_actions_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nc_actions_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nc_actions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nc_actions_responsible_position_id_organization_id_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      nc_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nc_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nc_evidences: {
+        Row: {
+          action_id: string | null
+          file_name: string
+          file_path: string
+          file_sha256: string | null
+          file_size: number | null
+          id: string
+          nonconformity_id: string
+          note: string | null
+          organization_id: string
+          registered_at: string
+          registered_by: string
+        }
+        Insert: {
+          action_id?: string | null
+          file_name: string
+          file_path: string
+          file_sha256?: string | null
+          file_size?: number | null
+          id?: string
+          nonconformity_id: string
+          note?: string | null
+          organization_id: string
+          registered_at?: string
+          registered_by?: string
+        }
+        Update: {
+          action_id?: string | null
+          file_name?: string
+          file_path?: string
+          file_sha256?: string | null
+          file_size?: number | null
+          id?: string
+          nonconformity_id?: string
+          note?: string | null
+          organization_id?: string
+          registered_at?: string
+          registered_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nc_evidences_action_id_organization_id_fkey"
+            columns: ["action_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nc_actions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nc_evidences_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nc_evidences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nonconformities: {
+        Row: {
+          cancel_reason: string | null
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          detected_at: string
+          effective: boolean | null
+          id: string
+          organization_id: string
+          owner_position_id: string | null
+          process_id: string | null
+          reopened_count: number
+          reported_by: string
+          root_cause: string | null
+          severity: string
+          source: string
+          source_risk_id: string | null
+          status: string
+          title: string
+          updated_at: string
+          verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          cancel_reason?: string | null
+          closed_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string
+          description: string
+          detected_at: string
+          effective?: boolean | null
+          id?: string
+          organization_id: string
+          owner_position_id?: string | null
+          process_id?: string | null
+          reopened_count?: number
+          reported_by: string
+          root_cause?: string | null
+          severity: string
+          source: string
+          source_risk_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          cancel_reason?: string | null
+          closed_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          detected_at?: string
+          effective?: boolean | null
+          id?: string
+          organization_id?: string
+          owner_position_id?: string | null
+          process_id?: string | null
+          reopened_count?: number
+          reported_by?: string
+          root_cause?: string | null
+          severity?: string
+          source?: string
+          source_risk_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nonconformities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nonconformities_owner_position_id_organization_id_fkey"
+            columns: ["owner_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nonconformities_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nonconformities_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nonconformities_source_risk_id_organization_id_fkey"
+            columns: ["source_risk_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "risks"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nonconformities_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           ai_agent_enabled: boolean
@@ -1484,6 +1772,28 @@ export type Database = {
         }
         Returns: string
       }
+      add_nc_action: {
+        Args: {
+          p_description: string
+          p_due: string
+          p_nc: string
+          p_responsible: string
+          p_type: string
+        }
+        Returns: string
+      }
+      add_nc_evidence: {
+        Args: {
+          p_action: string
+          p_name: string
+          p_nc: string
+          p_note?: string
+          p_path: string
+          p_sha256: string
+          p_size: number
+        }
+        Returns: string
+      }
       ai_agent_consume: {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
@@ -1493,6 +1803,10 @@ export type Database = {
           d: Database["public"]["Tables"]["documents"]["Row"]
           v: Database["public"]["Tables"]["document_versions"]["Row"]
         }
+        Returns: boolean
+      }
+      can_manage_nc: {
+        Args: { org: string; process: string }
         Returns: boolean
       }
       can_manage_org: { Args: { org: string }; Returns: boolean }
@@ -1505,9 +1819,16 @@ export type Database = {
         Returns: boolean
       }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
+      can_see_nonconformities: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
       can_view_content: { Args: { org: string }; Returns: boolean }
+      cancel_nc: {
+        Args: { p_nc: string; p_reason: string }
+        Returns: undefined
+      }
+      cancel_nc_action: { Args: { p_action: string }; Returns: undefined }
+      complete_nc_action: { Args: { p_action: string }; Returns: undefined }
       complete_tasks: {
         Args: {
           p_actor?: string
@@ -1672,6 +1993,42 @@ export type Database = {
         }[]
       }
       my_position: { Args: { org: string }; Returns: string }
+      nc_advance_if_actions_done: { Args: { p_nc: string }; Returns: undefined }
+      nc_or_fail: {
+        Args: { p_nc: string }
+        Returns: {
+          cancel_reason: string | null
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          detected_at: string
+          effective: boolean | null
+          id: string
+          organization_id: string
+          owner_position_id: string | null
+          process_id: string | null
+          reopened_count: number
+          reported_by: string
+          root_cause: string | null
+          severity: string
+          source: string
+          source_risk_id: string | null
+          status: string
+          title: string
+          updated_at: string
+          verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "nonconformities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       notify_position: {
         Args: {
           org: string
@@ -1720,6 +2077,22 @@ export type Database = {
         Args: { p_actor: string; p_invitation: string; p_token_hash: string }
         Returns: string
       }
+      report_nonconformity: {
+        Args: {
+          p_description: string
+          p_detected_at?: string
+          p_org: string
+          p_process: string
+          p_severity: string
+          p_source: string
+          p_source_risk?: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       request_update: {
         Args: { p_doc: string; p_reason: string }
         Returns: string
@@ -1759,6 +2132,10 @@ export type Database = {
       }
       run_daily_jobs: { Args: never; Returns: Json }
       set_active_org: { Args: { org: string }; Returns: undefined }
+      set_nc_cause: {
+        Args: { p_cause: string; p_nc: string; p_owner?: string }
+        Returns: undefined
+      }
       set_version_files: {
         Args: {
           p_actor: string
@@ -1800,6 +2177,10 @@ export type Database = {
       storage_can_read_document: { Args: { p_name: string }; Returns: boolean }
       storage_can_read_evidence: { Args: { p_name: string }; Returns: boolean }
       submit_version: { Args: { p_version: string }; Returns: undefined }
+      verify_nc: {
+        Args: { p_effective: boolean; p_nc: string; p_notes?: string }
+        Returns: undefined
+      }
       version_or_fail: {
         Args: { p_version: string }
         Returns: {

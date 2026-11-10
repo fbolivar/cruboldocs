@@ -1,9 +1,11 @@
 "use client"
 
 import { PaperclipIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { addNcAction, completeNcAction } from "@/lib/data/actions"
 import { NcActionStatusBadge } from "@/components/no-conformidades/badges"
 import { ACTION_TYPE_LABELS } from "@/components/no-conformidades/labels"
 import { Chip } from "@/components/ui/badge"
@@ -19,21 +21,34 @@ import { ListChecksIcon } from "lucide-react"
 
 const TYPES = Object.keys(ACTION_TYPE_LABELS) as NcActionType[]
 
+type Pos = { id: string; name: string }
+
 export function NcActionsPanel({
+  ncId,
   actions,
   canManage,
   positions,
 }: {
+  ncId: string
   actions: NcActionView[]
   canManage: boolean
-  positions: string[]
+  positions: Pos[]
 }) {
-  function complete(desc: string) {
-    // TODO(backend): server action complete_nc_action.
-    toast.success(`Acción marcada como hecha: ${desc.slice(0, 40)}…`)
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  function complete(id: string) {
+    start(async () => {
+      const r = await completeNcAction(id)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Acción marcada como hecha.")
+      router.refresh()
+    })
   }
   function evidence() {
-    toast.info("Registrar evidencia se habilita al conectar el backend.")
+    toast.info("Registrar evidencia se habilita en una próxima iteración.")
   }
 
   return (
@@ -43,7 +58,7 @@ export function NcActionsPanel({
           icon={ListChecksIcon}
           title="Aún no hay acciones"
           description={canManage ? "Agrega la primera acción del plan." : "Un líder definirá el plan de acción."}
-          action={canManage ? <AddActionSheet positions={positions} /> : undefined}
+          action={canManage ? <AddActionSheet ncId={ncId} positions={positions} /> : undefined}
         />
       ) : (
         <>
@@ -80,7 +95,7 @@ export function NcActionsPanel({
                   )}
                   {!closed && (
                     <div className="mt-2 flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => complete(a.description)}>Marcar hecha</Button>
+                      <Button size="sm" variant="outline" onClick={() => complete(a.id)} disabled={pending}>Marcar hecha</Button>
                       <Button size="sm" variant="ghost" onClick={evidence}>
                         <PaperclipIcon /> Evidencia
                       </Button>
@@ -92,7 +107,7 @@ export function NcActionsPanel({
           </ul>
           {canManage && (
             <div>
-              <AddActionSheet positions={positions} />
+              <AddActionSheet ncId={ncId} positions={positions} />
             </div>
           )}
         </>
@@ -101,7 +116,9 @@ export function NcActionsPanel({
   )
 }
 
-function AddActionSheet({ positions }: { positions: string[] }) {
+function AddActionSheet({ ncId, positions }: { ncId: string; positions: Pos[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<NcActionType>("correctiva")
   const [description, setDescription] = useState("")
@@ -113,13 +130,20 @@ function AddActionSheet({ positions }: { positions: string[] }) {
       toast.error("Completa descripción, responsable y plazo.")
       return
     }
-    // TODO(backend): server action add_nc_action.
-    toast.success("Acción agregada al plan.")
-    setOpen(false)
-    setDescription("")
-    setResponsible("")
-    setDue("")
-    setType("correctiva")
+    start(async () => {
+      const r = await addNcAction({ ncId, type, description, responsiblePositionId: responsible, dueDate: due })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Acción agregada al plan.")
+      setOpen(false)
+      setDescription("")
+      setResponsible("")
+      setDue("")
+      setType("correctiva")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -151,7 +175,7 @@ function AddActionSheet({ positions }: { positions: string[] }) {
             <Select value={responsible} onValueChange={setResponsible}>
               <SelectTrigger><SelectValue placeholder="Cargo responsable" /></SelectTrigger>
               <SelectContent>
-                {positions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                {positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -161,7 +185,7 @@ function AddActionSheet({ positions }: { positions: string[] }) {
           </div>
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Agregar acción</Button>
+          <Button onClick={submit} loading={pending}>Agregar acción</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

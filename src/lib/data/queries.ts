@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canSeeSignatureIp } from "@/lib/domain/access"
+import { canManageNonconformities, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -31,6 +31,15 @@ import type {
   HomeSummary,
   Invitation,
   Member,
+  NcActionStatus,
+  NcActionType,
+  NcActionView,
+  NcDetail,
+  NcListItem,
+  NcSeverity,
+  NcSource,
+  NcStatus,
+  NcSummary,
   Organization,
   Paginated,
   PersonRef,
@@ -160,6 +169,161 @@ export async function getAgentUsage(): Promise<{ used: number; limit: number; re
   const used = data?.used ?? 0
   const limit = monthlyLimit()
   return { used, limit, remaining: Math.max(0, limit - used) }
+}
+
+// ---------- No Conformidades / CAPA ----------
+
+const isActionOverdue = (status: string, due: string, today: string) =>
+  (status === "pendiente" || status === "en_curso") && due < today
+
+/** Tablero de no conformidades (RLS filtra lo visible). */
+export async function listNonconformities(): Promise<NcListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: ncs }, { data: procs }, { data: acts }] = await Promise.all([
+    s.supabase
+      .from("nonconformities")
+      .select("id, code, title, process_id, source, severity, status, reopened_count, detected_at")
+      .eq("organization_id", s.org)
+      .order("created_at", { ascending: false }),
+    s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("nc_actions").select("nonconformity_id, due_date, status").eq("organization_id", s.org),
+  ])
+  const procCode = new Map((procs ?? []).map((p) => [p.id, p.code]))
+  const today = todayIsoDate()
+  const overdue = new Map<string, number>()
+  for (const a of acts ?? []) {
+    if (isActionOverdue(a.status, a.due_date, today)) overdue.set(a.nonconformity_id, (overdue.get(a.nonconformity_id) ?? 0) + 1)
+  }
+  return (ncs ?? []).map((n) => ({
+    id: n.id,
+    code: n.code,
+    title: n.title,
+    processName: n.process_id ? procCode.get(n.process_id) ?? null : null,
+    source: n.source as NcSource,
+    severity: n.severity as NcSeverity,
+    status: n.status as NcStatus,
+    reopened: n.reopened_count > 0,
+    overdueActions: overdue.get(n.id) ?? 0,
+    detectedAt: n.detected_at,
+  }))
+}
+
+/** Resumen del tablero: abiertas, en verificación, acciones vencidas y severidad de las abiertas. */
+export async function getNcSummary(): Promise<NcSummary> {
+  const empty: NcSummary = { open: 0, inVerification: 0, overdueActions: 0, bySeverity: { observacion: 0, menor: 0, mayor: 0 } }
+  const s = await scope()
+  if (!s) return empty
+  const [{ data: ncs }, { data: acts }] = await Promise.all([
+    s.supabase.from("nonconformities").select("status, severity").eq("organization_id", s.org),
+    s.supabase.from("nc_actions").select("due_date, status").eq("organization_id", s.org),
+  ])
+  const today = todayIsoDate()
+  const openList = (ncs ?? []).filter((n) => n.status !== "cerrada" && n.status !== "anulada")
+  const bySeverity = { observacion: 0, menor: 0, mayor: 0 }
+  for (const n of openList) bySeverity[n.severity as NcSeverity]++
+  return {
+    open: openList.length,
+    inVerification: (ncs ?? []).filter((n) => n.status === "verificacion").length,
+    overdueActions: (acts ?? []).filter((a) => isActionOverdue(a.status, a.due_date, today)).length,
+    bySeverity,
+  }
+}
+
+const NC_EVENT_TEXT: Record<string, string> = {
+  reportar_nc: "Reportó la no conformidad.",
+  analizar_causa_nc: "Registró el análisis de causa.",
+  agregar_accion_nc: "Agregó una acción al plan.",
+  completar_accion_nc: "Completó una acción.",
+  cancelar_accion_nc: "Canceló una acción.",
+  verificar_nc: "Verificó la eficacia.",
+  anular_nc: "Anuló la no conformidad.",
+  registrar_evidencia_nc: "Registró evidencia.",
+}
+
+/** Ficha completa de una no conformidad por su código. null si no existe o no es visible. */
+export async function getNonconformity(code: string): Promise<NcDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: n } = await s.supabase
+    .from("nonconformities")
+    .select("*")
+    .eq("organization_id", s.org)
+    .eq("code", code)
+    .maybeSingle()
+  if (!n) return null
+
+  const [{ data: acts }, { data: evs }, { data: procs }, { data: positions }, { data: audit }] = await Promise.all([
+    s.supabase.from("nc_actions").select("*").eq("nonconformity_id", n.id).order("created_at"),
+    s.supabase.from("nc_evidences").select("*").eq("nonconformity_id", n.id).order("registered_at"),
+    s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase
+      .from("audit_log")
+      .select("at, actor_id, action")
+      .eq("organization_id", s.org)
+      .eq("entity_type", "NoConformidad")
+      .eq("entity_id", n.id)
+      .order("at", { ascending: false }),
+  ])
+
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const procCode = new Map((procs ?? []).map((p) => [p.id, p.code]))
+  const person = await peopleOf(s.org, [n.reported_by, ...(acts ?? []).map((a) => a.completed_by), ...(audit ?? []).map((a) => a.actor_id)])
+  const today = todayIsoDate()
+
+  const evByAction = new Map<string, NcActionView["evidences"]>()
+  for (const e of evs ?? []) {
+    if (!e.action_id) continue
+    const list = evByAction.get(e.action_id) ?? []
+    list.push({ id: e.id, fileName: e.file_name, registeredByName: person(e.registered_by).fullName, registeredAt: e.registered_at, note: e.note })
+    evByAction.set(e.action_id, list)
+  }
+
+  const actions: NcActionView[] = (acts ?? []).map((a) => ({
+    id: a.id,
+    type: a.type as NcActionType,
+    description: a.description,
+    responsiblePositionName: posName.get(a.responsible_position_id) ?? "—",
+    dueDate: a.due_date,
+    status: a.status as NcActionStatus,
+    completedAt: a.completed_at,
+    overdue: isActionOverdue(a.status, a.due_date, today),
+    evidences: evByAction.get(a.id) ?? [],
+  }))
+
+  return {
+    id: n.id,
+    code: n.code,
+    title: n.title,
+    description: n.description,
+    processName: n.process_id ? procCode.get(n.process_id) ?? null : null,
+    source: n.source as NcSource,
+    severity: n.severity as NcSeverity,
+    status: n.status as NcStatus,
+    reopenedCount: n.reopened_count,
+    ownerPositionName: n.owner_position_id ? posName.get(n.owner_position_id) ?? null : null,
+    reportedByName: person(n.reported_by).fullName,
+    detectedAt: n.detected_at,
+    rootCause: n.root_cause,
+    sourceRiskCode: null,
+    actions,
+    verification:
+      n.status === "cerrada" && n.verified_by
+        ? {
+            verifiedByName: person(n.verified_by).fullName,
+            verifiedAt: n.verified_at ?? "",
+            effective: n.effective ?? true,
+            notes: n.verification_notes,
+          }
+        : null,
+    timeline: (audit ?? []).map((a) => ({
+      at: a.at,
+      actor: a.actor_id ? person(a.actor_id).fullName : "Sistema",
+      text: NC_EVENT_TEXT[a.action] ?? a.action,
+    })),
+    canManage: canManageNonconformities(s.user, n.process_id ?? undefined),
+  }
 }
 
 // ---------- Personas ----------

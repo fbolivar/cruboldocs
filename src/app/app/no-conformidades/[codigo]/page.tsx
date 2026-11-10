@@ -13,29 +13,20 @@ import { NcVerifyPanel } from "@/components/no-conformidades/nc-verify-panel"
 import { SOURCE_LABELS } from "@/components/no-conformidades/labels"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCurrentUser } from "@/lib/data/queries"
-import { getNonconformityMock } from "@/lib/data/nc-mock"
+import { getCurrentUser, getNonconformity, listPositions } from "@/lib/data/queries"
 import { canSeeNonconformities } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
 export const metadata: Metadata = { title: "No conformidad" }
-
-// Cargos de ejemplo para el selector de responsable (fase frontend).
-const POSITIONS_MOCK = [
-  "Líder de Servicios TI",
-  "Analista de Soporte",
-  "Coordinador de Talento Humano",
-  "Líder de Desarrollo",
-  "Líder SIG",
-]
 
 export default async function NonconformityPage({ params }: { params: Promise<{ codigo: string }> }) {
   const { codigo } = await params
   const user = await getCurrentUser()
   if (!canSeeNonconformities(user)) notFound()
 
-  const nc = await getNonconformityMock(decodeURIComponent(codigo))
+  const [nc, positions] = await Promise.all([getNonconformity(decodeURIComponent(codigo)), listPositions()])
   if (!nc) notFound()
+  const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
 
   return (
     <Page>
@@ -51,7 +42,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
               <p className="font-mono text-small text-texto-sec">{nc.code}</p>
               <h1 className="mt-0.5">{nc.title}</h1>
             </div>
-            {nc.canManage && nc.status !== "cerrada" && nc.status !== "anulada" && <NcCancelButton />}
+            {nc.canManage && nc.status !== "cerrada" && nc.status !== "anulada" && <NcCancelButton ncId={nc.id} />}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <NcStatusBadge status={nc.status} reopened={nc.reopenedCount > 0} />
@@ -77,7 +68,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
             <CardTitle>Análisis de causa</CardTitle>
           </CardHeader>
           <CardContent>
-            <NcCause cause={nc.rootCause} canManage={nc.canManage} />
+            <NcCause ncId={nc.id} cause={nc.rootCause} canManage={nc.canManage} />
           </CardContent>
         </Card>
 
@@ -87,7 +78,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
             <CardTitle>Plan de acción</CardTitle>
           </CardHeader>
           <CardContent>
-            <NcActionsPanel actions={nc.actions} canManage={nc.canManage} positions={POSITIONS_MOCK} />
+            <NcActionsPanel ncId={nc.id} actions={nc.actions} canManage={nc.canManage} positions={positionOptions} />
           </CardContent>
         </Card>
 
@@ -97,7 +88,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
             <CardTitle>Verificación de eficacia</CardTitle>
           </CardHeader>
           <CardContent>
-            <NcVerifyPanel status={nc.status} verification={nc.verification} canManage={nc.canManage} />
+            <NcVerifyPanel ncId={nc.id} status={nc.status} verification={nc.verification} canManage={nc.canManage} />
           </CardContent>
         </Card>
 

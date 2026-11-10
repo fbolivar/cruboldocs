@@ -1226,3 +1226,129 @@ export async function resendAdminInvitation(invitationId: string): Promise<Invit
     return ok({ link: linkIfNoMail(token) })
   })
 }
+
+// ---------- No Conformidades / CAPA ----------
+
+const NC_SEVERITY = ["observacion", "menor", "mayor"] as const
+const NC_SOURCE = ["auditoria_interna", "auditoria_externa", "queja_pqrs", "producto_servicio", "riesgo_materializado", "mejora", "otro"] as const
+const NC_ACTION_TYPE = ["correccion", "correctiva", "preventiva"] as const
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+function revalidateNc() {
+  revalidatePath("/app/no-conformidades", "layout")
+  revalidatePath("/app")
+}
+
+const reportNcSchema = z.object({
+  description: z.string().trim().min(5).max(2000),
+  source: z.enum(NC_SOURCE),
+  processId: z.uuid().nullish(),
+  severity: z.enum(NC_SEVERITY),
+  detectedAt: isoDate.optional(),
+  sourceRiskId: z.uuid().nullish(),
+})
+
+/** Reporta una no conformidad (cualquier miembro). El título se deriva de la descripción. */
+export async function reportNonconformity(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = reportNcSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del reporte.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const supabase = await createClient()
+    const { data, error } = await supabase.rpc("report_nonconformity", {
+      p_org: user.organization.id,
+      p_source: p.data.source,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_title: p.data.description.slice(0, 120),
+      p_description: p.data.description,
+      p_severity: p.data.severity,
+      p_detected_at: p.data.detectedAt,
+      p_source_risk: p.data.sourceRiskId ?? undefined,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function setNcCause(ncId: string, cause: string, ownerPositionId?: string | null): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(ncId) || cause.trim().length < 5) return fail("Describe la causa raíz.")
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("set_nc_cause", { p_nc: ncId, p_cause: cause, p_owner: ownerPositionId ?? undefined })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}
+
+const addActionSchema = z.object({
+  ncId: z.uuid(),
+  type: z.enum(NC_ACTION_TYPE),
+  description: z.string().trim().min(5).max(1000),
+  responsiblePositionId: z.uuid(),
+  dueDate: isoDate,
+})
+
+export async function addNcAction(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = addActionSchema.safeParse(input)
+    if (!p.success) return fail("Completa descripción, responsable y plazo.")
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("add_nc_action", {
+      p_nc: p.data.ncId,
+      p_type: p.data.type,
+      p_description: p.data.description,
+      p_responsible: p.data.responsiblePositionId,
+      p_due: p.data.dueDate,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}
+
+export async function completeNcAction(actionId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(actionId)) return fail(GENERIC)
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("complete_nc_action", { p_action: actionId })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}
+
+export async function cancelNcAction(actionId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(actionId)) return fail(GENERIC)
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("cancel_nc_action", { p_action: actionId })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}
+
+export async function verifyNc(ncId: string, effective: boolean, notes?: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(ncId)) return fail(GENERIC)
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("verify_nc", { p_nc: ncId, p_effective: effective, p_notes: notes })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}
+
+export async function cancelNc(ncId: string, reason: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(ncId) || reason.trim().length < 5) return fail("Indica el motivo de la anulación.")
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("cancel_nc", { p_nc: ncId, p_reason: reason })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}

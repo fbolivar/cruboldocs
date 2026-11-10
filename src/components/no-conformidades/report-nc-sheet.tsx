@@ -1,9 +1,11 @@
 "use client"
 
 import { PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { reportNonconformity } from "@/lib/data/actions"
 import { SEVERITY_LABELS, SOURCE_LABELS } from "@/components/no-conformidades/labels"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -28,7 +30,9 @@ const today = () => new Date().toISOString().slice(0, 10)
  * Reportar una no conformidad. Disponible para cualquier miembro activo. El envío se conecta en la
  * fase de backend (server action); por ahora valida y confirma localmente.
  */
-export function ReportNcSheet({ processes }: { processes: string[] }) {
+export function ReportNcSheet({ processes }: { processes: { id: string; code: string }[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [description, setDescription] = useState("")
   const [source, setSource] = useState<NcSource | "">("")
@@ -41,14 +45,27 @@ export function ReportNcSheet({ processes }: { processes: string[] }) {
       toast.error("Describe qué pasó e indica el origen.")
       return
     }
-    // TODO(backend): llamar a la server action reportNonconformity(...).
-    toast.success("No conformidad reportada. Un líder del SIG la gestionará.")
-    setOpen(false)
-    setDescription("")
-    setSource("")
-    setProcess("")
-    setSeverity("menor")
-    setDetectedAt(today())
+    start(async () => {
+      const r = await reportNonconformity({
+        description,
+        source,
+        processId: process || null,
+        severity,
+        detectedAt,
+      })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(`No conformidad ${r.data.code} reportada. Un líder del SIG la gestionará.`)
+      setOpen(false)
+      setDescription("")
+      setSource("")
+      setProcess("")
+      setSeverity("menor")
+      setDetectedAt(today())
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -105,8 +122,8 @@ export function ReportNcSheet({ processes }: { processes: string[] }) {
               </SelectTrigger>
               <SelectContent>
                 {processes.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.code}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -144,7 +161,7 @@ export function ReportNcSheet({ processes }: { processes: string[] }) {
         </div>
 
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Reportar</Button>
+          <Button onClick={submit} loading={pending}>Reportar</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

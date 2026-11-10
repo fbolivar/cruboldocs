@@ -6,8 +6,7 @@ import { NcSummary } from "@/components/no-conformidades/nc-summary"
 import { ReportNcSheet } from "@/components/no-conformidades/report-nc-sheet"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser } from "@/lib/data/queries"
-import { getNcSummaryMock, listNonconformitiesMock } from "@/lib/data/nc-mock"
+import { getCurrentUser, getNcSummary, listNonconformities, listProcesses } from "@/lib/data/queries"
 import { canSeeNonconformities } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "No conformidades" }
@@ -27,13 +26,12 @@ export default async function NonconformitiesPage() {
     )
   }
 
-  // ⚠️ Datos de ejemplo (fase frontend). La fase de backend conecta las consultas reales.
-  const [summary, { items }] = await Promise.all([getNcSummaryMock(), listNonconformitiesMock()])
-  const procesos = [...new Set(items.map((i) => i.processName).filter((p): p is string => !!p))].sort()
+  const [summary, items, processes] = await Promise.all([getNcSummary(), listNonconformities(), listProcesses()])
+  const processOptions = processes.map((p) => ({ id: p.id, code: p.code }))
 
   return (
     <Page wide>
-      <PageHeader title="No conformidades" actions={<ReportNcSheet processes={procesos} />} />
+      <PageHeader title="No conformidades" actions={<ReportNcSheet processes={processOptions} />} />
       <div className="flex flex-col gap-4 md:gap-6">
         <NcSummary summary={summary} />
         <NcBoard items={items} />

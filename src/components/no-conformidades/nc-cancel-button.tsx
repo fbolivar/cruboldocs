@@ -1,16 +1,20 @@
 "use client"
 
 import { XCircleIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { cancelNc } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 
-/** Anular la no conformidad (gestor), con motivo. Envío se conecta en backend. */
-export function NcCancelButton() {
+/** Anular la no conformidad (gestor), con motivo. */
+export function NcCancelButton({ ncId }: { ncId: string }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState("")
 
@@ -19,10 +23,17 @@ export function NcCancelButton() {
       toast.error("Indica el motivo de la anulación.")
       return
     }
-    // TODO(backend): server action cancel_nc.
-    toast.success("No conformidad anulada.")
-    setOpen(false)
-    setReason("")
+    start(async () => {
+      const r = await cancelNc(ncId, reason)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("No conformidad anulada.")
+      setOpen(false)
+      setReason("")
+      router.refresh()
+    })
   }
 
   return (
@@ -47,7 +58,7 @@ export function NcCancelButton() {
           />
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button variant="destructive" onClick={submit}>Anular</Button>
+          <Button variant="destructive" onClick={submit} loading={pending}>Anular</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

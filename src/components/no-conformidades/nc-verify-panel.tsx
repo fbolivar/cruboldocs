@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { verifyNc } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -12,17 +14,21 @@ import type { NcStatus, NcVerification } from "@/lib/types"
 
 /**
  * Verificación de eficacia. Solo disponible en estado `verificacion` (todas las acciones hechas).
- * "No eficaz" reabre la NC; "Eficaz" la cierra. Envío se conecta en backend (ADR-008).
+ * "No eficaz" reabre la NC; "Eficaz" la cierra (ADR-008).
  */
 export function NcVerifyPanel({
+  ncId,
   status,
   verification,
   canManage,
 }: {
+  ncId: string
   status: NcStatus
   verification: NcVerification | null
   canManage: boolean
 }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [effective, setEffective] = useState<"si" | "no" | "">("")
   const [notes, setNotes] = useState("")
 
@@ -52,11 +58,17 @@ export function NcVerifyPanel({
       toast.error("Indica si las acciones fueron eficaces.")
       return
     }
-    // TODO(backend): server action verify_nc.
-    if (effective === "si") toast.success("No conformidad cerrada.")
-    else toast.success("Reabierta para nuevas acciones.")
-    setEffective("")
-    setNotes("")
+    start(async () => {
+      const r = await verifyNc(ncId, effective === "si", notes)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(effective === "si" ? "No conformidad cerrada." : "Reabierta para nuevas acciones.")
+      setEffective("")
+      setNotes("")
+      router.refresh()
+    })
   }
 
   return (
@@ -74,7 +86,7 @@ export function NcVerifyPanel({
         <Textarea id="nc-verif-notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Cómo se verificó la eficacia" />
       </div>
       <div>
-        <Button onClick={submit}>{effective === "no" ? "Reabrir" : "Verificar y cerrar"}</Button>
+        <Button onClick={submit} loading={pending}>{effective === "no" ? "Reabrir" : "Verificar y cerrar"}</Button>
       </div>
     </div>
   )
