@@ -8,7 +8,7 @@
 | Suite | Comando | Qué cubre |
 |---|---|---|
 | Unitarias (Vitest) | `npm test` | Rol × estado de la ficha, permisos, segregación de funciones, riesgo P×I, bandeja, fechas en Bogotá, CSV (inyección de fórmulas), firmas binarias de archivos, redirección segura, filtros de URL, CSP, límites de intentos y Turnstile |
-| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos, de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración) y de **auditorías internas** (planificar→ejecutar→cerrar, autorización por rol, hallazgo→NC, numeración) y de **indicadores/KPIs** (crear/archivar por rol, captura por líder del proceso dueño, cumplimiento derivado por sentido, medición→NC, numeración) y de **revisión por la dirección** (snapshot con todos los bloques, crear/decisiones/cerrar solo Líder SIG, salida→NC idempotente, cierre firmado admin-only — `authenticated` no ejecuta `close_review` directo —, inmutabilidad tras cerrar, numeración), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
+| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos, de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración) y de **auditorías internas** (planificar→ejecutar→cerrar, autorización por rol, hallazgo→NC, numeración) y de **indicadores/KPIs** (crear/archivar por rol, captura por líder del proceso dueño, cumplimiento derivado por sentido, medición→NC, numeración) y de **revisión por la dirección** (snapshot con todos los bloques, crear/decisiones/cerrar solo Líder SIG, salida→NC idempotente, cierre firmado admin-only — `authenticated` no ejecuta `close_review` directo —, inmutabilidad tras cerrar, numeración) y de **competencias** (catálogo/perfil por rol; **dato personal**: la persona ve lo suyo y no lo ajeno, la consulta no; estado cumple/brecha calculado en servidor; upsert de evaluación; tarea de cierre; aislamiento entre personas y entre orgs), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
 | E2E dev (Playwright) | `npm run test:e2e` | Rutas protegidas, login/recuperar (validación y CAPTCHA), invitación inválida, 404, cabeceras, nonce, cron sin secreto; escritorio y móvil |
 | E2E producción | `npm run build` y luego `npm run test:e2e:prod` | Lo anterior sobre el build, más HSTS y CSP estricta |
 | Todo | `npm run check` | lint + tsc + unitarias + RLS + build (**no correrlo con el dev de 3001 activo**) |
@@ -76,15 +76,26 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 35. [ ] **Cerrar y firmar:** el Sheet exige **reautenticación con contraseña** (significado visible). Con contraseña incorrecta no cierra. Con la correcta el acta pasa a **Cerrada**, muestra firmante y fecha, y queda **inmutable**: ya no se editan entradas, ni se agregan decisiones, ni se actualiza el snapshot. **Cancelar** (solo en borrador) pide motivo y deja el acta Cancelada.
 36. [ ] **Visibilidad/permisos:** un cargo de solo lectura (*consulta*) ve el acta pero **no** crea/edita/cierra; un cargo sin rol SIG **no** ve el ítem "Revisión por la dirección" en el menú.
 
+### 2.5 Competencias y formación (Módulo 5)
+
+> Requiere un usuario con rol **Líder SIG** (gestiona catálogo, perfiles, formación y evaluaciones) y, para el dato personal, probar también con la **propia persona** y con una **consulta**.
+
+37. [ ] **Catálogo:** el Líder SIG crea competencias (`/app/competencias/catalogo`, con tipo educación/formación/habilidad/experiencia). Un cargo **consulta** no puede crearlas.
+38. [ ] **Perfil del cargo** (`/app/competencias/cargos/[id]`): agrega requisitos (competencia + nivel 1/2/3 + obligatoria); quitar un requisito lo retira de la vista (baja lógica) y se puede volver a agregar.
+39. [ ] **Formación:** registra una formación (`/app/competencias/formacion` o desde la ficha de la persona) con tipo, fecha y horas; en la ficha de la persona queda la fila con su resultado y vencimiento. (El adjunto de certificado está diferido: el stub lo indica.)
+40. [ ] **Evaluar competencia** (ficha de persona): el Sheet muestra el **estado derivado en vivo** (cumple/brecha/brecha en plan) según el nivel evaluado vs. el requerido; en **brecha** la nota es obligatoria y puede marcarse **crear tarea de cierre** (aparece en la bandeja del cargo). Reevaluar la misma competencia actualiza la fila (no duplica).
+41. [ ] **Matriz** (`/app/competencias`): muestra persona × competencia con el estado y el nivel evaluado/requerido; el resumen muestra **% de cobertura** (solo obligatorias), brechas abiertas y certificados por vencer. Filtros proceso/cargo/estado/buscar.
+42. [ ] **Dato personal / visibilidad:** la **propia persona** ve su ficha en **solo lectura** (sin botones de evaluar/registrar); un cargo **consulta** ve la matriz y los perfiles pero **no** las evaluaciones ni la formación de otras personas (aparecen "sin evaluar"); un cargo sin rol SIG **no** ve el ítem "Competencias" en el menú.
+
 ## 3. Regresión
 
-37. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades**, **auditorías**, **indicadores** (tablero, sparkline y ficha con gráfica) y **revisión por la dirección** (tablero, snapshot en grid y ficha) sin desplazamiento horizontal. La barra inferior funciona.
-38. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades, auditorías, indicadores ni revisiones (checklist de configuración en Inicio; tableros vacíos; la ficha de indicador sin mediciones muestra el mensaje de tendencia; el acta sin decisiones muestra su estado vacío).
-39. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
-40. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
-41. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
-42. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
-43. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
+43. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades**, **auditorías**, **indicadores**, **revisión por la dirección** y **competencias** (la matriz se ve como **lista por persona**, no tabla ancha; la ficha de persona) sin desplazamiento horizontal. La barra inferior funciona.
+44. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades, auditorías, indicadores, revisiones ni competencias (checklist de configuración en Inicio; tableros vacíos; competencias: sin catálogo y cargo sin perfil muestran su estado vacío).
+45. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
+46. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
+47. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
+48. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
+49. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
 
 ## Historial
 - 2026-09-24 — Primera versión (fase testing): 157 unitarias, 160 RLS, 44 E2E en dev + 2 solo de producción.
@@ -93,3 +104,4 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 - 2026-11-10 — Módulo Auditorías internas (migraciones 020–021): 175 unitarias, **218 RLS**, E2E con las rutas del módulo (`/app/auditorias` y la ficha); camino dorado manual §2.2.
 - 2026-11-10 — Módulo Indicadores de gestión / KPIs (migración 022): 185 unitarias, **240 RLS**, E2E con las rutas del módulo (`/app/indicadores` y la ficha); camino dorado manual §2.3.
 - 2026-11-10 — Módulo Revisión por la dirección (migraciones 023–024): 193 unitarias, **262 RLS** (incluye el endurecimiento MED-01: `authenticated` no ejecuta `close_review` directo), E2E con las rutas del módulo (`/app/revisiones` y la ficha); camino dorado manual §2.4.
+- 2026-11-10 — Módulo Competencias y formación (migración 025): 205 unitarias, **281 RLS** (dato personal: la persona ve lo suyo y no lo ajeno; estado cumple/brecha en servidor; upsert; tarea de cierre), E2E con las rutas del módulo (`/app/competencias`, catálogo, formación y ficha de persona); camino dorado manual §2.5.
