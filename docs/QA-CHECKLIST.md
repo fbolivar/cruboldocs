@@ -8,7 +8,7 @@
 | Suite | Comando | Qué cubre |
 |---|---|---|
 | Unitarias (Vitest) | `npm test` | Rol × estado de la ficha, permisos, segregación de funciones, riesgo P×I, bandeja, fechas en Bogotá, CSV (inyección de fórmulas), firmas binarias de archivos, redirección segura, filtros de URL, CSP, límites de intentos y Turnstile |
-| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos, de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración) y de **auditorías internas** (planificar→ejecutar→cerrar, autorización por rol, hallazgo→NC, numeración) y de **indicadores/KPIs** (crear/archivar por rol, captura por líder del proceso dueño, cumplimiento derivado por sentido, medición→NC, numeración) y de **revisión por la dirección** (snapshot con todos los bloques, crear/decisiones/cerrar solo Líder SIG, salida→NC idempotente, cierre firmado admin-only — `authenticated` no ejecuta `close_review` directo —, inmutabilidad tras cerrar, numeración) y de **competencias** (catálogo/perfil por rol; **dato personal**: la persona ve lo suyo y no lo ajeno, la consulta no; estado cumple/brecha calculado en servidor; upsert de evaluación; tarea de cierre; aislamiento entre personas y entre orgs) y de **proveedores** (alta/evaluación por rol; puntaje y resultado calculados en servidor por umbral; estado vigente y próxima reevaluación; baja lógica; numeración PRV-AAAA-###; aislamiento entre orgs), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
+| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos, de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración) y de **auditorías internas** (planificar→ejecutar→cerrar, autorización por rol, hallazgo→NC, numeración) y de **indicadores/KPIs** (crear/archivar por rol, captura por líder del proceso dueño, cumplimiento derivado por sentido, medición→NC, numeración) y de **revisión por la dirección** (snapshot con todos los bloques, crear/decisiones/cerrar solo Líder SIG, salida→NC idempotente, cierre firmado admin-only — `authenticated` no ejecuta `close_review` directo —, inmutabilidad tras cerrar, numeración) y de **competencias** (catálogo/perfil por rol; **dato personal**: la persona ve lo suyo y no lo ajeno, la consulta no; estado cumple/brecha calculado en servidor; upsert de evaluación; tarea de cierre; aislamiento entre personas y entre orgs) y de **proveedores** (alta/evaluación por rol; puntaje y resultado calculados en servidor por umbral; estado vigente y próxima reevaluación; baja lógica; numeración PRV-AAAA-###; aislamiento entre orgs) y de **PQRS** (dato personal con RLS por SIG; cierre exige respuesta; reclamo→NC idempotente 'queja_pqrs'; satisfacción 0–100 en servidor, upsert; numeración PQRS-AAAA-###; aislamiento), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
 | E2E dev (Playwright) | `npm run test:e2e` | Rutas protegidas, login/recuperar (validación y CAPTCHA), invitación inválida, 404, cabeceras, nonce, cron sin secreto; escritorio y móvil |
 | E2E producción | `npm run build` y luego `npm run test:e2e:prod` | Lo anterior sobre el build, más HSTS y CSP estricta |
 | Todo | `npm run check` | lint + tsc + unitarias + RLS + build (**no correrlo con el dev de 3001 activo**) |
@@ -97,15 +97,26 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 46. [ ] **Baja / reactivación:** "Dar de baja" deja el proveedor **Inactivo** (sin botón de evaluar); "Reactivar" lo devuelve al resultado de su última evaluación (o Pendiente). **Exportar CSV** descarga la lista visible.
 47. [ ] **Visibilidad/permisos:** un cargo **consulta** ve el tablero y la ficha pero **no** registra/edita/evalúa; un cargo sin rol SIG **no** ve el ítem "Proveedores" en el menú.
 
+### 2.7 PQRS y satisfacción del cliente (Módulo 7)
+
+> Requiere un usuario con rol **Líder SIG** (o Líder del proceso del caso). Para la visibilidad, probar también con una **consulta**.
+
+48. [ ] **Registrar PQRS** (`/app/pqrs`, Sheet "Nueva PQRS": tipo, canal, cliente —solo nombre+contacto, con aviso de dato personal—, proceso, descripción, fecha): aparece `PQRS-AAAA-001`, estado **Recibida**, vencimiento = recepción **+15 días**. Una **consulta** no puede registrar.
+49. [ ] **Gestión y respuesta** (ficha): "Asignar / cambiar estado" asigna responsable/proceso y mueve entre Recibida/En gestión/Resuelta; "Registrar respuesta" guarda la respuesta (pasa a En gestión). El stepper refleja el estado.
+50. [ ] **Reclamo → NC:** en una PQRS tipo **reclamo**, "Generar no conformidad" crea una `NC-AAAA-###` (origen *Queja/PQRS*), muestra el enlace y no reaparece el botón (idempotente). En una **petición** no aparece la opción.
+51. [ ] **Cierre y anulación:** "Cerrar PQRS" **exige respuesta registrada** y pregunta si el cliente quedó conforme → estado **Cerrada** (solo lectura). "Anular" deja la PQRS **Anulada**. **Exportar CSV** descarga la lista visible.
+52. [ ] **Satisfacción:** "Registrar satisfacción" (periodo, método, puntaje 0–100) muestra el **semáforo en vivo** y aparece en el panel y en la tarjeta de resumen (Bien/Medio/Bajo). Reregistrar el mismo periodo+método actualiza (no duplica).
+53. [ ] **Visibilidad/permisos:** un cargo **consulta** ve el tablero y la ficha pero **no** gestiona; un cargo sin rol SIG **no** ve el ítem "PQRS" en el menú; el dato del cliente se limita a nombre + contacto.
+
 ## 3. Regresión
 
-48. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades**, **auditorías**, **indicadores**, **revisión por la dirección**, **competencias** (la matriz como lista por persona) y **proveedores** (lista y ficha con el medidor de puntaje) sin desplazamiento horizontal. La barra inferior funciona.
-49. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades, auditorías, indicadores, revisiones, competencias ni proveedores (checklist de configuración en Inicio; tableros vacíos; proveedores: sin proveedores y proveedor "pendiente" sin evaluaciones muestran su estado vacío).
-50. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
-51. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
-52. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
-53. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
-54. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
+54. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades**, **auditorías**, **indicadores**, **revisión por la dirección**, **competencias** (la matriz como lista por persona), **proveedores** (ficha con el medidor) y **PQRS** (lista y ficha con stepper; panel de satisfacción) sin desplazamiento horizontal. La barra inferior funciona.
+55. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades, auditorías, indicadores, revisiones, competencias, proveedores ni PQRS (checklist de configuración en Inicio; tableros vacíos; PQRS: sin casos y sin mediciones de satisfacción muestran su estado vacío).
+56. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
+57. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
+58. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
+59. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
+60. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
 
 ## Historial
 - 2026-09-24 — Primera versión (fase testing): 157 unitarias, 160 RLS, 44 E2E en dev + 2 solo de producción.
@@ -116,3 +127,4 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 - 2026-11-10 — Módulo Revisión por la dirección (migraciones 023–024): 193 unitarias, **262 RLS** (incluye el endurecimiento MED-01: `authenticated` no ejecuta `close_review` directo), E2E con las rutas del módulo (`/app/revisiones` y la ficha); camino dorado manual §2.4.
 - 2026-11-10 — Módulo Competencias y formación (migración 025): 205 unitarias, **281 RLS** (dato personal: la persona ve lo suyo y no lo ajeno; estado cumple/brecha en servidor; upsert; tarea de cierre), E2E con las rutas del módulo (`/app/competencias`, catálogo, formación y ficha de persona); camino dorado manual §2.5.
 - 2026-11-10 — Módulo Proveedores (migración 026): 218 unitarias, **296 RLS** (puntaje y resultado calculados en servidor por umbral, estado vigente y próxima reevaluación, baja lógica, numeración PRV-AAAA-###, aislamiento), E2E con las rutas del módulo (`/app/proveedores` y la ficha); camino dorado manual §2.6.
+- 2026-11-10 — Módulo PQRS y satisfacción (migración 027): 228 unitarias, **314 RLS** (dato personal por rol SIG, cierre exige respuesta, reclamo→NC idempotente 'queja_pqrs', satisfacción 0–100/upsert, numeración PQRS-AAAA-###, aislamiento), E2E con las rutas del módulo (`/app/pqrs` y la ficha); camino dorado manual §2.7.
