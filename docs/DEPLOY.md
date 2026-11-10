@@ -71,7 +71,7 @@ En Supabase → Authentication:
 3. Esperar el certificado HTTPS automático de Vercel.
 
 **Decisión de Fernando (2026-11-09): el registro queda CON proxy de Cloudflare (nube naranja)**, como capa extra (WAF/anti-DDoS). Esto cambia la IP que ve la app, así que hay que compensarlo para que el rate limiting y el `Sb-Forwarded-For` sigan usando la IP real del usuario:
-- **Cloudflare → Rules → Transform Rules → Modify Request Header**: regla que aplica a todo el tráfico del hostname y **Set static** la cabecera `x-cf-proxy-secret` = valor de `CF_PROXY_SECRET` (el de `.env.local`).
+- **Cloudflare → Rules → Transform Rules → Modify Request Header**: regla que aplica a todo el tráfico del hostname y **Set static** la cabecera `x-proxy-secret` = valor de `CF_PROXY_SECRET` (Cloudflare reserva el prefijo `x-cf-`, por eso no se usa ese nombre) (el de `.env.local`).
 - **Vercel**: cargar `CF_PROXY_SECRET` (Production) con el mismo valor.
 - La app (`src/lib/security/client-ip.ts`) solo confía en `cf-connecting-ip` cuando llega ese secreto; si alguien golpea el origen de Vercel directo (sin el secreto), usa la IP de la conexión directa. Así la IP nunca es falsificable.
 - Endurecimiento opcional (recomendado): bloquear el acceso directo al origen `*.vercel.app` (Vercel Firewall por rangos de Cloudflare, o Deployment Protection), para que todo entre por Cloudflare.

@@ -18,7 +18,7 @@ const IP = /^[0-9a-fA-F:.]{3,45}$/
 export async function clientIp(): Promise<string | null> {
   const h = await headers()
   const secret = process.env.CF_PROXY_SECRET
-  const viaCloudflare = !!secret && h.get("x-cf-proxy-secret") === secret
+  const viaCloudflare = !!secret && h.get("x-proxy-secret") === secret
   const raw = viaCloudflare
     ? h.get("cf-connecting-ip")
     : (h.get("x-vercel-forwarded-for") ?? h.get("x-real-ip") ?? h.get("x-forwarded-for"))
