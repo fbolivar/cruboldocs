@@ -1,5 +1,6 @@
 "use client"
 
+import { LockIcon, MailIcon } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useRef, useState, useTransition } from "react"
@@ -17,6 +18,11 @@ import { login } from "@/lib/data/actions"
 type Errors = { email?: string | null; password?: string | null }
 
 const passwordError = (v: string) => validateRequired(v, "Escribe tu contraseña.")
+
+// Estilo de campo del login (línea inferior, sin caja): override local, no toca el Input compartido.
+const lineInput =
+  "auth-field-line h-11 rounded-none border-0 border-b-2 bg-transparent px-0 ps-8 focus:border-acento md:h-11"
+const leadIcon = "pointer-events-none absolute start-0 top-1/2 size-[18px] -translate-y-1/2 text-texto-sec"
 
 export function LoginForm({ redirectTo = "/app" }: { redirectTo?: string }) {
   const router = useRouter()
@@ -58,39 +64,47 @@ export function LoginForm({ redirectTo = "/app" }: { redirectTo?: string }) {
       {formError && <FormAlert tone="error">{formError}</FormAlert>}
       <Field id="login-email" label="Correo" error={errors.email}>
         {(aria) => (
-          <Input
-            {...aria}
-            type="email"
-            name="email"
-            autoComplete="username"
-            inputMode="email"
-            spellCheck={false}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onBlur={() => email && setErrors((p) => ({ ...p, email: validateEmail(email) }))}
-          />
+          <div className="relative">
+            <MailIcon aria-hidden="true" className={leadIcon} />
+            <Input
+              {...aria}
+              type="email"
+              name="email"
+              autoComplete="username"
+              inputMode="email"
+              spellCheck={false}
+              className={lineInput}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => email && setErrors((p) => ({ ...p, email: validateEmail(email) }))}
+            />
+          </div>
         )}
       </Field>
       <Field id="login-password" label="Contraseña" error={errors.password}>
         {(aria) => (
-          <PasswordInput
-            {...aria}
-            name="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onBlur={() => errors.password && setErrors((p) => ({ ...p, password: passwordError(password) }))}
-          />
+          <div className="relative">
+            <LockIcon aria-hidden="true" className={leadIcon} />
+            <PasswordInput
+              {...aria}
+              name="password"
+              autoComplete="current-password"
+              className={lineInput}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => errors.password && setErrors((p) => ({ ...p, password: passwordError(password) }))}
+            />
+          </div>
         )}
       </Field>
       <Link
         href="/recuperar"
-        className="self-start text-small font-medium text-acento underline-offset-4 hover:underline"
+        className="self-end text-small font-medium text-acento underline-offset-4 hover:underline"
       >
         ¿Olvidaste tu contraseña?
       </Link>
       <Turnstile ref={captcha} action="login" onToken={setCaptchaToken} />
-      <Button type="submit" loading={pending} className="w-full">
+      <Button type="submit" loading={pending} className="w-full rounded-full">
         {pending ? "Ingresando…" : "Ingresar"}
       </Button>
     </form>

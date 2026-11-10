@@ -171,6 +171,11 @@
     outline: 2px solid var(--color-acento) !important;
     outline-offset: 2px;
   }
+  /* Campos de línea del login: el foco se indica con la línea inferior en acento
+     (2px, contraste 5.6:1), no con el rectángulo de outline. */
+  .auth-field-line:focus-visible {
+    outline: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
