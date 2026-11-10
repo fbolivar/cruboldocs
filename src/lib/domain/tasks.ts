@@ -10,6 +10,7 @@ export const TASK_META: Record<TaskType, { label: string; verb: string; category
   revisar_documento_vencido: { label: "Revisión vencida", verb: "Revisar documento", category: "documentos" },
   ejecutar_control: { label: "Ejecutar control", verb: "Registrar evidencia", category: "riesgos" },
   recertificar_accesos: { label: "Recertificar accesos", verb: "Recertificar", category: "accesos" },
+  ejecutar_accion_nc: { label: "Ejecutar acción", verb: "Registrar avance", category: "mejora" },
 }
 
 export type TaskGroupId = "vencidas" | "hoy" | "proximas"
@@ -36,7 +37,7 @@ export function groupTasksByDue(tasks: Task[], now: Date = new Date()): TaskGrou
 }
 
 export function countByCategory(tasks: Task[]): Record<TaskCategory | "todas", number> {
-  const counts = { todas: tasks.length, documentos: 0, riesgos: 0, accesos: 0 }
+  const counts = { todas: tasks.length, documentos: 0, riesgos: 0, accesos: 0, mejora: 0 }
   for (const t of tasks) counts[TASK_META[t.type].category]++
   return counts
 }

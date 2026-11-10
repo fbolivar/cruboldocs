@@ -8,6 +8,16 @@ export function canSeeRisks(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))
 }
 
+/** Pantalla No Conformidades: mismos roles del SIG que riesgos (el reporte es abierto a todos). */
+export function canSeeNonconformities(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Puede gestionar no conformidades (causa, acciones, verificación): Líder SIG o Líder de proceso. */
+export function canManageNonconformities(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)

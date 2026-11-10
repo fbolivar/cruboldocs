@@ -15,6 +15,7 @@ const FILTER_EMPTY: Record<Exclude<TaskFilterValue, "todas">, string> = {
   documentos: "No tienes tareas de documentos pendientes.",
   riesgos: "No tienes tareas de riesgos pendientes.",
   accesos: "No tienes tareas de accesos pendientes.",
+  mejora: "No tienes tareas de mejora pendientes.",
 }
 
 function moreHref(filter: TaskFilterValue, visible: number): string {

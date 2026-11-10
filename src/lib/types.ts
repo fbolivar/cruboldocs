@@ -213,8 +213,111 @@ export type TaskType =
   | "ejecutar_control"
   | "revisar_documento_vencido"
   | "recertificar_accesos"
+  | "ejecutar_accion_nc"
 
-export type TaskCategory = "documentos" | "riesgos" | "accesos"
+export type TaskCategory = "documentos" | "riesgos" | "accesos" | "mejora"
+
+// ---------- No Conformidades / CAPA (ISO 9001 cap. 10.2) ----------
+
+export type NcSource =
+  | "auditoria_interna"
+  | "auditoria_externa"
+  | "queja_pqrs"
+  | "producto_servicio"
+  | "riesgo_materializado"
+  | "mejora"
+  | "otro"
+
+export type NcSeverity = "observacion" | "menor" | "mayor"
+
+export type NcStatus =
+  | "abierta"
+  | "analisis_causa"
+  | "plan_accion"
+  | "en_ejecucion"
+  | "verificacion"
+  | "cerrada"
+  | "anulada"
+
+export type NcActionType = "correccion" | "correctiva" | "preventiva"
+export type NcActionStatus = "pendiente" | "en_curso" | "hecha" | "cancelada"
+
+/** Fila del tablero de no conformidades. */
+export interface NcListItem {
+  id: string
+  code: string
+  title: string
+  processName: string | null
+  source: NcSource
+  severity: NcSeverity
+  status: NcStatus
+  reopened: boolean
+  overdueActions: number
+  detectedAt: string
+}
+
+export interface NcSummary {
+  open: number
+  inVerification: number
+  overdueActions: number
+  bySeverity: Record<NcSeverity, number>
+}
+
+export interface NcEvidenceView {
+  id: string
+  fileName: string
+  registeredByName: string
+  registeredAt: string
+  note: string | null
+}
+
+export interface NcActionView {
+  id: string
+  type: NcActionType
+  description: string
+  responsiblePositionName: string
+  dueDate: string
+  status: NcActionStatus
+  completedAt: string | null
+  overdue: boolean
+  evidences: NcEvidenceView[]
+}
+
+export interface NcTimelineEvent {
+  at: string
+  actor: string
+  text: string
+}
+
+export interface NcVerification {
+  verifiedByName: string
+  verifiedAt: string
+  effective: boolean
+  notes: string | null
+}
+
+/** Ficha completa de una no conformidad. */
+export interface NcDetail {
+  id: string
+  code: string
+  title: string
+  description: string
+  processName: string | null
+  source: NcSource
+  severity: NcSeverity
+  status: NcStatus
+  reopenedCount: number
+  ownerPositionName: string | null
+  reportedByName: string
+  detectedAt: string
+  rootCause: string | null
+  sourceRiskCode: string | null
+  actions: NcActionView[]
+  verification: NcVerification | null
+  timeline: NcTimelineEvent[]
+  /** Si el usuario actual puede gestionar (Líder SIG o Líder del proceso). */
+  canManage: boolean
+}
 
 export interface Task {
   id: string
