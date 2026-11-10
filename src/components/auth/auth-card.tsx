@@ -2,17 +2,9 @@ import type * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/** Card del formulario de acceso: máx. 400px; en móvil ocupa el ancho sin borde ni sombra. */
+/** Contenido del formulario de acceso dentro del marco unificado: solo ancho máximo y ritmo. */
 export function AuthCard({ className, ...props }: React.ComponentProps<"section">) {
-  return (
-    <section
-      className={cn(
-        "flex w-full max-w-100 flex-col gap-4 md:rounded-md md:border md:border-borde md:bg-superficie md:p-8 md:shadow-sm",
-        className
-      )}
-      {...props}
-    />
-  )
+  return <section className={cn("flex w-full max-w-sm flex-col gap-5", className)} {...props} />
 }
 
 export const DATA_POLICY_HREF = "/tratamiento-de-datos"

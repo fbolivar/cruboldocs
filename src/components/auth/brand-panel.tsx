@@ -80,8 +80,8 @@ export function BrandPanel({ className }: { className?: string }) {
   return (
     <aside
       className={cn(
-        "relative flex h-30 flex-col justify-center overflow-hidden bg-linear-135 from-acento via-acento-medio to-acento-claro px-4 text-superficie",
-        "md:h-auto md:justify-start md:rounded-r-lg md:p-12",
+        "relative flex h-36 flex-col justify-center overflow-hidden bg-linear-135 from-acento via-acento-medio to-acento-claro px-6 text-superficie",
+        "md:h-auto md:justify-start md:p-12",
         className
       )}
     >
