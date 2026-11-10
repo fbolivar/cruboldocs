@@ -162,6 +162,22 @@ export async function updatePassword(password: string): Promise<Result> {
           : RECOVERY_EXPIRED
     )
   }
+  // Aviso de seguridad al titular: su contraseña cambió (detección de secuestro). No debe romper
+  // el cambio ya exitoso si el encolado/envío falla.
+  const email = auth?.claims?.email
+  if (typeof email === "string" && email) {
+    try {
+      const cuando = new Intl.DateTimeFormat("es-CO", {
+        dateStyle: "long",
+        timeStyle: "short",
+        timeZone: "America/Bogota",
+      }).format(new Date())
+      await createAdminClient().from("email_outbox").insert({ to_email: email, template: "contrasena_cambiada", payload: { cuando } })
+      after(() => flushOutbox().catch((e) => console.error("outbox", e)))
+    } catch (e) {
+      console.error("aviso contraseña cambiada", e)
+    }
+  }
   return ok(undefined)
 }
 

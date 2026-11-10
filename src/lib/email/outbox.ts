@@ -34,7 +34,26 @@ ${lines.map((l) => `<tr><td style="font-size:15px;line-height:22px;padding-botto
 </table></td></tr></table></body></html>`
 }
 
-function render(template: string, p: Record<string, unknown>): Mail | null {
+export function render(template: string, p: Record<string, unknown>): Mail | null {
+  if (template === "contrasena_cambiada") {
+    // Aviso de seguridad: la contraseña de la cuenta cambió. Si no fue el titular, puede
+    // recuperar la cuenta de inmediato. No lleva datos sensibles ni la nueva contraseña.
+    const cuando = p.cuando ? String(p.cuando) : ""
+    const href = `${APP_URL()}/recuperar`
+    return {
+      subject: "Tu contraseña de CrubolDocs fue cambiada",
+      text: `La contraseña de tu cuenta de CrubolDocs se cambió${cuando ? ` el ${cuando}` : ""}.\n\nSi fuiste tú, ignora este mensaje.\nSi NO reconoces este cambio, recupera tu cuenta de inmediato y avisa al administrador de tu organización: ${href}`,
+      html: layout(
+        "Tu contraseña fue cambiada",
+        [
+          `La contraseña de tu cuenta de CrubolDocs se cambió${cuando ? ` el <strong>${esc(cuando)}</strong>` : ""}.`,
+          "Si fuiste tú, no tienes que hacer nada.",
+          "Si <strong>no</strong> reconoces este cambio, recupera tu cuenta de inmediato y avisa al administrador de tu organización.",
+        ],
+        { label: "Recuperar mi cuenta", href }
+      ),
+    }
+  }
   if (template === "tarea_nueva") {
     const label = TASK_META[p.tipo as TaskType]?.label ?? "Nueva tarea"
     const what = [p.codigo, p.titulo].filter(Boolean).join(" · ") + (p.version ? ` (v${p.version})` : "")
