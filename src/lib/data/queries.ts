@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageIndicators, canManageNonconformities, canManageReviews, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageNonconformities, canManageReviews, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -16,6 +16,7 @@ import { createAdminClient, createClient } from "@/lib/supabase/server"
 import { sha256Hex } from "@/lib/data/hash"
 import type {
   ActivityEvent,
+  AssessedLevel,
   AssessmentKind,
   AuditDetail,
   AuditEntry,
@@ -36,6 +37,19 @@ import type {
   DocumentType,
   DocumentVersion,
   ComplianceStatus,
+  CompetencyKind,
+  CompetencyListItem,
+  CompetencyMatrix,
+  CompetencyStatus,
+  CompetencySummary,
+  MatrixRow,
+  PersonCompetencyDetail,
+  PersonCompetencyRow,
+  PositionProfileDetail,
+  PositionRequirement,
+  TrainingAttendeeView,
+  TrainingListItem,
+  TrainingResult,
   HomeSummary,
   IndicatorDetail,
   IndicatorDirection,
@@ -1491,4 +1505,211 @@ export async function getInvitation(token: string): Promise<Invitation | null> {
     status: inv.accepted_at ? "usada" : expired ? "vencida" : "valida",
     accountExists: !!account,
   }
+}
+
+// ---------- Competencias (ISO 7.2) ----------
+
+const DUE_SOON_DAYS = 60
+
+/** Carga las tablas base del módulo (RLS aplicada) para armar la matriz y el resumen. */
+async function competencyBase(s: NonNullable<Awaited<ReturnType<typeof scope>>>) {
+  const [comps, reqs, mems, positions, processes, assess] = await Promise.all([
+    s.supabase.from("competencies").select("id, name, kind, is_active").eq("organization_id", s.org).then((r) => r.data ?? []),
+    s.supabase.from("position_competencies").select("position_id, competency_id, required_level, is_mandatory").eq("organization_id", s.org).eq("is_active", true).then((r) => r.data ?? []),
+    s.supabase.from("memberships").select("id, user_id, position_id").eq("organization_id", s.org).eq("status", "activo").then((r) => r.data ?? []),
+    s.supabase.from("positions").select("id, name, process_id").eq("organization_id", s.org).then((r) => r.data ?? []),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org).then((r) => r.data ?? []),
+    s.supabase.from("competency_assessments").select("membership_id, competency_id, assessed_level, status").eq("organization_id", s.org).then((r) => r.data ?? []),
+  ])
+  return { comps, reqs, mems, positions, processes, assess }
+}
+
+export async function getCompetencyMatrix(): Promise<CompetencyMatrix> {
+  const s = await scope()
+  if (!s) return { columns: [], rows: [] }
+  const { comps, reqs, mems, positions, processes, assess } = await competencyBase(s)
+  const compMap = new Map(comps.map((c) => [c.id, c]))
+  const posMap = new Map(positions.map((p) => [p.id, p]))
+  const procMap = new Map(processes.map((p) => [p.id, p.name]))
+  const person = await peopleOf(s.org, mems.map((m) => m.user_id))
+  const reqByPos = new Map<string, typeof reqs>()
+  for (const r of reqs) reqByPos.set(r.position_id, [...(reqByPos.get(r.position_id) ?? []), r])
+
+  const usedCompetencies = new Set<string>()
+  const rows: MatrixRow[] = []
+  for (const m of mems) {
+    if (!m.position_id) continue
+    const posReqs = reqByPos.get(m.position_id)
+    if (!posReqs || posReqs.length === 0) continue
+    const pos = posMap.get(m.position_id)
+    const cells = posReqs.map((r) => {
+      const a = assess.find((x) => x.membership_id === m.id && x.competency_id === r.competency_id)
+      usedCompetencies.add(r.competency_id)
+      return {
+        competencyId: r.competency_id,
+        requiredLevel: r.required_level as 1 | 2 | 3,
+        assessedLevel: (a ? (a.assessed_level as AssessedLevel) : null),
+        status: (a ? (a.status as CompetencyStatus) : "sin_evaluar") as CompetencyStatus,
+      }
+    })
+    rows.push({
+      membershipId: m.id,
+      personName: person(m.user_id).fullName,
+      positionName: pos?.name ?? "—",
+      processName: pos?.process_id ? procMap.get(pos.process_id) ?? null : null,
+      cells,
+    })
+  }
+  rows.sort((a, b) => (a.processName ?? "").localeCompare(b.processName ?? "") || a.personName.localeCompare(b.personName))
+  const columns = [...usedCompetencies]
+    .map((id) => ({ competencyId: id, competencyName: compMap.get(id)?.name ?? "—", kind: (compMap.get(id)?.kind ?? "habilidad") as CompetencyKind }))
+    .sort((a, b) => a.competencyName.localeCompare(b.competencyName))
+  return { columns, rows }
+}
+
+export async function getCompetencySummary(): Promise<CompetencySummary> {
+  const s = await scope()
+  if (!s) return { coveragePct: null, openGaps: 0, certificatesDueSoon: 0 }
+  const { reqs, mems, assess } = await competencyBase(s)
+  // Cobertura: requisitos OBLIGATORIOS de cargos ocupados, cumplidos vs. requeridos.
+  let required = 0
+  let met = 0
+  for (const m of mems) {
+    if (!m.position_id) continue
+    for (const r of reqs) {
+      if (r.position_id !== m.position_id || !r.is_mandatory) continue
+      required++
+      const a = assess.find((x) => x.membership_id === m.id && x.competency_id === r.competency_id)
+      if (a?.status === "cumple") met++
+    }
+  }
+  const openGaps = assess.filter((a) => a.status === "brecha" || a.status === "brecha_en_plan").length
+  const limit = addDays(todayIsoDate(), DUE_SOON_DAYS)
+  const { data: att } = await s.supabase
+    .from("training_attendees")
+    .select("valid_until")
+    .eq("organization_id", s.org)
+    .not("valid_until", "is", null)
+    .lte("valid_until", limit)
+  return { coveragePct: required === 0 ? null : Math.round((met * 100) / required), openGaps, certificatesDueSoon: att?.length ?? 0 }
+}
+
+export async function listCompetencyCatalog(): Promise<CompetencyListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [comps, reqs] = await Promise.all([
+    s.supabase.from("competencies").select("id, name, description, kind, is_active").eq("organization_id", s.org).order("name").then((r) => r.data ?? []),
+    s.supabase.from("position_competencies").select("competency_id, position_id").eq("organization_id", s.org).eq("is_active", true).then((r) => r.data ?? []),
+  ])
+  const count = new Map<string, Set<string>>()
+  for (const r of reqs) count.set(r.competency_id, (count.get(r.competency_id) ?? new Set<string>()).add(r.position_id))
+  return comps.map((c) => ({
+    id: c.id, name: c.name, description: c.description, kind: c.kind as CompetencyKind,
+    isActive: c.is_active, positionCount: count.get(c.id)?.size ?? 0,
+  }))
+}
+
+export async function listTrainings(): Promise<TrainingListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [trainings, attendees] = await Promise.all([
+    s.supabase.from("trainings").select("id, title, kind, provider, training_date, hours").eq("organization_id", s.org).order("training_date", { ascending: false }).then((r) => r.data ?? []),
+    s.supabase.from("training_attendees").select("training_id").eq("organization_id", s.org).then((r) => r.data ?? []),
+  ])
+  const count = new Map<string, number>()
+  for (const a of attendees) count.set(a.training_id, (count.get(a.training_id) ?? 0) + 1)
+  return trainings.map((t) => ({
+    id: t.id, title: t.title, kind: t.kind as "interna" | "externa", provider: t.provider,
+    trainingDate: t.training_date, hours: t.hours, attendeeCount: count.get(t.id) ?? 0,
+  }))
+}
+
+export async function getPositionProfile(positionId: string): Promise<PositionProfileDetail | null> {
+  if (!isUuid(positionId)) return null
+  const s = await scope()
+  if (!s) return null
+  const { data: pos } = await s.supabase.from("positions").select("id, name, process_id").eq("organization_id", s.org).eq("id", positionId).maybeSingle()
+  if (!pos) return null
+  const [{ data: reqs }, { data: comps }, proc] = await Promise.all([
+    s.supabase.from("position_competencies").select("id, competency_id, required_level, is_mandatory, note").eq("organization_id", s.org).eq("position_id", positionId).eq("is_active", true),
+    s.supabase.from("competencies").select("id, name, kind").eq("organization_id", s.org),
+    pos.process_id ? s.supabase.from("processes").select("name").eq("id", pos.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+  ])
+  const compMap = new Map((comps ?? []).map((c) => [c.id, c]))
+  const requirements: PositionRequirement[] = (reqs ?? []).map((r) => ({
+    id: r.id, competencyId: r.competency_id, competencyName: compMap.get(r.competency_id)?.name ?? "—",
+    kind: (compMap.get(r.competency_id)?.kind ?? "habilidad") as CompetencyKind,
+    requiredLevel: r.required_level as 1 | 2 | 3, isMandatory: r.is_mandatory, note: r.note,
+  })).sort((a, b) => a.competencyName.localeCompare(b.competencyName))
+  return { positionId: pos.id, positionName: pos.name, processName: proc.data?.name ?? null, requirements }
+}
+
+export async function getPersonCompetencies(membershipId: string): Promise<PersonCompetencyDetail | null> {
+  if (!isUuid(membershipId)) return null
+  const s = await scope()
+  if (!s) return null
+  const { data: mem } = await s.supabase.from("memberships").select("id, user_id, position_id").eq("organization_id", s.org).eq("id", membershipId).maybeSingle()
+  if (!mem) return null
+  const { data: pos } = mem.position_id
+    ? await s.supabase.from("positions").select("id, name, process_id").eq("id", mem.position_id).maybeSingle()
+    : { data: null as { id: string; name: string; process_id: string | null } | null }
+  const [{ data: reqs }, { data: comps }, { data: assess }, { data: att }, { data: trainings }, proc, { data: log }] = await Promise.all([
+    mem.position_id ? s.supabase.from("position_competencies").select("competency_id, required_level").eq("organization_id", s.org).eq("position_id", mem.position_id).eq("is_active", true) : Promise.resolve({ data: [] as { competency_id: string; required_level: number }[] }),
+    s.supabase.from("competencies").select("id, name, kind").eq("organization_id", s.org),
+    s.supabase.from("competency_assessments").select("competency_id, assessed_level, status, next_review_date, gap_task_id").eq("organization_id", s.org).eq("membership_id", membershipId),
+    s.supabase.from("training_attendees").select("id, training_id, result, certificate_path, certificate_name, valid_until").eq("organization_id", s.org).eq("membership_id", membershipId),
+    s.supabase.from("trainings").select("id, title, kind, provider, training_date, hours").eq("organization_id", s.org),
+    pos?.process_id ? s.supabase.from("processes").select("name").eq("id", pos.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Competencia").order("at", { ascending: false }).limit(50),
+  ])
+  const compMap = new Map((comps ?? []).map((c) => [c.id, c]))
+  const assessMap = new Map((assess ?? []).map((a) => [a.competency_id, a]))
+  const trainMap = new Map((trainings ?? []).map((t) => [t.id, t]))
+  const person = await peopleOf(s.org, [mem.user_id, ...(log ?? []).map((x) => x.actor_id)])
+
+  const competencies: PersonCompetencyRow[] = (reqs ?? []).map((r) => {
+    const a = assessMap.get(r.competency_id)
+    return {
+      competencyId: r.competency_id, competencyName: compMap.get(r.competency_id)?.name ?? "—",
+      kind: (compMap.get(r.competency_id)?.kind ?? "habilidad") as CompetencyKind,
+      requiredLevel: r.required_level as 1 | 2 | 3,
+      assessedLevel: a ? (a.assessed_level as AssessedLevel) : null,
+      status: (a ? (a.status as CompetencyStatus) : "sin_evaluar") as CompetencyStatus,
+      nextReviewDate: a?.next_review_date ?? null, gapTaskId: a?.gap_task_id ?? null,
+    }
+  }).sort((x, y) => x.competencyName.localeCompare(y.competencyName))
+
+  const personTrainings: TrainingAttendeeView[] = (att ?? []).map((a) => {
+    const t = trainMap.get(a.training_id)
+    return {
+      id: a.id, trainingId: a.training_id, title: t?.title ?? "—", kind: (t?.kind ?? "interna") as "interna" | "externa",
+      provider: t?.provider ?? null, trainingDate: t?.training_date ?? "", hours: t?.hours ?? null,
+      result: a.result as TrainingResult, hasCertificate: !!a.certificate_path, certificateName: a.certificate_name, validUntil: a.valid_until,
+    }
+  }).sort((x, y) => (y.trainingDate ?? "").localeCompare(x.trainingDate ?? ""))
+
+  const isSelf = mem.user_id === s.user.id
+  const canManage = canManageCompetencies(s.user, pos?.process_id ?? undefined)
+  return {
+    membershipId: mem.id, positionId: pos?.id ?? null, personName: person(mem.user_id).fullName,
+    positionName: pos?.name ?? "—", processName: proc.data?.name ?? null,
+    competencies, trainings: personTrainings,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: competencyEventText(x.action) })),
+    canManage, isSelf,
+  }
+}
+
+function competencyEventText(action: string): string {
+  const map: Record<string, string> = {
+    crear_competencia: "Creó una competencia del catálogo.",
+    editar_competencia: "Editó una competencia.",
+    archivar_competencia: "Archivó una competencia.",
+    reactivar_competencia: "Reactivó una competencia.",
+    definir_requisito_competencia: "Definió un requisito del perfil de un cargo.",
+    quitar_requisito_competencia: "Quitó un requisito del perfil de un cargo.",
+    crear_formacion: "Registró una formación.",
+    registrar_asistente_formacion: "Registró asistentes a una formación.",
+    evaluar_competencia: "Evaluó una competencia.",
+  }
+  return map[action] ?? action
 }

@@ -5,8 +5,7 @@ import { notFound } from "next/navigation"
 
 import { TrainingList } from "@/components/competencias/training-list"
 import { Page, PageHeader } from "@/components/shell/page"
-import { listTrainings } from "@/lib/data/competencias-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, listTrainings } from "@/lib/data/queries"
 import { canManageCompetencies, canSeeCompetencies } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Formación" }

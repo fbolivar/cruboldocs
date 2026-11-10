@@ -1,11 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { CompetencyStatusBadge, LevelChip } from "@/components/competencias/badges"
 import { COMPETENCY_STATUS_LABELS, LEVEL_LABELS, deriveStatus, levelFraction } from "@/components/competencias/labels"
+import { assessCompetency } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -15,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { formatDate } from "@/lib/format"
 import type { AssessedLevel, PersonCompetencyRow } from "@/lib/types"
 
-export function PersonCompetencies({ rows, canManage }: { rows: PersonCompetencyRow[]; canManage: boolean }) {
+export function PersonCompetencies({ rows }: { rows: PersonCompetencyRow[] }) {
   return (
     <div className="flex flex-col gap-3">
       {/* Escritorio: tabla */}
@@ -39,7 +41,7 @@ export function PersonCompetencies({ rows, canManage }: { rows: PersonCompetency
                 <td className="px-3 py-3 tabular-nums text-texto-sec">{levelFraction(r.assessedLevel, r.requiredLevel)}</td>
                 <td className="px-3 py-3"><CompetencyStatusBadge status={r.status} /></td>
                 <td className="px-3 py-3 text-caption text-texto-sec">{r.nextReviewDate ? formatDate(r.nextReviewDate) : "—"}</td>
-                <td className="px-3 py-3 text-right"><GapAction row={r} canManage={canManage} /></td>
+                <td className="px-3 py-3 text-right"><GapLink row={r} /></td>
               </tr>
             ))}
           </tbody>
@@ -58,7 +60,7 @@ export function PersonCompetencies({ rows, canManage }: { rows: PersonCompetency
               Requerido N{r.requiredLevel} · Evaluado {levelFraction(r.assessedLevel, r.requiredLevel)}
               {r.nextReviewDate ? ` · Revisión ${formatDate(r.nextReviewDate)}` : ""}
             </p>
-            <div className="mt-2"><GapAction row={r} canManage={canManage} /></div>
+            <div className="mt-2"><GapLink row={r} /></div>
           </Card>
         ))}
       </div>
@@ -66,35 +68,31 @@ export function PersonCompetencies({ rows, canManage }: { rows: PersonCompetency
   )
 }
 
-/** En brecha: enlace a la tarea si existe, o botón para crearla (stub). */
-function GapAction({ row, canManage }: { row: PersonCompetencyRow; canManage: boolean }) {
-  const isGap = row.status === "brecha" || row.status === "brecha_en_plan"
-  if (!isGap) return null
-  if (row.gapTaskId) {
-    return (
-      <Link href="/app" className="text-small font-medium text-acento hover:underline">Ver tarea de cierre</Link>
-    )
-  }
-  if (!canManage) return null
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={() => toast.success("Disponible cuando se conecte el backend.")}
-    >
-      Crear tarea de cierre
-    </Button>
-  )
+/** La tarea de cierre se crea al evaluar (casilla en el Sheet). Aquí solo se enlaza si existe. */
+function GapLink({ row }: { row: PersonCompetencyRow }) {
+  if (!row.gapTaskId) return null
+  return <Link href="/app" className="text-small font-medium text-acento hover:underline">Ver tarea de cierre</Link>
 }
 
 const ASSESSED: AssessedLevel[] = [0, 1, 2, 3]
 
-export function AssessCompetencySheet({ rows }: { rows: PersonCompetencyRow[] }) {
+export function AssessCompetencySheet({
+  membershipId,
+  positionId,
+  rows,
+}: {
+  membershipId: string
+  positionId: string
+  rows: PersonCompetencyRow[]
+}) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [competencyId, setCompetencyId] = useState(rows[0]?.competencyId ?? "")
   const [level, setLevel] = useState<AssessedLevel>(0)
   const [next, setNext] = useState("")
   const [note, setNote] = useState("")
+  const [createTask, setCreateTask] = useState(false)
 
   const required = useMemo(() => rows.find((r) => r.competencyId === competencyId)?.requiredLevel ?? 1, [rows, competencyId])
   const status = deriveStatus(level, required, note.trim().length > 0)
@@ -103,9 +101,18 @@ export function AssessCompetencySheet({ rows }: { rows: PersonCompetencyRow[] })
   function submit() {
     if (!competencyId) { toast.error("Elige la competencia."); return }
     if (isGap && note.trim().length === 0) { toast.error("Explica el plan de cierre de la brecha."); return }
-    // TODO(backend): assessCompetency({ competencyId, level, next, note })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await assessCompetency({
+        membershipId, competencyId, positionId, assessedLevel: level,
+        nextReview: next || null, note: note.trim() || undefined, createTask: isGap && createTask,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Evaluación guardada.")
+      setOpen(false)
+      setNote("")
+      setCreateTask(false)
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -145,8 +152,14 @@ export function AssessCompetencySheet({ rows }: { rows: PersonCompetencyRow[] })
             <Label htmlFor="as-note">{isGap ? "Plan de cierre (obligatorio en brecha)" : "Nota (opcional)"}</Label>
             <Textarea id="as-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder={isGap ? "Qué formación o acción cerrará la brecha" : ""} />
           </div>
+          {isGap && (
+            <label className="flex items-center gap-2 text-small">
+              <input type="checkbox" checked={createTask} onChange={(e) => setCreateTask(e.target.checked)} className="size-4 rounded border-borde-fuerte" />
+              Crear tarea de cierre asignada al cargo
+            </label>
+          )}
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Guardar evaluación</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar evaluación</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

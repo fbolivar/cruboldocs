@@ -815,6 +815,7 @@ export interface CompetencySummary {
 
 export interface PersonCompetencyDetail {
   membershipId: string
+  positionId: string | null
   personName: string
   positionName: string
   processName: string | null

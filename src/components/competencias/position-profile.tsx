@@ -1,11 +1,13 @@
 "use client"
 
-import { ListChecksIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { ListChecksIcon, PlusIcon, XIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { CompetencyKindChip, LevelChip } from "@/components/competencias/badges"
 import { LEVEL_LABELS } from "@/components/competencias/labels"
+import { removePositionRequirement, setPositionRequirement } from "@/lib/data/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -14,22 +16,42 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
-import type { CompetencyLevel, PositionProfileDetail } from "@/lib/types"
+import type { CompetencyLevel, CompetencyListItem, PositionProfileDetail } from "@/lib/types"
 
 const LEVELS: CompetencyLevel[] = [1, 2, 3]
 
-export function PositionProfile({ profile, canManage }: { profile: PositionProfileDetail; canManage: boolean }) {
+export function PositionProfile({
+  profile,
+  catalog,
+  canManage,
+}: {
+  profile: PositionProfileDetail
+  catalog: CompetencyListItem[]
+  canManage: boolean
+}) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const reqs = profile.requirements
+
+  function remove(reqId: string) {
+    start(async () => {
+      const r = await removePositionRequirement(reqId)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Requisito quitado.")
+      router.refresh()
+    })
+  }
+
   return (
     <div className="flex flex-col gap-3">
-      {canManage && reqs.length > 0 && <div><AddRequirementSheet /></div>}
+      {canManage && reqs.length > 0 && <div><AddRequirementSheet positionId={profile.positionId} catalog={catalog} /></div>}
       {reqs.length === 0 ? (
         <Card>
           <EmptyState
             icon={ListChecksIcon}
             title="Este cargo aún no tiene perfil de competencias"
             description="Agrega los requisitos que exige el puesto."
-            action={canManage ? <AddRequirementSheet /> : undefined}
+            action={canManage ? <AddRequirementSheet positionId={profile.positionId} catalog={catalog} /> : undefined}
           />
         </Card>
       ) : (
@@ -45,7 +67,14 @@ export function PositionProfile({ profile, canManage }: { profile: PositionProfi
                   </div>
                   {r.note && <p className="mt-0.5 text-caption text-texto-sec">{r.note}</p>}
                 </div>
-                <LevelChip level={r.requiredLevel} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <LevelChip level={r.requiredLevel} />
+                  {canManage && (
+                    <Button variant="ghost" size="icon-sm" aria-label="Quitar requisito" disabled={pending} onClick={() => remove(r.id)}>
+                      <XIcon />
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -55,15 +84,27 @@ export function PositionProfile({ profile, canManage }: { profile: PositionProfi
   )
 }
 
-function AddRequirementSheet() {
+function AddRequirementSheet({ positionId, catalog }: { positionId: string; catalog: CompetencyListItem[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
+  const [competencyId, setCompetencyId] = useState("")
   const [level, setLevel] = useState<CompetencyLevel>(2)
+  const [mandatory, setMandatory] = useState(true)
   const [note, setNote] = useState("")
 
+  const options = catalog.filter((c) => c.isActive)
+
   function submit() {
-    // TODO(backend): addPositionRequirement({ competencyId, level, mandatory, note })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    if (!competencyId) { toast.error("Elige una competencia."); return }
+    start(async () => {
+      const r = await setPositionRequirement({ positionId, competencyId, level, mandatory, note: note.trim() || undefined })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Requisito agregado.")
+      setOpen(false)
+      setCompetencyId(""); setNote("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -77,9 +118,13 @@ function AddRequirementSheet() {
         <div className="flex flex-1 flex-col gap-4 p-4">
           <div className={field}>
             <Label>Competencia</Label>
-            <Select>
+            <Select value={competencyId} onValueChange={setCompetencyId}>
               <SelectTrigger><SelectValue placeholder="Elige del catálogo" /></SelectTrigger>
-              <SelectContent><SelectItem value="demo">(catálogo al conectar el backend)</SelectItem></SelectContent>
+              <SelectContent>
+                {options.length === 0
+                  ? <SelectItem value="none" disabled>No hay competencias en el catálogo</SelectItem>
+                  : options.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
             </Select>
           </div>
           <div className={field}>
@@ -89,12 +134,16 @@ function AddRequirementSheet() {
               <SelectContent>{LEVELS.map((l) => <SelectItem key={l} value={String(l)}>N{l} · {LEVEL_LABELS[l]}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <label className="flex items-center gap-2 text-small">
+            <input type="checkbox" checked={mandatory} onChange={(e) => setMandatory(e.target.checked)} className="size-4 rounded border-borde-fuerte" />
+            Obligatoria
+          </label>
           <div className={field}>
             <Label htmlFor="req-note">Nota (opcional)</Label>
             <Textarea id="req-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Agregar</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Agregar</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

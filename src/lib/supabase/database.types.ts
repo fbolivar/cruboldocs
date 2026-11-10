@@ -434,6 +434,134 @@ export type Database = {
           },
         ]
       }
+      competencies: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competencies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competency_assessments: {
+        Row: {
+          assessed_at: string
+          assessed_by: string
+          assessed_level: number
+          competency_id: string
+          gap_plan: string | null
+          gap_task_id: string | null
+          id: string
+          membership_id: string
+          next_review_date: string | null
+          note: string | null
+          organization_id: string
+          position_id: string
+          status: string
+        }
+        Insert: {
+          assessed_at?: string
+          assessed_by?: string
+          assessed_level: number
+          competency_id: string
+          gap_plan?: string | null
+          gap_task_id?: string | null
+          id?: string
+          membership_id: string
+          next_review_date?: string | null
+          note?: string | null
+          organization_id: string
+          position_id: string
+          status: string
+        }
+        Update: {
+          assessed_at?: string
+          assessed_by?: string
+          assessed_level?: number
+          competency_id?: string
+          gap_plan?: string | null
+          gap_task_id?: string | null
+          id?: string
+          membership_id?: string
+          next_review_date?: string | null
+          note?: string | null
+          organization_id?: string
+          position_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competency_assessments_competency_id_organization_id_fkey"
+            columns: ["competency_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "competencies"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "competency_assessments_gap_task_id_fkey"
+            columns: ["gap_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competency_assessments_membership_id_organization_id_fkey"
+            columns: ["membership_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "competency_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competency_assessments_position_id_organization_id_fkey"
+            columns: ["position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       control_evidences: {
         Row: {
           control_id: string
@@ -1667,6 +1795,67 @@ export type Database = {
         }
         Relationships: []
       }
+      position_competencies: {
+        Row: {
+          competency_id: string
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          is_mandatory: boolean
+          note: string | null
+          organization_id: string
+          position_id: string
+          required_level: number
+        }
+        Insert: {
+          competency_id: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          is_mandatory?: boolean
+          note?: string | null
+          organization_id: string
+          position_id: string
+          required_level: number
+        }
+        Update: {
+          competency_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          is_mandatory?: boolean
+          note?: string | null
+          organization_id?: string
+          position_id?: string
+          required_level?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "position_competencies_competency_id_organization_id_fkey"
+            columns: ["competency_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "competencies"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "position_competencies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "position_competencies_position_id_organization_id_fkey"
+            columns: ["position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       position_roles: {
         Row: {
           created_at: string
@@ -2308,6 +2497,127 @@ export type Database = {
           },
         ]
       }
+      training_attendees: {
+        Row: {
+          certificate_name: string | null
+          certificate_path: string | null
+          certificate_sha256: string | null
+          created_at: string
+          created_by: string
+          id: string
+          membership_id: string
+          organization_id: string
+          result: string
+          training_id: string
+          valid_until: string | null
+        }
+        Insert: {
+          certificate_name?: string | null
+          certificate_path?: string | null
+          certificate_sha256?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          membership_id: string
+          organization_id: string
+          result?: string
+          training_id: string
+          valid_until?: string | null
+        }
+        Update: {
+          certificate_name?: string | null
+          certificate_path?: string | null
+          certificate_sha256?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          membership_id?: string
+          organization_id?: string
+          result?: string
+          training_id?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_attendees_membership_id_organization_id_fkey"
+            columns: ["membership_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "training_attendees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attendees_training_id_organization_id_fkey"
+            columns: ["training_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "trainings"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      trainings: {
+        Row: {
+          created_at: string
+          created_by: string
+          hours: number | null
+          id: string
+          kind: string
+          note: string | null
+          organization_id: string
+          process_id: string | null
+          provider: string | null
+          title: string
+          training_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          hours?: number | null
+          id?: string
+          kind: string
+          note?: string | null
+          organization_id: string
+          process_id?: string | null
+          provider?: string | null
+          title: string
+          training_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          hours?: number | null
+          id?: string
+          kind?: string
+          note?: string | null
+          organization_id?: string
+          process_id?: string | null
+          provider?: string | null
+          title?: string
+          training_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainings_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2383,11 +2693,43 @@ export type Database = {
         }
         Returns: string
       }
+      add_training_attendee: {
+        Args: {
+          p_membership: string
+          p_result: string
+          p_training: string
+          p_valid_until: string
+        }
+        Returns: string
+      }
       ai_agent_consume: {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
       }
+      archive_competency: {
+        Args: { p_archive: boolean; p_competency: string }
+        Returns: undefined
+      }
       archive_indicator: { Args: { p_indicator: string }; Returns: undefined }
+      assess_competency: {
+        Args: {
+          p_assessed: number
+          p_competency: string
+          p_create_task: boolean
+          p_membership: string
+          p_next_review: string
+          p_note: string
+          p_position: string
+        }
+        Returns: {
+          id: string
+          status: string
+        }[]
+      }
+      assess_status: {
+        Args: { p_assessed: number; p_has_plan: boolean; p_required: number }
+        Returns: string
+      }
       audit_or_fail: {
         Args: { p_audit: string }
         Returns: {
@@ -2422,6 +2764,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_audits: { Args: { org: string }; Returns: boolean }
+      can_manage_competencies: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_indicators: { Args: { org: string }; Returns: boolean }
       can_manage_nc: {
         Args: { org: string; process: string }
@@ -2438,9 +2784,14 @@ export type Database = {
         Returns: boolean
       }
       can_see_audits: { Args: { org: string }; Returns: boolean }
+      can_see_competencies: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
+      can_see_person_competency: {
+        Args: { p_membership: string; p_org: string }
+        Returns: boolean
+      }
       can_see_reviews: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
@@ -2499,6 +2850,15 @@ export type Database = {
         Returns: Json
       }
       confirm_read: { Args: { p_version: string }; Returns: undefined }
+      create_competency: {
+        Args: {
+          p_description: string
+          p_kind: string
+          p_name: string
+          p_org: string
+        }
+        Returns: string
+      }
       create_document: {
         Args: {
           p_aprobador: string
@@ -2614,6 +2974,19 @@ export type Database = {
           p_version_no: number
         }
         Returns: undefined
+      }
+      create_training: {
+        Args: {
+          p_date: string
+          p_hours: number
+          p_kind: string
+          p_note: string
+          p_org: string
+          p_process: string
+          p_provider: string
+          p_title: string
+        }
+        Returns: string
       }
       current_actor: { Args: never; Returns: string }
       current_org: { Args: never; Returns: string }
@@ -2871,6 +3244,10 @@ export type Database = {
         Args: { p_actor: string; p_invitation: string; p_token_hash: string }
         Returns: string
       }
+      remove_position_requirement: {
+        Args: { p_req: string }
+        Returns: undefined
+      }
       report_nonconformity: {
         Args: {
           p_description: string
@@ -2963,6 +3340,16 @@ export type Database = {
         Args: { p_cause: string; p_nc: string; p_owner?: string }
         Returns: undefined
       }
+      set_position_requirement: {
+        Args: {
+          p_competency: string
+          p_level: number
+          p_mandatory: boolean
+          p_note: string
+          p_position: string
+        }
+        Returns: string
+      }
       set_version_files: {
         Args: {
           p_actor: string
@@ -3010,6 +3397,15 @@ export type Database = {
       }
       submit_version: { Args: { p_version: string }; Returns: undefined }
       unarchive_indicator: { Args: { p_indicator: string }; Returns: undefined }
+      update_competency: {
+        Args: {
+          p_competency: string
+          p_description: string
+          p_kind: string
+          p_name: string
+        }
+        Returns: undefined
+      }
       update_indicator: {
         Args: {
           p_description: string

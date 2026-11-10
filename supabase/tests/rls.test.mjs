@@ -673,5 +673,66 @@ await throws(() => as(db, U.juan, `select public.refresh_review_snapshot('${rev.
 await throws(() => as(db, U.juan, `insert into public.management_reviews (organization_id, code, title, period_start, period_end, meeting_date) values ('${A}', 'RD-X', 't', current_date, current_date, current_date)`),
   "Nadie inserta actas por REST (023)", "row-level security")
 
+
+
+
+// ========== 025 · Competencias (ISO 7.2) ==========
+const cmLaura = (await svc(`select id from public.memberships where organization_id = '${A}' and user_id = '${U.laura}'`)).rows[0].id
+
+// Catálogo: solo Líder SIG.
+const comp = (await as(db, U.juan, `select public.create_competency('${A}', 'Auditoría interna ISO 19011', 'formacion', '')`)).rows[0].create_competency
+ok(!!comp, "Juan (Líder SIG) crea una competencia (025)")
+await throws(() => as(db, U.sofia, `select public.create_competency('${A}', 'Intrusa', 'habilidad', '')`),
+  "Sofía (consulta) no crea competencias (025)", "Solo el Líder SIG")
+await throws(() => as(db, U.beto, `select public.create_competency('${A}', 'Intrusa B', 'habilidad', '')`),
+  "Beto (org B) no crea competencias en A (025)", "Solo el Líder SIG")
+
+// Perfil del cargo: Líder SIG o líder del proceso; no la consulta.
+const req = (await as(db, U.juan, `select public.set_position_requirement('${POS.calidad}', '${comp}', 3::smallint, true, null)`)).rows[0].set_position_requirement
+ok(!!req, "Juan define un requisito en el perfil del cargo (025)")
+await throws(() => as(db, U.sofia, `select public.set_position_requirement('${POS.calidad}', '${comp}', 2::smallint, true, null)`),
+  "Sofía no edita el perfil del cargo (025)", "No puedes editar el perfil")
+
+// Formación y asistente.
+const tr = (await as(db, U.juan, `select public.create_training('${A}', 'Diplomado ISO 19011', 'externa', 'Icontec', current_date - 30, 40, null, '')`)).rows[0].create_training
+ok(!!tr, "Juan crea una formación (025)")
+const att = (await as(db, U.juan, `select public.add_training_attendee('${tr}', '${cmLaura}', 'aprobado', current_date + 365)`)).rows[0].add_training_attendee
+ok(!!att, "Juan registra a Laura como asistente (025)")
+
+// Evaluación: estado calculado en el servidor.
+const s1 = (await as(db, U.juan, `select status from public.assess_competency('${cmLaura}', '${comp}', '${POS.calidad}', 1::smallint, null, null, false)`)).rows[0].status
+ok(s1 === "brecha", "Nivel por debajo del requerido y sin plan → brecha (025)")
+const s2 = (await as(db, U.juan, `select status from public.assess_competency('${cmLaura}', '${comp}', '${POS.calidad}', 1::smallint, null, 'Plan: diplomado', false)`)).rows[0].status
+ok(s2 === "brecha_en_plan", "Nivel por debajo con plan → brecha_en_plan (025)")
+const s3 = (await as(db, U.juan, `select status from public.assess_competency('${cmLaura}', '${comp}', '${POS.calidad}', 3::smallint, null, null, false)`)).rows[0].status
+ok(s3 === "cumple", "Nivel igual o mayor al requerido → cumple (025)")
+const n = (await svc(`select count(*)::int n from public.competency_assessments where membership_id = '${cmLaura}' and competency_id = '${comp}'`)).rows[0].n
+ok(n === 1, "La evaluación es upsert por (persona, competencia): una sola fila (025)")
+
+// Tarea de cierre de brecha.
+await as(db, U.juan, `select public.assess_competency('${cmLaura}', '${comp}', '${POS.calidad}', 1::smallint, null, 'Plan', true)`)
+const task = (await svc(`select gap_task_id from public.competency_assessments where membership_id = '${cmLaura}' and competency_id = '${comp}'`)).rows[0].gap_task_id
+ok(!!task, "Al evaluar con brecha se crea y enlaza la tarea de cierre (025)")
+
+// Dato personal: la propia persona ve lo suyo; la consulta ajena no; el líder SIG sí.
+ok((await as(db, U.laura, `select count(*)::int n from public.competency_assessments where membership_id = '${cmLaura}'`)).rows[0].n === 1,
+  "Laura ve su propia evaluación (025)")
+ok((await as(db, U.sofia, `select count(*)::int n from public.competency_assessments where membership_id = '${cmLaura}'`)).rows[0].n === 0,
+  "Sofía (consulta) no ve la evaluación de otra persona (025)")
+ok((await as(db, U.juan, `select count(*)::int n from public.competency_assessments where membership_id = '${cmLaura}'`)).rows[0].n === 1,
+  "El Líder SIG ve la evaluación de la persona (025)")
+ok((await as(db, U.laura, `select count(*)::int n from public.training_attendees where membership_id = '${cmLaura}'`)).rows[0].n === 1,
+  "Laura ve su propia formación (025)")
+ok((await as(db, U.sofia, `select count(*)::int n from public.training_attendees where membership_id = '${cmLaura}'`)).rows[0].n === 0,
+  "Sofía no ve la formación de otra persona (025)")
+
+// Aislamiento entre organizaciones.
+ok((await as(db, U.beto, `select count(*)::int n from public.competencies where organization_id = '${A}'`)).rows[0].n === 0,
+  "Beto (org B) no ve competencias de A (025)")
+
+// Bloqueo de INSERT por REST.
+await throws(() => as(db, U.sofia, `insert into public.competencies (organization_id, name, kind) values ('${A}', 'X', 'habilidad')`),
+  "Nadie inserta competencias por REST (025)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

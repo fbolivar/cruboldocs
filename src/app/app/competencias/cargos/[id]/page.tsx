@@ -5,8 +5,7 @@ import { notFound } from "next/navigation"
 
 import { PositionProfile } from "@/components/competencias/position-profile"
 import { Page } from "@/components/shell/page"
-import { getPositionProfile } from "@/lib/data/competencias-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getPositionProfile, listCompetencyCatalog } from "@/lib/data/queries"
 import { canManageCompetencies, canSeeCompetencies } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Perfil del cargo" }
@@ -17,6 +16,7 @@ export default async function PositionProfilePage({ params }: { params: Promise<
   if (!canSeeCompetencies(user)) notFound()
   const profile = await getPositionProfile(id)
   if (!profile) notFound()
+  const catalog = await listCompetencyCatalog()
 
   return (
     <Page>
@@ -27,7 +27,7 @@ export default async function PositionProfilePage({ params }: { params: Promise<
         <h1>{profile.positionName}</h1>
         {profile.processName && <p className="text-small text-texto-sec">Proceso {profile.processName} · Perfil de competencias</p>}
       </div>
-      <PositionProfile profile={profile} canManage={canManageCompetencies(user)} />
+      <PositionProfile profile={profile} catalog={catalog} canManage={canManageCompetencies(user)} />
     </Page>
   )
 }

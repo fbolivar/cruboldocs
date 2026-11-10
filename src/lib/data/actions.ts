@@ -1822,3 +1822,162 @@ export async function closeReview(input: { reviewId: string; password: string })
     return ok(undefined)
   })
 }
+
+// ---------- Competencias (ISO 7.2) ----------
+
+function revalidateCompetencies() {
+  revalidatePath("/app/competencias", "layout")
+  revalidatePath("/app")
+}
+
+const KINDS = ["educacion", "formacion", "habilidad", "experiencia"] as const
+const competencySchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  kind: z.enum(KINDS),
+  description: z.string().trim().max(2000).optional(),
+})
+
+export async function createCompetency(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = competencySchema.safeParse(input)
+    if (!p.success) return fail("Revisa el nombre y el tipo de la competencia.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_competency", {
+      p_org: user.organization.id, p_name: p.data.name, p_kind: p.data.kind, p_description: p.data.description ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok({ id: (data as string) ?? "" })
+  })
+}
+
+export async function updateCompetency(competencyId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(competencyId)) return fail(GENERIC)
+    const p = competencySchema.safeParse(input)
+    if (!p.success) return fail("Revisa el nombre y el tipo de la competencia.")
+    const { error } = await (await createClient()).rpc("update_competency", {
+      p_competency: competencyId, p_name: p.data.name, p_kind: p.data.kind, p_description: p.data.description ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok(undefined)
+  })
+}
+
+export async function archiveCompetency(competencyId: string, archive: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(competencyId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("archive_competency", { p_competency: competencyId, p_archive: archive })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok(undefined)
+  })
+}
+
+const requirementSchema = z.object({
+  positionId: z.uuid(),
+  competencyId: z.uuid(),
+  level: z.number().int().min(1).max(3),
+  mandatory: z.boolean(),
+  note: z.string().trim().max(1000).optional(),
+})
+
+export async function setPositionRequirement(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = requirementSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la competencia y el nivel.")
+    const { error } = await (await createClient()).rpc("set_position_requirement", {
+      p_position: p.data.positionId, p_competency: p.data.competencyId, p_level: p.data.level,
+      p_mandatory: p.data.mandatory, p_note: p.data.note ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok(undefined)
+  })
+}
+
+export async function removePositionRequirement(reqId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(reqId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("remove_position_requirement", { p_req: reqId })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok(undefined)
+  })
+}
+
+const trainingSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  kind: z.enum(["interna", "externa"]),
+  provider: z.string().trim().max(200).optional(),
+  trainingDate: isoDate,
+  hours: z.number().min(0).max(100000).nullish(),
+  processId: z.uuid().nullish(),
+  note: z.string().trim().max(2000).optional(),
+})
+
+export async function createTraining(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = trainingSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el título, el tipo y la fecha de la formación.")
+    if (p.data.trainingDate > todayIsoDate()) return fail("La fecha no puede ser futura.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_training", {
+      p_org: user.organization.id, p_title: p.data.title, p_kind: p.data.kind, p_provider: p.data.provider ?? "",
+      p_date: p.data.trainingDate, p_hours: (p.data.hours ?? null) as unknown as number,
+      p_process: (p.data.processId ?? null) as unknown as string, p_note: p.data.note ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok({ id: (data as string) ?? "" })
+  })
+}
+
+const attendeeSchema = z.object({
+  trainingId: z.uuid(),
+  membershipId: z.uuid(),
+  result: z.enum(["aprobado", "no_aprobado", "asistio"]),
+  validUntil: isoDate.nullish(),
+})
+
+export async function addTrainingAttendee(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = attendeeSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del asistente.")
+    const { error } = await (await createClient()).rpc("add_training_attendee", {
+      p_training: p.data.trainingId, p_membership: p.data.membershipId, p_result: p.data.result,
+      p_valid_until: (p.data.validUntil ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok(undefined)
+  })
+}
+
+const assessSchema = z.object({
+  membershipId: z.uuid(),
+  competencyId: z.uuid(),
+  positionId: z.uuid(),
+  assessedLevel: z.number().int().min(0).max(3),
+  nextReview: isoDate.nullish(),
+  note: z.string().trim().max(2000).optional(),
+  createTask: z.boolean().optional(),
+})
+
+export async function assessCompetency(input: unknown): Promise<Result<{ status: string }>> {
+  return guard(async () => {
+    const p = assessSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la evaluación.")
+    const { data, error } = await (await createClient()).rpc("assess_competency", {
+      p_membership: p.data.membershipId, p_competency: p.data.competencyId, p_position: p.data.positionId,
+      p_assessed: p.data.assessedLevel, p_next_review: (p.data.nextReview ?? null) as unknown as string,
+      p_note: p.data.note ?? "", p_create_task: p.data.createTask ?? false,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCompetencies()
+    return ok({ status: data?.[0]?.status ?? "" })
+  })
+}

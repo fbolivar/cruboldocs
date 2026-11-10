@@ -1,11 +1,13 @@
 "use client"
 
 import { PlusIcon, TagIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { CompetencyKindChip } from "@/components/competencias/badges"
 import { KIND_LABELS } from "@/components/competencias/labels"
+import { createCompetency } from "@/lib/data/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -57,6 +59,8 @@ export function CatalogTable({ items, canManage }: { items: CompetencyListItem[]
 }
 
 function NewCompetencySheet() {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [kind, setKind] = useState<CompetencyKind>("formacion")
@@ -67,9 +71,15 @@ function NewCompetencySheet() {
       toast.error("Escribe el nombre de la competencia.")
       return
     }
-    // TODO(backend): createCompetency({ name, kind, description })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await createCompetency({ name, kind, description: description.trim() || undefined })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Competencia creada.")
+      setOpen(false)
+      setName("")
+      setDescription("")
+      router.refresh()
+    })
   }
 
   return (
@@ -96,7 +106,7 @@ function NewCompetencySheet() {
             <Textarea id="comp-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Crear competencia</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Crear competencia</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

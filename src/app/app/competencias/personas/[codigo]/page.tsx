@@ -8,8 +8,7 @@ import { PersonTrainings } from "@/components/competencias/person-trainings"
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getPersonCompetencies } from "@/lib/data/competencias-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getPersonCompetencies } from "@/lib/data/queries"
 import { canSeeCompetencies } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Competencias de la persona" }
@@ -41,13 +40,15 @@ export default async function PersonCompetenciesPage({ params }: { params: Promi
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle>Competencias</CardTitle>
-            {canManage && person.competencies.length > 0 && <AssessCompetencySheet rows={person.competencies} />}
+            {canManage && person.positionId && person.competencies.length > 0 && (
+              <AssessCompetencySheet membershipId={person.membershipId} positionId={person.positionId} rows={person.competencies} />
+            )}
           </CardHeader>
           <CardContent>
             {person.competencies.length === 0 ? (
               <p className="text-small text-texto-sec">El cargo de esta persona no tiene perfil de competencias.</p>
             ) : (
-              <PersonCompetencies rows={person.competencies} canManage={canManage} />
+              <PersonCompetencies rows={person.competencies} />
             )}
           </CardContent>
         </Card>
@@ -55,7 +56,7 @@ export default async function PersonCompetenciesPage({ params }: { params: Promi
         <Card>
           <CardHeader><CardTitle>Formación</CardTitle></CardHeader>
           <CardContent>
-            <PersonTrainings items={person.trainings} canManage={canManage} />
+            <PersonTrainings items={person.trainings} canManage={canManage} membershipId={person.membershipId} />
           </CardContent>
         </Card>
 

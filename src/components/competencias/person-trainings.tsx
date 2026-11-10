@@ -1,11 +1,13 @@
 "use client"
 
 import { DownloadIcon, GraduationCapIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { TrainingKindChip } from "@/components/competencias/badges"
-import { RESULT_LABELS } from "@/components/competencias/labels"
+import { RESULT_LABELS, TRAINING_KIND_LABELS } from "@/components/competencias/labels"
+import { addTrainingAttendee, createTraining } from "@/lib/data/actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -26,22 +28,22 @@ function dueSoon(validUntil: string | null): boolean {
   return diff <= 60
 }
 
-export function PersonTrainings({ items, canManage }: { items: TrainingAttendeeView[]; canManage: boolean }) {
+export function PersonTrainings({ items, canManage, membershipId }: { items: TrainingAttendeeView[]; canManage: boolean; membershipId: string }) {
   if (items.length === 0) {
     return (
       <Card>
         <EmptyState
           icon={GraduationCapIcon}
           title="Sin formación registrada"
-          description="Registra la formación de esta persona y adjunta su certificado."
-          action={canManage ? <RegisterTrainingSheet /> : undefined}
+          description="Registra la formación de esta persona (el certificado se adjunta en un paso posterior)."
+          action={canManage ? <RegisterTrainingSheet membershipId={membershipId} /> : undefined}
         />
       </Card>
     )
   }
   return (
     <div className="flex flex-col gap-3">
-      {canManage && <div><RegisterTrainingSheet /></div>}
+      {canManage && <div><RegisterTrainingSheet membershipId={membershipId} /></div>}
       <Card className="overflow-hidden">
         <ul className="divide-y divide-borde">
           {items.map((t) => (
@@ -72,9 +74,14 @@ export function PersonTrainings({ items, canManage }: { items: TrainingAttendeeV
   )
 }
 
-function RegisterTrainingSheet() {
+const KINDS = Object.keys(TRAINING_KIND_LABELS) as ("interna" | "externa")[]
+
+function RegisterTrainingSheet({ membershipId }: { membershipId: string }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
+  const [kind, setKind] = useState<"interna" | "externa">("interna")
   const [result, setResult] = useState<TrainingResult>("asistio")
   const [date, setDate] = useState("")
   const [validUntil, setValidUntil] = useState("")
@@ -83,9 +90,17 @@ function RegisterTrainingSheet() {
     if (title.trim().length < 3) { toast.error("Escribe el título de la formación."); return }
     if (!date) { toast.error("Indica la fecha."); return }
     if (date > todayIsoDate()) { toast.error("La fecha no puede ser futura."); return }
-    // TODO(backend): registerPersonTraining({ title, result, date, validUntil, certificate })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const created = await createTraining({ title, kind, trainingDate: date })
+      if (!created.ok) { toast.error(created.error); return }
+      const att = await addTrainingAttendee({ trainingId: created.data.id, membershipId, result, validUntil: validUntil || null })
+      if (!att.ok) { toast.error(att.error); return }
+      toast.success("Formación registrada.")
+      setOpen(false)
+      setTitle("")
+      setValidUntil("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -100,6 +115,13 @@ function RegisterTrainingSheet() {
           <div className={field}>
             <Label htmlFor="pt-title">Formación</Label>
             <Input id="pt-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título de la capacitación" />
+          </div>
+          <div className={field}>
+            <Label>Tipo</Label>
+            <Select value={kind} onValueChange={(v) => setKind(v as "interna" | "externa")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{KINDS.map((k) => <SelectItem key={k} value={k}>{TRAINING_KIND_LABELS[k]}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
           <div className={field}>
             <Label>Resultado</Label>
@@ -120,7 +142,7 @@ function RegisterTrainingSheet() {
           </div>
           <p className="text-caption text-texto-sec">El certificado (PDF/imagen) se adjunta al conectar el backend (patrón de evidencia).</p>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Guardar</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

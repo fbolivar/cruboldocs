@@ -1,11 +1,13 @@
 "use client"
 
 import { GraduationCapIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { TrainingKindChip } from "@/components/competencias/badges"
 import { TRAINING_KIND_LABELS } from "@/components/competencias/labels"
+import { createTraining } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -54,6 +56,8 @@ export function TrainingList({ items, canManage }: { items: TrainingListItem[]; 
 }
 
 function NewTrainingSheet() {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [kind, setKind] = useState<TrainingKind>("interna")
@@ -64,9 +68,17 @@ function NewTrainingSheet() {
   function submit() {
     if (title.trim().length < 3) { toast.error("Escribe el título de la formación."); return }
     if (!date) { toast.error("Indica la fecha."); return }
-    // TODO(backend): createTraining({ title, kind, provider, date, hours, attendees })
-    toast.success("Disponible cuando se conecte el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await createTraining({
+        title, kind, provider: provider.trim() || undefined, trainingDate: date,
+        hours: hours ? Number(hours) : null,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Formación creada.")
+      setOpen(false)
+      setTitle(""); setProvider(""); setDate(""); setHours("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -105,7 +117,7 @@ function NewTrainingSheet() {
           </div>
           <p className="text-caption text-texto-sec">Los asistentes y sus certificados se agregan al conectar el backend.</p>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Crear formación</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Crear formación</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

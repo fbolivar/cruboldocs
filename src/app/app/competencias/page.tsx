@@ -7,8 +7,7 @@ import { CompetencySummaryBar } from "@/components/competencias/summary"
 import { Page, PageHeader } from "@/components/shell/page"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCompetencyMatrix, getCompetencySummary } from "@/lib/data/competencias-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCompetencyMatrix, getCompetencySummary, getCurrentUser } from "@/lib/data/queries"
 import { canManageCompetencies, canSeeCompetencies } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Competencias" }

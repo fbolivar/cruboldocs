@@ -5,8 +5,7 @@ import { notFound } from "next/navigation"
 
 import { CatalogTable } from "@/components/competencias/catalog-table"
 import { Page, PageHeader } from "@/components/shell/page"
-import { listCompetencyCatalog } from "@/lib/data/competencias-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, listCompetencyCatalog } from "@/lib/data/queries"
 import { canManageCompetencies, canSeeCompetencies } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Catálogo de competencias" }
