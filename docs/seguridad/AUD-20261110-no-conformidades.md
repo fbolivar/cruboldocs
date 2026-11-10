@@ -36,9 +36,13 @@ La revisión adversarial halló **1 Medio**: `verify_nc` autorizaba con `my_posi
 - **Fuga de información.** `dbMessage` reenvía solo los mensajes redactados (42501/22023/P0002) y oculta los nativos de RLS/permiso (AUD RA-13).
 - **Advisors de Supabase.** INFO `nc_counters` sin política = deny-all intencional (como `email_outbox`). WARN `SECURITY DEFINER` ejecutable por `authenticated` = patrón aceptado; los RPCs validan permiso internamente.
 
-## 4. Condición
+## 4. Condición — RESUELTA (2026-11-10, migración 019)
 
-Cuando se implemente la **subida/descarga de evidencias de NC** (hoy diferida; el ciclo CAPA funciona sin ella), auditar la política de lectura en Storage y el flujo de URL firmada, igual que para documentos/controles (`add_nc_evidence` ya valida que la ruta empiece por el `organization_id`).
+La **subida/descarga de evidencias de NC** se implementó con el **mismo modelo endurecido** que las evidencias de control (AUD ALTA-01):
+- Bucket privado `nc-evidencias`; lectura por RLS con **URL firmada corta** (`storage_can_read_nc_evidence`: `is_active_member` + `can_see_nonconformities` o el reportante). Ruta `<org>/<nc>/<uuid>/<archivo>`.
+- Escritura **solo por el servidor**: `nc_add_evidence` es `SECURITY DEFINER`, revocada de `authenticated` (grant solo a `service_role`), recibe el **actor explícito** y valida la ruta estrictamente (`is_safe_object_path` + uuid + sha256 de 64 hex). La `add_nc_evidence` original (reachable por el cliente) se **revocó**.
+- La server action autoriza (responsable de la acción o gestor), emite la URL de subida (`upsert:false`), **promueve** el archivo validando tipo/firma binaria/tamaño/SHA-256, y recién entonces registra. Prueba RLS: `nc_add_evidence` no es ejecutable por `authenticated` (202 total).
+- Verificación manual del flujo (subir/descargar) queda en QA-CHECKLIST §2.1 (requiere un usuario del SIG).
 
 ## 5. Verificación
 

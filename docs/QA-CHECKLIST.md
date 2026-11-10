@@ -37,7 +37,7 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 
 12. [ ] **Cualquier miembro** (p. ej. el lector) usa **Reportar no conformidad** (descripción, origen, proceso, severidad): aparece `NC-AAAA-001` en el tablero y un líder la ve.
 13. [ ] **Líder SIG** abre la ficha, registra el **análisis de causa** (pasa a *Plan de acción*) y agrega una **acción** (tipo, responsable, plazo) → *En ejecución*; el responsable recibe la tarea en su bandeja.
-14. [ ] **Responsable** marca la acción como **hecha**. Al quedar todas hechas, la NC pasa a **Verificación de eficacia** (el botón de verificar se habilita).
+14. [ ] **Responsable** marca la acción como **hecha** y **adjunta una evidencia** (PDF/imagen ≤25 MB): aparece como enlace de descarga en la acción y el archivo se descarga con URL firmada. Al quedar todas hechas, la NC pasa a **Verificación de eficacia**.
 15. [ ] **Líder SIG / dueño** verifica: *No eficaz* la **reabre** (vuelve a Plan, `reopened_count` sube); *Eficaz* la **cierra**. No se puede cerrar sin verificar.
 16. [ ] **Anular:** un líder anula una NC con motivo; queda *Anulada* y sus tareas pendientes se cierran.
 17. [ ] **Visibilidad/permisos:** un **cargo sin rol SIG** (p. ej. aprobador) no ve el tablero salvo las NC que él reportó; **no** puede gestionar (causa/acciones/verificar). El ítem "No conformidades" solo aparece en el menú para roles del SIG.

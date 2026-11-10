@@ -27,6 +27,7 @@ import {
   UploadError,
   type UploadTicket,
 } from "@/lib/data/storage"
+import { canManageNonconformities } from "@/lib/domain/access"
 import { DOCUMENT_STATUS_META, SIGNATURE_MEANING, segregationError } from "@/lib/domain/documents"
 import { downloadName, EVIDENCE_EXT, isEvidenceName, isPdfName, isSourceName, SOURCE_EXT } from "@/lib/domain/files"
 import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
@@ -1348,6 +1349,73 @@ export async function cancelNc(ncId: string, reason: string): Promise<Result> {
     const supabase = await createClient()
     const { error } = await supabase.rpc("cancel_nc", { p_nc: ncId, p_reason: reason })
     if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}
+
+/** Autoriza registrar evidencia en una NC: responsable de la acción o gestor del proceso. */
+async function authorizeNcEvidence(ncId: string, actionId: string | null): Promise<
+  { ok: true; org: string } | { ok: false; error: string }
+> {
+  if (!isUuid(ncId) || (actionId !== null && !isUuid(actionId))) return { ok: false, error: "Datos inválidos." }
+  const user = await getCurrentUser()
+  const supabase = await createClient()
+  const { data: nc } = await supabase.from("nonconformities").select("id, organization_id, process_id").eq("id", ncId).maybeSingle()
+  if (!nc) return { ok: false, error: "No conformidad no encontrada." }
+  let isResponsible = false
+  if (actionId) {
+    const { data: a } = await supabase.from("nc_actions").select("responsible_position_id, nonconformity_id").eq("id", actionId).maybeSingle()
+    if (!a || a.nonconformity_id !== ncId) return { ok: false, error: "Acción no encontrada." }
+    isResponsible = !!user.positionId && a.responsible_position_id === user.positionId
+  }
+  if (!isResponsible && !canManageNonconformities(user, nc.process_id ?? undefined)) {
+    return { ok: false, error: "Solo el responsable o un líder registra evidencia." }
+  }
+  return { ok: true, org: nc.organization_id }
+}
+
+/** URL de subida para una evidencia de NC (responsable o gestor). */
+export async function prepareNcEvidenceUpload(ncId: string, actionId: string | null, fileName: string): Promise<Result<UploadTicket>> {
+  return guard(async () => {
+    const auth = await authorizeNcEvidence(ncId, actionId)
+    if (!auth.ok) return fail(auth.error)
+    if (!isEvidenceName(fileName)) return fail("Adjunta un PDF, una imagen (PNG, JPG, WebP), un CSV o un archivo de Office.")
+    return ok(await createUploadTicket("nc-evidencias", stagingPath(`${auth.org}/${ncId}/${randomUUID()}`, safeFileName(fileName))))
+  })
+}
+
+export async function addNcEvidence(input: {
+  ncId: string
+  actionId: string | null
+  fileName: string
+  /** Ruta devuelta por prepareNcEvidenceUpload. */
+  filePath: string
+  note?: string
+}): Promise<Result> {
+  return guard(async () => {
+    const auth = await authorizeNcEvidence(input.ncId, input.actionId)
+    if (!auth.ok) return fail(auth.error)
+    const user = await getCurrentUser()
+    // `<org>/<nc>/<uuid>/subida/<archivo>`: el uuid lo generó prepareNcEvidenceUpload.
+    const base = input.filePath.split("/").slice(0, 3).join("/")
+    const [org, nc, key] = base.split("/")
+    if (org !== auth.org || nc !== input.ncId || !isUuid(key)) return fail("Ruta de archivo inválida.")
+    const file = await promoteUpload("nc-evidencias", base, input.filePath, (ext) => EVIDENCE_EXT.includes(ext))
+    const { error } = await createAdminClient().rpc("nc_add_evidence", {
+      p_actor: user.id,
+      p_nc: input.ncId,
+      p_action: (input.actionId ?? null) as unknown as string,
+      p_path: file.path,
+      p_sha256: file.sha256,
+      p_size: file.size,
+      p_name: downloadName(String(input.fileName ?? ""), file.path),
+      p_note: (input.note ?? "").trim().slice(0, 2000),
+    })
+    if (error) {
+      await removeObjects("nc-evidencias", [file.path])
+      return fail(dbMessage(error))
+    }
     revalidateNc()
     return ok(undefined)
   })

@@ -1993,6 +1993,19 @@ export type Database = {
         }[]
       }
       my_position: { Args: { org: string }; Returns: string }
+      nc_add_evidence: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_name: string
+          p_nc: string
+          p_note?: string
+          p_path: string
+          p_sha256: string
+          p_size: number
+        }
+        Returns: string
+      }
       nc_advance_if_actions_done: { Args: { p_nc: string }; Returns: undefined }
       nc_or_fail: {
         Args: { p_nc: string }
@@ -2176,6 +2189,10 @@ export type Database = {
       }
       storage_can_read_document: { Args: { p_name: string }; Returns: boolean }
       storage_can_read_evidence: { Args: { p_name: string }; Returns: boolean }
+      storage_can_read_nc_evidence: {
+        Args: { p_name: string }
+        Returns: boolean
+      }
       submit_version: { Args: { p_version: string }; Returns: undefined }
       verify_nc: {
         Args: { p_effective: boolean; p_nc: string; p_notes?: string }

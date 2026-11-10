@@ -269,6 +269,8 @@ export interface NcEvidenceView {
   registeredByName: string
   registeredAt: string
   note: string | null
+  /** URL firmada de descarga (corta). null si no se pudo firmar. */
+  url: string | null
 }
 
 export interface NcActionView {

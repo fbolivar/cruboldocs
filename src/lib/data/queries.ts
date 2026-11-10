@@ -272,11 +272,16 @@ export async function getNonconformity(code: string): Promise<NcDetail | null> {
   const person = await peopleOf(s.org, [n.reported_by, ...(acts ?? []).map((a) => a.completed_by), ...(audit ?? []).map((a) => a.actor_id)])
   const today = todayIsoDate()
 
+  const signNc = async (path: string, name: string) => {
+    const { data } = await s.supabase.storage.from("nc-evidencias").createSignedUrl(path, SIGNED_URL_SECONDS, { download: name })
+    return data?.signedUrl ?? null
+  }
   const evByAction = new Map<string, NcActionView["evidences"]>()
   for (const e of evs ?? []) {
     if (!e.action_id) continue
+    const url = await signNc(e.file_path, e.file_name)
     const list = evByAction.get(e.action_id) ?? []
-    list.push({ id: e.id, fileName: e.file_name, registeredByName: person(e.registered_by).fullName, registeredAt: e.registered_at, note: e.note })
+    list.push({ id: e.id, fileName: e.file_name, registeredByName: person(e.registered_by).fullName, registeredAt: e.registered_at, note: e.note, url })
     evByAction.set(e.action_id, list)
   }
 

@@ -12,7 +12,7 @@ import { createAdminClient } from "@/lib/supabase/server"
 // ruta final `<base>/<archivo>`, para la que nunca se emitió token: nadie más que el
 // servidor puede escribir ahí. La zona temporal no es legible por la RLS (5 segmentos).
 
-export type Bucket = "documentos" | "evidencias"
+export type Bucket = "documentos" | "evidencias" | "nc-evidencias"
 
 export interface UploadTicket {
   bucket: Bucket

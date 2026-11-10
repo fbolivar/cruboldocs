@@ -512,6 +512,8 @@ ok((await as(db, U.juan, `select status from public.nonconformities where id = '
 
 await throws(() => as(db, U.juan, `insert into public.nonconformities (organization_id, code, source, title, description, severity, reported_by, detected_at) values ('${A}', 'NC-X', 'otro', 't', 'd', 'menor', '${U.juan}', current_date)`),
   "Nadie inserta NC por REST: sin política de escritura (017)", "row-level security")
+await throws(() => as(db, U.juan, `select public.nc_add_evidence('${U.juan}', '${nc1.id}', null, '${A}/${nc1.id}/x/f.pdf', '${"a".repeat(64)}', 1, 'f.pdf')`),
+  "nc_add_evidence no es ejecutable por authenticated: server-only (019)", "permission denied")
 
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

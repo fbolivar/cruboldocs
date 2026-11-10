@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { addNcAction, completeNcAction } from "@/lib/data/actions"
 import { NcActionStatusBadge } from "@/components/no-conformidades/badges"
+import { NcEvidenceSheet } from "@/components/no-conformidades/nc-evidence-sheet"
 import { ACTION_TYPE_LABELS } from "@/components/no-conformidades/labels"
 import { Chip } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -47,9 +48,6 @@ export function NcActionsPanel({
       router.refresh()
     })
   }
-  function evidence() {
-    toast.info("Registrar evidencia se habilita en una próxima iteración.")
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -87,18 +85,29 @@ export function NcActionsPanel({
                   {a.evidences.length > 0 && (
                     <ul className="mt-2 flex flex-col gap-1">
                       {a.evidences.map((e) => (
-                        <li key={e.id} className="inline-flex items-center gap-1.5 text-caption text-texto-sec">
-                          <PaperclipIcon className="size-3.5" /> {e.fileName} · {formatDate(e.registeredAt)}
+                        <li key={e.id} className="text-caption text-texto-sec">
+                          {e.url ? (
+                            <a href={e.url} className="inline-flex items-center gap-1.5 text-acento hover:underline">
+                              <PaperclipIcon className="size-3.5" /> {e.fileName}
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5">
+                              <PaperclipIcon className="size-3.5" /> {e.fileName}
+                            </span>
+                          )}{" "}
+                          · {formatDate(e.registeredAt)}
                         </li>
                       ))}
                     </ul>
                   )}
-                  {!closed && (
+                  {a.status !== "cancelada" && (
                     <div className="mt-2 flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => complete(a.id)} disabled={pending}>Marcar hecha</Button>
-                      <Button size="sm" variant="ghost" onClick={evidence}>
-                        <PaperclipIcon /> Evidencia
-                      </Button>
+                      {!closed && (
+                        <Button size="sm" variant="outline" onClick={() => complete(a.id)} disabled={pending}>
+                          Marcar hecha
+                        </Button>
+                      )}
+                      <NcEvidenceSheet ncId={ncId} actionId={a.id} />
                     </div>
                   )}
                 </li>
