@@ -48,6 +48,16 @@ export function canMeasureIndicator(user: CurrentUser, processId?: string): bool
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla Revisión por la dirección: mismos roles del SIG que los demás módulos. */
+export function canSeeReviews(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/cierra (firma)/cancela el acta: Líder SIG (representante de la dirección). */
+export function canManageReviews(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig")
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)

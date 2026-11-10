@@ -638,6 +638,73 @@ export interface IndicatorDetail {
   canMeasure: boolean
 }
 
+// ---------- Revisión por la dirección (ISO 9001 9.3) ----------
+
+export type ReviewStatus = "borrador" | "cerrada" | "cancelada"
+export type ReviewOutputKind = "decision" | "accion_mejora" | "recurso" | "cambio_sgc"
+
+/** Foto de las entradas automáticas (9.3.2) al momento de la revisión. */
+export interface ReviewSnapshot {
+  nc: { abiertas: number; cerradas: number; eficaces: number }
+  auditorias: { realizadas: number; hallazgosNc: number }
+  indicadores: { cumplenPct: number | null; enRiesgo: number; noCumplen: number }
+  riesgos: { altos: number; controlesATiempoPct: number | null }
+  documentos: { vigentes: number; porVencer: number }
+  accionesPrevias: { total: number; pendientes: number }
+}
+
+/** Entradas de texto (9.3.2) que no viven en la app. */
+export interface ReviewInputs {
+  satisfaccion: string
+  retroalimentacion: string
+  proveedores: string
+  recursos: string
+  mejora: string
+}
+
+export interface ReviewOutputView {
+  id: string
+  kind: ReviewOutputKind
+  description: string
+  responsibleName: string | null
+  dueDate: string | null
+  /** Código de la NC generada desde esta decisión, si existe. */
+  nonconformityCode: string | null
+}
+
+export interface ReviewListItem {
+  id: string
+  code: string
+  title: string
+  periodStart: string
+  periodEnd: string
+  meetingDate: string
+  status: ReviewStatus
+  outputCount: number
+}
+
+export interface ReviewDetail {
+  id: string
+  code: string
+  title: string
+  periodStart: string
+  periodEnd: string
+  meetingDate: string
+  attendees: string | null
+  scope: string | null
+  status: ReviewStatus
+  snapshot: ReviewSnapshot
+  inputs: ReviewInputs
+  outputs: ReviewOutputView[]
+  /** Firma del cierre (ADR-004); null si aún en borrador. */
+  approvedByName: string | null
+  approvedAt: string | null
+  cancelReason: string | null
+  timeline: NcTimelineEvent[]
+  /** Líder SIG: editar entradas, agregar salidas, refrescar snapshot, cerrar/firmar, cancelar. */
+  canManage: boolean
+}
+
 export type InvitationStatus = "valida" | "vencida" | "usada"
 
 export interface Invitation {
