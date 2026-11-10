@@ -1511,8 +1511,9 @@ export async function generateNcFromFinding(findingId: string): Promise<Result<{
 
 export async function closeAudit(auditId: string, conclusions: string): Promise<Result> {
   return guard(async () => {
-    if (!isUuid(auditId) || conclusions.trim().length < 1) return fail("Escribe las conclusiones.")
-    const { error } = await (await createClient()).rpc("close_audit", { p_audit: auditId, p_conclusions: conclusions })
+    const text = conclusions.trim()
+    if (!isUuid(auditId) || text.length < 1 || text.length > 4000) return fail("Escribe las conclusiones.")
+    const { error } = await (await createClient()).rpc("close_audit", { p_audit: auditId, p_conclusions: text })
     if (error) return fail(dbMessage(error))
     revalidateAudits()
     return ok(undefined)
@@ -1521,8 +1522,9 @@ export async function closeAudit(auditId: string, conclusions: string): Promise<
 
 export async function cancelAudit(auditId: string, reason: string): Promise<Result> {
   return guard(async () => {
-    if (!isUuid(auditId) || reason.trim().length < 5) return fail("Indica el motivo de la cancelación.")
-    const { error } = await (await createClient()).rpc("cancel_audit", { p_audit: auditId, p_reason: reason })
+    const text = reason.trim()
+    if (!isUuid(auditId) || text.length < 5 || text.length > 2000) return fail("Indica el motivo de la cancelación.")
+    const { error } = await (await createClient()).rpc("cancel_audit", { p_audit: auditId, p_reason: text })
     if (error) return fail(dbMessage(error))
     revalidateAudits()
     return ok(undefined)
