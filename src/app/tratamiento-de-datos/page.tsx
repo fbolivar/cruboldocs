@@ -11,6 +11,9 @@ export const metadata: Metadata = {
 
 // Texto aprobado por Fernando tras la revisión legal (2026-09-24). La vigencia es la fecha
 // de publicación en producción: se fija el día del deploy (fase deploy).
+// ⚠️ Adición 2026-11-10 (§6, bullet Anthropic / Crubol-Agent): PENDIENTE de visto bueno de
+// Fernando. Debe quedar publicada ANTES de encender `ai_agent_enabled` para cualquier
+// organización (la divulgación precede al tratamiento).
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
   nit: "902107870-4",
@@ -119,6 +122,14 @@ export default function TratamientoDeDatosPage() {
             </li>
             <li>Cloudflare (Turnstile): verifica que quien ingresa sea una persona. Procesa la dirección IP y datos del navegador.</li>
             <li>Hostinger: envío de correos. Sus servidores pueden estar fuera de Colombia.</li>
+            <li>
+              Anthropic (API de Claude): <strong className="font-semibold">solo si tu organización activa el asistente
+              de IA Crubol-Agent</strong>, que está desactivado por defecto. Procesa en Estados Unidos el texto de tu
+              conversación con el asistente y el catálogo de tu organización (nombres de procesos, tipos de documento y
+              cargos) para generar las sugerencias que tú confirmas. Anthropic no usa estos datos para entrenar sus
+              modelos. En esta versión el asistente no accede al contenido de tus documentos ni a los datos de otras
+              organizaciones.
+            </li>
           </ul>
           <p>
             Esto implica una transmisión internacional de datos personales, principalmente a Estados Unidos. Al aceptar

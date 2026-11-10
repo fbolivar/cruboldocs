@@ -15,6 +15,9 @@ export const metadata: Metadata = {
 // ni fijar la vigencia hasta que un abogado lo apruebe (decisión 7.6-1: el cliente responde por
 // el contenido que carga; 7.6 (1): sin antivirus en v1, riesgo declarado aquí; 7.6 (2): supresión
 // por anonimización). Datos de la empresa reutilizados de /tratamiento-de-datos.
+// Adición 2026-11-10: §9 "Asistente de IA (Crubol-Agent)" (opt-in, solo propone, humano confirma,
+// Anthropic como encargado en EE. UU. sin entrenamiento). Debe estar vigente antes de activar el
+// agente para cualquier organización.
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
   nit: "902107870-4",
@@ -145,7 +148,35 @@ export default function TerminosPage() {
           </p>
         </Section>
 
-        <Section title="9. Conservación y supresión de datos">
+        <Section title="9. Asistente de IA (Crubol-Agent)">
+          <p>
+            Crubol-Agent es una función opcional de inteligencia artificial que ayuda a configurar el catálogo de la
+            organización (procesos, tipos de documento y cargos) conversando con el Usuario. Está{" "}
+            <strong className="font-semibold">desactivada por defecto</strong> y solo se habilita por organización, a
+            solicitud o con el consentimiento del Cliente.
+          </p>
+          <p>
+            El asistente únicamente <strong className="font-semibold">propone</strong> acciones: no se crea, modifica ni
+            elimina nada sin que un Usuario con permiso lo <strong className="font-semibold">confirme</strong>. No firma,
+            no aprueba y no accede al contenido de los documentos ni a los datos de otras organizaciones.
+          </p>
+          <p>
+            Las sugerencias las genera un modelo de IA y <strong className="font-semibold">pueden contener errores o
+            estar incompletas</strong>. El Cliente y sus Usuarios son responsables de revisarlas y confirmarlas antes de
+            aplicarlas; Crubol no garantiza su exactitud ni idoneidad. Pueden aplicarse límites de uso.
+          </p>
+          <p>
+            Para prestar esta función, Crubol utiliza la API de Claude de Anthropic como encargado, que procesa en
+            Estados Unidos el texto de la conversación y el catálogo de la organización, no usa esos datos para entrenar
+            sus modelos y los trata solo para generar las sugerencias. Este tratamiento se rige por la{" "}
+            <a href="/tratamiento-de-datos" className="font-medium text-acento underline underline-offset-4">
+              Política de tratamiento de datos personales
+            </a>
+            .
+          </p>
+        </Section>
+
+        <Section title="10. Conservación y supresión de datos">
           <p>
             Mientras exista la relación con el Cliente, el Contenido y los datos se conservan para prestar el servicio.
             Terminada la relación, y salvo deber legal de conservarlos, la supresión de los datos personales se realiza
@@ -155,7 +186,7 @@ export default function TerminosPage() {
           </p>
         </Section>
 
-        <Section title="10. Disponibilidad del servicio">
+        <Section title="11. Disponibilidad del servicio">
           <p>
             El servicio se presta <strong className="font-semibold">“tal cual” y “según disponibilidad”</strong>, sin
             garantía de disponibilidad ininterrumpida ni compromiso de nivel de servicio (SLA) en esta versión. Crubol podrá
@@ -164,7 +195,7 @@ export default function TerminosPage() {
           </p>
         </Section>
 
-        <Section title="11. Limitación de responsabilidad">
+        <Section title="12. Limitación de responsabilidad">
           <p>
             En la medida permitida por la ley, Crubol no responde por daños indirectos, lucro cesante, pérdida de datos o de
             información derivada del Contenido, ni por fallos atribuibles al Cliente, a sus Usuarios, a terceros o a causas de
@@ -172,15 +203,15 @@ export default function TerminosPage() {
           </p>
         </Section>
 
-        <Section title="12. Suspensión y terminación">
+        <Section title="13. Suspensión y terminación">
           <p>
             Crubol podrá suspender o terminar el acceso ante un incumplimiento de estos términos, un riesgo de seguridad o un
             requerimiento legal. El Cliente puede dejar de usar el servicio en cualquier momento. Terminado el acceso, se
-            aplica lo previsto en la sección 9 sobre conservación y supresión de datos.
+            aplica lo previsto en la sección 10 sobre conservación y supresión de datos.
           </p>
         </Section>
 
-        <Section title="13. Cambios en estos términos">
+        <Section title="14. Cambios en estos términos">
           <p>
             Crubol podrá modificar estos términos para reflejar cambios en el servicio o en la normativa. Los cambios
             relevantes se comunicarán por medios razonables; el uso del servicio después de su entrada en vigencia implica su
@@ -188,14 +219,14 @@ export default function TerminosPage() {
           </p>
         </Section>
 
-        <Section title="14. Ley aplicable y jurisdicción">
+        <Section title="15. Ley aplicable y jurisdicción">
           <p>
             Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia se someterá a los
             jueces competentes de {EMPRESA.ciudad}, sin perjuicio de los derechos que la ley reconozca al Cliente.
           </p>
         </Section>
 
-        <Section title="15. Contacto">
+        <Section title="16. Contacto">
           <p>
             Para asuntos relacionados con estos términos, escribe a{" "}
             <a href={`mailto:${EMPRESA.correo}`} className="font-medium text-acento underline underline-offset-4">
@@ -209,7 +240,7 @@ export default function TerminosPage() {
           </p>
         </Section>
 
-        <Section title="16. Vigencia">
+        <Section title="17. Vigencia">
           <p>Estos términos rigen desde {EMPRESA.vigenciaDesde}.</p>
         </Section>
       </main>
