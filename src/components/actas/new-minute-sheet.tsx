@@ -1,9 +1,13 @@
 "use client"
 
 import { DownloadIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { createMinute, exportMinutesCsv } from "@/lib/data/actions"
+import { downloadCsv } from "@/lib/csv"
+import { todayIsoDate } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,15 +18,27 @@ import { Textarea } from "@/components/ui/textarea"
 type ProcessOption = { id: string; name: string }
 
 export function ExportMinutesButton() {
-  // TODO(backend): exportar CSV real.
+  const [pending, start] = useTransition()
+  function run() {
+    start(async () => {
+      try {
+        const csv = await exportMinutesCsv()
+        downloadCsv(`actas-${todayIsoDate()}.csv`, csv)
+      } catch {
+        toast.error("No pudimos exportar el CSV.")
+      }
+    })
+  }
   return (
-    <Button variant="outline" onClick={() => toast.info("Disponible al conectar el backend.")}>
+    <Button variant="outline" onClick={run} loading={pending}>
       <DownloadIcon /> Exportar CSV
     </Button>
   )
 }
 
 export function NewMinuteSheet({ processes }: { processes: ProcessOption[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [type, setType] = useState("comité")
@@ -34,9 +50,17 @@ export function NewMinuteSheet({ processes }: { processes: ProcessOption[] }) {
   function submit() {
     if (title.trim().length < 3) { toast.error("Indica el título del acta."); return }
     if (!date) { toast.error("Indica la fecha de la reunión."); return }
-    // TODO(backend): crear el acta con una server action.
-    toast.info("Disponible al conectar el backend.")
-    setOpen(false)
+    start(async () => {
+      const r = await createMinute({
+        title, meetingType: type, meetingDate: date,
+        processId: processId || null, attendees: attendees.trim() || undefined, agenda: agenda.trim() || undefined,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(`Acta ${r.data.code} creada.`)
+      setOpen(false)
+      setTitle(""); setType("comité"); setDate(""); setProcessId(""); setAttendees(""); setAgenda("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -67,7 +91,7 @@ export function NewMinuteSheet({ processes }: { processes: ProcessOption[] }) {
             </div>
             <div className={field}>
               <Label htmlFor="ac-date">Fecha</Label>
-              <input id="ac-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={dateInput} />
+              <input id="ac-date" type="date" max={todayIsoDate()} value={date} onChange={(e) => setDate(e.target.value)} className={dateInput} />
             </div>
           </div>
           <div className={field}>
@@ -76,7 +100,7 @@ export function NewMinuteSheet({ processes }: { processes: ProcessOption[] }) {
               <SelectTrigger><SelectValue placeholder="Proceso" /></SelectTrigger>
               <SelectContent>
                 {processes.length === 0
-                  ? <SelectItem value="none" disabled>(procesos al conectar el backend)</SelectItem>
+                  ? <SelectItem value="none" disabled>(sin procesos)</SelectItem>
                   : processes.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -91,7 +115,7 @@ export function NewMinuteSheet({ processes }: { processes: ProcessOption[] }) {
             <Textarea id="ac-agenda" rows={3} value={agenda} onChange={(e) => setAgenda(e.target.value)} />
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Crear acta</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Crear acta</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

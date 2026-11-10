@@ -8,8 +8,7 @@ import { CommitmentsSection, MinuteHeaderActions } from "@/components/actas/minu
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getMinute } from "@/lib/data/actas-mock"
-import { getCurrentUser, listPositions, listProcesses } from "@/lib/data/queries"
+import { getCurrentUser, getMinute, listPositions, listProcesses } from "@/lib/data/queries"
 import { canSeeMinutes } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 

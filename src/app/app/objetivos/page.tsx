@@ -5,8 +5,7 @@ import { ObjectivesBoard } from "@/components/objetivos/objectives-board"
 import { ExportObjectivesButton, NewObjectiveSheet } from "@/components/objetivos/objective-sheet"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { listObjectiveIndicators, listObjectives } from "@/lib/data/actas-mock"
-import { getCurrentUser, listProcesses } from "@/lib/data/queries"
+import { getCurrentUser, listObjectiveIndicators, listObjectives, listProcesses } from "@/lib/data/queries"
 import { canManageObjectives, canSeeObjectives } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Objetivos de calidad" }

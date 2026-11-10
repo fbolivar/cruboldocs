@@ -1,10 +1,12 @@
 "use client"
 
 import { CheckIcon, LockIcon, PencilIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { CommitmentStatusBadge } from "@/components/actas/badges"
+import { addCommitment, closeMinute, completeCommitment, updateMinute } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
@@ -12,13 +14,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
-import { formatDate } from "@/lib/format"
+import { formatDate, todayIsoDate } from "@/lib/format"
 import type { MinuteDetail } from "@/lib/types"
 
 type Option = { id: string; name: string }
 const field = "flex flex-col gap-1.5"
 const dateInput = "h-11 rounded-md border border-borde-fuerte bg-superficie px-3 text-body md:h-9"
-const stub = () => toast.info("Disponible al conectar el backend.")
 
 /** Editar / Cerrar acta — solo en borrador y si gestiona. */
 export function MinuteHeaderActions({ minute, processes }: { minute: MinuteDetail; processes: Option[] }) {
@@ -26,20 +27,28 @@ export function MinuteHeaderActions({ minute, processes }: { minute: MinuteDetai
   return (
     <div className="flex flex-wrap gap-2">
       <EditMinuteSheet minute={minute} processes={processes} />
-      <CloseMinuteButton />
+      <CloseMinuteButton minuteId={minute.id} />
     </div>
   )
 }
 
-function CloseMinuteButton() {
+function CloseMinuteButton({ minuteId }: { minuteId: string }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   function cerrar() {
     if (!confirm("¿Cerrar esta acta? Quedará en solo lectura; sus compromisos se podrán seguir cumpliendo.")) return
-    stub()
+    start(async () => {
+      const r = await closeMinute(minuteId)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Acta cerrada."); router.refresh()
+    })
   }
-  return <Button variant="outline" size="sm" onClick={cerrar}><LockIcon /> Cerrar acta</Button>
+  return <Button variant="outline" size="sm" onClick={cerrar} loading={pending}><LockIcon /> Cerrar acta</Button>
 }
 
 function EditMinuteSheet({ minute, processes }: { minute: MinuteDetail; processes: Option[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState(minute.title)
   const [type, setType] = useState(minute.meetingType)
@@ -50,7 +59,14 @@ function EditMinuteSheet({ minute, processes }: { minute: MinuteDetail; processe
 
   function submit() {
     if (title.trim().length < 3) { toast.error("Indica el título del acta."); return }
-    stub(); setOpen(false)
+    start(async () => {
+      const r = await updateMinute(minute.id, {
+        title, meetingType: type, meetingDate: date,
+        processId: processId || null, attendees: attendees.trim() || undefined, agenda: agenda.trim() || undefined,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Acta actualizada."); setOpen(false); router.refresh()
+    })
   }
 
   return (
@@ -74,7 +90,7 @@ function EditMinuteSheet({ minute, processes }: { minute: MinuteDetail; processe
               </Select>
             </div>
             <div className={field}><Label htmlFor="em-date">Fecha</Label>
-              <input id="em-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={dateInput} />
+              <input id="em-date" type="date" max={todayIsoDate()} value={date} onChange={(e) => setDate(e.target.value)} className={dateInput} />
             </div>
           </div>
           <div className={field}><Label>Proceso</Label>
@@ -91,7 +107,7 @@ function EditMinuteSheet({ minute, processes }: { minute: MinuteDetail; processe
             <Textarea id="em-agenda" rows={3} value={agenda} onChange={(e) => setAgenda(e.target.value)} />
           </div>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Guardar cambios</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Guardar cambios</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )
@@ -120,20 +136,33 @@ export function CommitmentsSection({ minute, positions }: { minute: MinuteDetail
               </div>
               <div className="flex items-center gap-2">
                 <CommitmentStatusBadge status={c.status} />
-                {minute.canManage && c.status === "pendiente" && (
-                  <Button variant="outline" size="sm" onClick={stub}><CheckIcon /> Marcar cumplido</Button>
-                )}
+                {minute.canManage && c.status === "pendiente" && <CompleteCommitmentButton commitmentId={c.id} />}
               </div>
             </li>
           ))}
         </ul>
       )}
-      {canAdd && <div><AddCommitmentSheet positions={positions} /></div>}
+      {canAdd && <div><AddCommitmentSheet minuteId={minute.id} positions={positions} /></div>}
     </div>
   )
 }
 
-function AddCommitmentSheet({ positions }: { positions: Option[] }) {
+function CompleteCommitmentButton({ commitmentId }: { commitmentId: string }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  function run() {
+    start(async () => {
+      const r = await completeCommitment(commitmentId)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Compromiso cumplido."); router.refresh()
+    })
+  }
+  return <Button variant="outline" size="sm" onClick={run} loading={pending}><CheckIcon /> Marcar cumplido</Button>
+}
+
+function AddCommitmentSheet({ minuteId, positions }: { minuteId: string; positions: Option[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [description, setDescription] = useState("")
   const [responsible, setResponsible] = useState("")
@@ -141,7 +170,15 @@ function AddCommitmentSheet({ positions }: { positions: Option[] }) {
 
   function submit() {
     if (description.trim().length < 3) { toast.error("Describe el compromiso."); return }
-    stub(); setOpen(false)
+    start(async () => {
+      const r = await addCommitment(minuteId, {
+        description, responsibleId: responsible || null, dueDate: due || null,
+      })
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success("Compromiso agregado.")
+      setOpen(false); setDescription(""); setResponsible(""); setDue("")
+      router.refresh()
+    })
   }
 
   return (
@@ -164,7 +201,7 @@ function AddCommitmentSheet({ positions }: { positions: Option[] }) {
           </div>
           <p className="text-caption text-texto-sec">Se creará una tarea para el cargo responsable, con recordatorio al vencer.</p>
         </div>
-        <SheetFooter className="border-t border-borde"><Button onClick={submit}>Agregar</Button></SheetFooter>
+        <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>Agregar</Button></SheetFooter>
       </SheetContent>
     </Sheet>
   )

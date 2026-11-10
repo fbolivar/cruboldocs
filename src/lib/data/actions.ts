@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, listPqrs, listSuppliers, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, listMinutes, listObjectives, listPqrs, listSuppliers, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -2240,5 +2240,189 @@ export async function exportPqrsCsv(): Promise<string> {
     { header: "Estado", value: (r) => STATUS[r.status] },
     { header: "Proceso", value: (r) => r.processName },
     { header: "Vence", value: (r) => formatDate(r.dueDate) },
+  ])
+}
+
+// ---------- Actas/reuniones y Objetivos de calidad / BSC (ISO 6.2) ----------
+
+function revalidateMinutes() {
+  revalidatePath("/app/actas", "layout")
+  revalidatePath("/app")
+}
+function revalidateObjectives() {
+  revalidatePath("/app/objetivos")
+  revalidatePath("/app")
+}
+
+const minuteSchema = z.object({
+  title: z.string().trim().min(3).max(300),
+  meetingType: z.string().trim().min(1).max(60),
+  meetingDate: isoDate,
+  processId: z.uuid().nullish(),
+  attendees: z.string().trim().max(5000).optional(),
+  agenda: z.string().trim().max(10000).optional(),
+})
+
+export async function createMinute(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = minuteSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del acta.")
+    if (p.data.meetingDate > todayIsoDate()) return fail("La fecha de la reunión no puede ser futura.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_minute", {
+      p_org: user.organization.id, p_title: p.data.title, p_type: p.data.meetingType, p_date: p.data.meetingDate,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_attendees: p.data.attendees ?? "", p_agenda: p.data.agenda ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateMinutes()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateMinute(minuteId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(minuteId)) return fail(GENERIC)
+    const p = minuteSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del acta.")
+    const { error } = await (await createClient()).rpc("update_minute", {
+      p_minute: minuteId, p_title: p.data.title, p_type: p.data.meetingType, p_date: p.data.meetingDate,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_attendees: p.data.attendees ?? "", p_agenda: p.data.agenda ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateMinutes()
+    return ok(undefined)
+  })
+}
+
+export async function closeMinute(minuteId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(minuteId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("close_minute", { p_minute: minuteId })
+    if (error) return fail(dbMessage(error))
+    revalidateMinutes()
+    return ok(undefined)
+  })
+}
+
+const commitmentSchema = z.object({
+  description: z.string().trim().min(3).max(2000),
+  responsibleId: z.uuid().nullish(),
+  dueDate: isoDate.nullish(),
+})
+export async function addCommitment(minuteId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(minuteId)) return fail(GENERIC)
+    const p = commitmentSchema.safeParse(input)
+    if (!p.success) return fail("Describe el compromiso.")
+    const { error } = await (await createClient()).rpc("add_commitment", {
+      p_minute: minuteId, p_description: p.data.description,
+      p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_due: (p.data.dueDate ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateMinutes()
+    return ok(undefined)
+  })
+}
+
+export async function completeCommitment(commitmentId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(commitmentId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("complete_commitment", { p_commitment: commitmentId })
+    if (error) return fail(dbMessage(error))
+    revalidateMinutes()
+    return ok(undefined)
+  })
+}
+
+const PERSPECTIVES = ["financiera", "cliente", "procesos", "aprendizaje"] as const
+const OBJECTIVE_STATUSES = ["activo", "cumplido", "no_cumplido", "archivado"] as const
+const objectiveSchema = z.object({
+  description: z.string().trim().min(5).max(2000),
+  perspective: z.enum(PERSPECTIVES),
+  processId: z.uuid().nullish(),
+  targetText: z.string().trim().max(400).optional(),
+  horizonYear: z.number().int().min(2000).max(2100).nullish(),
+  indicatorIds: z.array(z.uuid()).max(50).optional(),
+})
+
+export async function createObjective(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = objectiveSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del objetivo.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_objective", {
+      p_org: user.organization.id, p_description: p.data.description, p_perspective: p.data.perspective,
+      p_process: (p.data.processId ?? null) as unknown as string, p_target: p.data.targetText ?? "",
+      p_horizon: (p.data.horizonYear ?? null) as unknown as number, p_indicator_ids: p.data.indicatorIds ?? [],
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateObjectives()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+const objectiveEditSchema = objectiveSchema.extend({ status: z.enum(OBJECTIVE_STATUSES) })
+export async function updateObjective(objectiveId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(objectiveId)) return fail(GENERIC)
+    const p = objectiveEditSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del objetivo.")
+    const { error } = await (await createClient()).rpc("update_objective", {
+      p_objective: objectiveId, p_description: p.data.description, p_perspective: p.data.perspective,
+      p_process: (p.data.processId ?? null) as unknown as string, p_target: p.data.targetText ?? "",
+      p_horizon: (p.data.horizonYear ?? null) as unknown as number, p_status: p.data.status,
+      p_indicator_ids: p.data.indicatorIds ?? [],
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateObjectives()
+    return ok(undefined)
+  })
+}
+
+export async function setObjectiveStatus(objectiveId: string, status: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(objectiveId)) return fail(GENERIC)
+    if (!(OBJECTIVE_STATUSES as readonly string[]).includes(status)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_objective_status", { p_objective: objectiveId, p_status: status })
+    if (error) return fail(dbMessage(error))
+    revalidateObjectives()
+    return ok(undefined)
+  })
+}
+
+export async function exportMinutesCsv(): Promise<string> {
+  const rows = await listMinutes()
+  const STATUS: Record<string, string> = { borrador: "Borrador", cerrada: "Cerrada" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Título", value: (r) => r.title },
+    { header: "Tipo", value: (r) => r.meetingType },
+    { header: "Fecha", value: (r) => formatDate(r.meetingDate) },
+    { header: "Proceso", value: (r) => r.processName },
+    { header: "Estado", value: (r) => STATUS[r.status] ?? r.status },
+    { header: "Compromisos", value: (r) => String(r.commitmentCount) },
+    { header: "Pendientes", value: (r) => String(r.pendingCount) },
+  ])
+}
+
+export async function exportObjectivesCsv(): Promise<string> {
+  const rows = await listObjectives()
+  const PERSP: Record<string, string> = { financiera: "Financiera", cliente: "Cliente", procesos: "Procesos internos", aprendizaje: "Aprendizaje y crecimiento" }
+  const STATUS: Record<string, string> = { activo: "Activo", cumplido: "Cumplido", no_cumplido: "No cumplido", archivado: "Archivado" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Objetivo", value: (r) => r.description },
+    { header: "Perspectiva", value: (r) => PERSP[r.perspective] ?? r.perspective },
+    { header: "Proceso", value: (r) => r.processName },
+    { header: "Meta", value: (r) => r.targetText },
+    { header: "Horizonte", value: (r) => (r.horizonYear ? String(r.horizonYear) : null) },
+    { header: "Estado", value: (r) => STATUS[r.status] ?? r.status },
+    { header: "Indicadores", value: (r) => String(r.indicatorCount) },
+    { header: "Avance %", value: (r) => (r.progressPct === null ? "Sin datos" : String(r.progressPct)) },
   ])
 }

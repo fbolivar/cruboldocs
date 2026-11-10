@@ -6,8 +6,7 @@ import { ExportMinutesButton, NewMinuteSheet } from "@/components/actas/new-minu
 import { MinutesSummaryBar } from "@/components/actas/summary"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getMinutesSummary, listMinutes } from "@/lib/data/actas-mock"
-import { getCurrentUser, listProcesses } from "@/lib/data/queries"
+import { getCurrentUser, getMinutesSummary, listMinutes, listProcesses } from "@/lib/data/queries"
 import { canManageMinutes, canSeeMinutes } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Actas" }

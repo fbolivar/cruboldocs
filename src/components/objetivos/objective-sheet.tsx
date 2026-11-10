@@ -1,10 +1,14 @@
 "use client"
 
 import { DownloadIcon, PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { OBJECTIVE_STATUS_LABELS, PERSPECTIVE_LABELS, PERSPECTIVE_ORDER } from "@/components/objetivos/labels"
+import { createObjective, exportObjectivesCsv, updateObjective } from "@/lib/data/actions"
+import { downloadCsv } from "@/lib/csv"
+import { todayIsoDate } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -17,11 +21,21 @@ import type { ObjectiveCardView, ObjectiveIndicatorRef, ObjectiveStatus, Perspec
 type Option = { id: string; name: string }
 const STATUSES = Object.keys(OBJECTIVE_STATUS_LABELS) as ObjectiveStatus[]
 const field = "flex flex-col gap-1.5"
-const stub = () => toast.info("Disponible al conectar el backend.")
 
 export function ExportObjectivesButton() {
+  const [pending, start] = useTransition()
+  function run() {
+    start(async () => {
+      try {
+        const csv = await exportObjectivesCsv()
+        downloadCsv(`objetivos-${todayIsoDate()}.csv`, csv)
+      } catch {
+        toast.error("No pudimos exportar el CSV.")
+      }
+    })
+  }
   return (
-    <Button variant="outline" onClick={stub}>
+    <Button variant="outline" onClick={run} loading={pending}>
       <DownloadIcon /> Exportar CSV
     </Button>
   )
@@ -34,6 +48,8 @@ function ObjectiveForm({ objective, indicators, processes, onDone }: {
   processes: Option[]
   onDone: () => void
 }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [description, setDescription] = useState(objective?.description ?? "")
   const [perspective, setPerspective] = useState<Perspective>(objective?.perspective ?? "financiera")
   const [processId, setProcessId] = useState(objective?.processId ?? "")
@@ -49,7 +65,20 @@ function ObjectiveForm({ objective, indicators, processes, onDone }: {
 
   function submit() {
     if (description.trim().length < 5) { toast.error("Describe el objetivo."); return }
-    stub(); onDone()
+    const base = {
+      description, perspective, processId: processId || null,
+      targetText: target.trim() || undefined,
+      horizonYear: horizon ? Number(horizon) : null,
+      indicatorIds: linked,
+    }
+    start(async () => {
+      const r = isEdit
+        ? await updateObjective(objective!.id, { ...base, status })
+        : await createObjective(base)
+      if (!r.ok) { toast.error(r.error); return }
+      toast.success(isEdit ? "Objetivo actualizado." : `Objetivo ${(r.data as { code: string }).code} creado.`)
+      onDone(); router.refresh()
+    })
   }
 
   return (
@@ -69,7 +98,7 @@ function ObjectiveForm({ objective, indicators, processes, onDone }: {
             <SelectTrigger><SelectValue placeholder="Proceso dueño" /></SelectTrigger>
             <SelectContent>
               {processes.length === 0
-                ? <SelectItem value="none" disabled>(procesos al conectar el backend)</SelectItem>
+                ? <SelectItem value="none" disabled>(sin procesos)</SelectItem>
                 : processes.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -94,7 +123,7 @@ function ObjectiveForm({ objective, indicators, processes, onDone }: {
           <Label>Indicadores ligados (opcional)</Label>
           <div className="flex flex-col gap-1 rounded-md border border-borde p-2">
             {indicators.length === 0 ? (
-              <p className="px-1 py-2 text-caption text-texto-sec">(indicadores al conectar el backend)</p>
+              <p className="px-1 py-2 text-caption text-texto-sec">No hay indicadores activos para ligar.</p>
             ) : indicators.map((ind) => (
               <label key={ind.id} className="flex cursor-pointer items-center gap-2 rounded-sm px-1 py-1.5 hover:bg-superficie-alt">
                 <Checkbox checked={linked.includes(ind.id)} onCheckedChange={() => toggle(ind.id)} />
@@ -105,7 +134,7 @@ function ObjectiveForm({ objective, indicators, processes, onDone }: {
           <p className="text-caption text-texto-sec">El avance se calcula del cumplimiento de estos indicadores.</p>
         </div>
       </div>
-      <SheetFooter className="border-t border-borde"><Button onClick={submit}>{isEdit ? "Guardar cambios" : "Crear objetivo"}</Button></SheetFooter>
+      <SheetFooter className="border-t border-borde"><Button onClick={submit} loading={pending}>{isEdit ? "Guardar cambios" : "Crear objetivo"}</Button></SheetFooter>
     </>
   )
 }
@@ -135,7 +164,7 @@ export function EditObjectiveSheet({ objective, indicators, processes, open, onO
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent size="sm" className="gap-0 p-0">
         <SheetHeader className="border-b border-borde"><SheetTitle>Editar objetivo</SheetTitle></SheetHeader>
-        {objective && <ObjectiveForm objective={objective} indicators={indicators} processes={processes} onDone={() => onOpenChange(false)} />}
+        {objective && <ObjectiveForm key={objective.id} objective={objective} indicators={indicators} processes={processes} onDone={() => onOpenChange(false)} />}
       </SheetContent>
     </Sheet>
   )

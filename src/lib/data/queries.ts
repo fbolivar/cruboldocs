@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageNonconformities, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -77,6 +77,12 @@ import type {
   NcSource,
   NcStatus,
   NcSummary,
+  CommitmentView,
+  MinuteDetail,
+  MinuteListItem,
+  MinutesSummary,
+  ObjectiveCardView,
+  ObjectiveIndicatorRef,
   Organization,
   Paginated,
   PersonRef,
@@ -1877,4 +1883,111 @@ export async function getPqrs(code: string): Promise<PqrsDetail | null> {
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: PQRS_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManagePqrs(s.user, r.process_id ?? undefined),
   }
+}
+
+// ---------- Actas/reuniones (ISO 6.2) ----------
+
+const MINUTE_EVENT_TEXT: Record<string, string> = {
+  crear_acta: "Creó el acta.",
+  editar_acta: "Editó el acta.",
+  cerrar_acta: "Cerró el acta.",
+  agregar_compromiso: "Agregó un compromiso.",
+  cumplir_compromiso: "Marcó un compromiso como cumplido.",
+}
+
+export async function getMinutesSummary(): Promise<MinutesSummary> {
+  const s = await scope()
+  if (!s) return { totalYear: 0, drafts: 0, pendingCommitments: 0 }
+  const year = String(new Date().getFullYear())
+  const [{ data: minutes }, { data: commitments }] = await Promise.all([
+    s.supabase.from("meeting_minutes").select("status, meeting_date").eq("organization_id", s.org),
+    s.supabase.from("meeting_commitments").select("status").eq("organization_id", s.org),
+  ])
+  return {
+    totalYear: (minutes ?? []).filter((m) => (m.meeting_date ?? "").slice(0, 4) === year).length,
+    drafts: (minutes ?? []).filter((m) => m.status === "borrador").length,
+    pendingCommitments: (commitments ?? []).filter((c) => c.status === "pendiente").length,
+  }
+}
+
+export async function listMinutes(): Promise<MinuteListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }, { data: coms }] = await Promise.all([
+    s.supabase.from("meeting_minutes").select("id, code, title, meeting_type, meeting_date, process_id, status").eq("organization_id", s.org).order("meeting_date", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("meeting_commitments").select("minute_id, status").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const counts = new Map<string, { total: number; pending: number }>()
+  for (const c of coms ?? []) {
+    const e = counts.get(c.minute_id) ?? { total: 0, pending: 0 }
+    e.total += 1
+    if (c.status === "pendiente") e.pending += 1
+    counts.set(c.minute_id, e)
+  }
+  return (rows ?? []).map((r) => {
+    const c = counts.get(r.id) ?? { total: 0, pending: 0 }
+    return {
+      id: r.id, code: r.code, title: r.title, meetingType: r.meeting_type, meetingDate: r.meeting_date,
+      processName: r.process_id ? procMap.get(r.process_id) ?? null : null,
+      status: r.status as MinuteListItem["status"], commitmentCount: c.total, pendingCount: c.pending,
+    }
+  })
+}
+
+export async function getMinute(code: string): Promise<MinuteDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: r } = await s.supabase.from("meeting_minutes").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!r) return null
+  const [{ data: proc }, { data: coms }, { data: positions }, { data: log }] = await Promise.all([
+    r.process_id ? s.supabase.from("processes").select("name").eq("id", r.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("meeting_commitments").select("id, description, responsible_position_id, due_date, status").eq("organization_id", s.org).eq("minute_id", r.id).order("created_at"),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Acta").eq("entity_id", r.id).order("at", { ascending: false }),
+  ])
+  const posMap = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  const commitments: CommitmentView[] = (coms ?? []).map((c) => ({
+    id: c.id, description: c.description,
+    responsibleName: c.responsible_position_id ? posMap.get(c.responsible_position_id) ?? null : null,
+    dueDate: c.due_date, status: c.status as CommitmentView["status"],
+  }))
+  return {
+    id: r.id, code: r.code, title: r.title, meetingType: r.meeting_type, meetingDate: r.meeting_date,
+    processId: r.process_id, processName: proc?.name ?? null, attendees: r.attendees, agenda: r.agenda,
+    status: r.status as MinuteDetail["status"], commitments,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: MINUTE_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageMinutes(s.user, r.process_id ?? undefined),
+  }
+}
+
+// ---------- Objetivos de calidad / BSC (ISO 6.2) ----------
+
+export async function listObjectives(): Promise<ObjectiveCardView[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.rpc("objectives_with_progress", { p_org: s.org }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((r) => ({
+    id: r.id, code: r.code, description: r.description, perspective: r.perspective as ObjectiveCardView["perspective"],
+    processName: r.process_id ? procMap.get(r.process_id) ?? null : null, processId: r.process_id,
+    targetText: r.target_text, horizonYear: r.horizon_year,
+    status: r.status as ObjectiveCardView["status"],
+    indicatorCount: r.indicator_count ?? 0,
+    progressPct: r.progress_pct === null || r.progress_pct === undefined ? null : Number(r.progress_pct),
+    indicatorIds: (r.indicator_ids ?? []) as string[],
+    canManage: canManageObjectives(s.user, r.process_id ?? undefined),
+  }))
+}
+
+export async function listObjectiveIndicators(): Promise<ObjectiveIndicatorRef[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase.from("indicators").select("id, name").eq("organization_id", s.org).eq("status", "activo").order("name")
+  return (data ?? []).map((i) => ({ id: i.id, name: i.name }))
 }
