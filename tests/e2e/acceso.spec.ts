@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test"
 // Flujos sin sesión: rutas protegidas, formularios de acceso e invitación inválida.
 
 test.describe("rutas protegidas sin sesión", () => {
-  for (const path of ["/", "/app", "/app/documentos", "/app/documentos/00000000-0000-0000-0000-000000000000", "/app/riesgos", "/app/no-conformidades", "/app/no-conformidades/NC-2026-001", "/app/auditorias", "/app/auditorias/AUD-2026-001", "/app/indicadores", "/app/indicadores/IND-2026-001", "/app/admin"]) {
+  for (const path of ["/", "/app", "/app/documentos", "/app/documentos/00000000-0000-0000-0000-000000000000", "/app/riesgos", "/app/no-conformidades", "/app/no-conformidades/NC-2026-001", "/app/auditorias", "/app/auditorias/AUD-2026-001", "/app/indicadores", "/app/indicadores/IND-2026-001", "/app/revisiones", "/app/revisiones/RD-2026-001", "/app/admin"]) {
     test(`${path} redirige a /login`, async ({ page }) => {
       await page.goto(path)
       await expect(page).toHaveURL(/\/login$/)
