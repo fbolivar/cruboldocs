@@ -133,6 +133,18 @@ async function scope() {
   return { supabase: await createClient(), user, org: user.organization.id }
 }
 
+/** Opt-in de Crubol-Agent para la organización activa (lo enciende el Superadmin; default apagado). */
+export async function isAgentEnabled(): Promise<boolean> {
+  const s = await scope()
+  if (!s) return false
+  const { data } = await s.supabase
+    .from("organizations")
+    .select("ai_agent_enabled")
+    .eq("id", s.org)
+    .maybeSingle()
+  return data?.ai_agent_enabled ?? false
+}
+
 // ---------- Personas ----------
 
 type Directory = Map<string, { fullName: string; positionId: string | null; positionName: string }>

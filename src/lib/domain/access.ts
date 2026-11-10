@@ -22,6 +22,12 @@ export function canSeeAdmin(user: CurrentUser): boolean {
   return user.isOrgAdmin || user.isPlatformAdmin || hasRole(user, "lider_sig") || hasRole(user, "auditor")
 }
 
+/** Administra el catálogo (procesos, tipos, cargos): Admin de organización o Líder SIG.
+ * Igual que `can_manage_org` en la base, que es quien puede usar Crubol-Agent. */
+export function canManageCatalog(user: CurrentUser): boolean {
+  return user.isOrgAdmin || hasRole(user, "lider_sig")
+}
+
 export type AdminTab =
   | "usuarios"
   | "cargos"

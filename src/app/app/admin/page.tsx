@@ -7,10 +7,11 @@ import { AdminTabsNav } from "@/components/admin/admin-tabs-nav"
 import { resolveTab } from "@/components/admin/labels"
 import { RecertBadge } from "@/components/admin/recert-badge"
 import { TabSkeleton } from "@/components/admin/tab-skeleton"
+import { AgentPanel } from "@/components/agente/agent-panel"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser } from "@/lib/data/queries"
-import { adminTabsFor } from "@/lib/domain/access"
+import { getCurrentUser, isAgentEnabled } from "@/lib/data/queries"
+import { adminTabsFor, canManageCatalog } from "@/lib/domain/access"
 import { param } from "@/lib/url"
 
 export const metadata: Metadata = { title: "Administración" }
@@ -34,10 +35,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/app/admin"
   }
 
   const tab = resolveTab(param(sp, "tab"), tabs)
+  const showAgent = canManageCatalog(user) && (await isAgentEnabled())
 
   return (
     <Page wide>
-      <PageHeader title="Administración" />
+      <PageHeader title="Administración" actions={showAgent ? <AgentPanel orgName={user.organization.name} /> : null} />
       <div className="flex flex-col gap-4 md:gap-6">
         <AdminTabsNav
           tabs={tabs}
