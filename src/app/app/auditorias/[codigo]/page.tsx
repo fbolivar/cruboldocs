@@ -11,8 +11,7 @@ import { FindingList } from "@/components/auditorias/finding-list"
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getAuditMock } from "@/lib/data/audits-mock"
-import { getCurrentUser, listProcesses } from "@/lib/data/queries"
+import { getAudit, getCurrentUser, listProcesses } from "@/lib/data/queries"
 import { canSeeAudits } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
@@ -23,7 +22,7 @@ export default async function AuditPage({ params }: { params: Promise<{ codigo: 
   const user = await getCurrentUser()
   if (!canSeeAudits(user)) notFound()
 
-  const [audit, processes] = await Promise.all([getAuditMock(decodeURIComponent(codigo)), listProcesses()])
+  const [audit, processes] = await Promise.all([getAudit(decodeURIComponent(codigo)), listProcesses()])
   if (!audit) notFound()
   const processOptions = processes.map((p) => ({ id: p.id, code: p.code }))
   const open = audit.status !== "cerrada" && audit.status !== "cancelada"

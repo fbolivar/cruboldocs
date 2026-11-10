@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { closeAudit, startAudit } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -20,20 +22,35 @@ export function AuditCloseForm({
   conclusions: string | null
   canManage: boolean
 }) {
+  const router = useRouter()
+  const [pending, run] = useTransition()
   const [text, setText] = useState("")
 
   function start() {
-    // TODO(backend): server action startAudit.
-    toast.success("Auditoría iniciada.")
-    void auditId
+    run(async () => {
+      const r = await startAudit(auditId)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Auditoría iniciada.")
+      router.refresh()
+    })
   }
   function close() {
     if (text.trim().length < 5) {
       toast.error("Escribe las conclusiones.")
       return
     }
-    // TODO(backend): server action closeAudit.
-    toast.success("Auditoría cerrada.")
+    run(async () => {
+      const r = await closeAudit(auditId, text)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Auditoría cerrada.")
+      router.refresh()
+    })
   }
 
   if (status === "cerrada") {
@@ -52,7 +69,7 @@ export function AuditCloseForm({
   if (status === "planificada") {
     return (
       <div>
-        <Button onClick={start}>Iniciar auditoría</Button>
+        <Button onClick={start} loading={pending}>Iniciar auditoría</Button>
       </div>
     )
   }
@@ -62,7 +79,7 @@ export function AuditCloseForm({
       <Label htmlFor="aud-concl">Conclusiones</Label>
       <Textarea id="aud-concl" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Conclusiones de la auditoría" />
       <div>
-        <Button onClick={close}>Cerrar auditoría</Button>
+        <Button onClick={close} loading={pending}>Cerrar auditoría</Button>
       </div>
     </div>
   )

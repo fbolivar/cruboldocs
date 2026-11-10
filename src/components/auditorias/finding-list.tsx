@@ -2,9 +2,11 @@
 
 import { ClipboardListIcon, ExternalLinkIcon, PlusIcon } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { addAuditFinding, generateNcFromFinding } from "@/lib/data/actions"
 import { FindingTypeBadge } from "@/components/auditorias/badges"
 import { FINDING_SEVERITY_LABELS, FINDING_TYPE_LABELS } from "@/components/auditorias/labels"
 import { Chip } from "@/components/ui/badge"
@@ -35,10 +37,18 @@ export function FindingList({
   canManage: boolean
   processes: { id: string; code: string }[]
 }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   function generateNc(id: string) {
-    // TODO(backend): server action generateNcFromFinding.
-    toast.success("No conformidad generada desde el hallazgo.")
-    void id
+    start(async () => {
+      const r = await generateNcFromFinding(id)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(`No conformidad ${r.data.code} generada desde el hallazgo.`)
+      router.refresh()
+    })
   }
 
   const canRegister = canAddFinding && status === "en_ejecucion"
@@ -78,7 +88,7 @@ export function FindingList({
                       </Link>
                     ) : (
                       canManage && (
-                        <Button size="sm" variant="outline" onClick={() => generateNc(f.id)}>
+                        <Button size="sm" variant="outline" onClick={() => generateNc(f.id)} disabled={pending}>
                           Generar no conformidad
                         </Button>
                       )
@@ -100,6 +110,8 @@ export function FindingList({
 }
 
 function FindingSheet({ auditId, processes }: { auditId: string; processes: { id: string; code: string }[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [type, setType] = useState<FindingType>("observacion")
   const [process, setProcess] = useState("")
@@ -112,15 +124,28 @@ function FindingSheet({ auditId, processes }: { auditId: string; processes: { id
       toast.error("Describe el hallazgo.")
       return
     }
-    // TODO(backend): server action addAuditFinding.
-    toast.success("Hallazgo registrado.")
-    void auditId
-    setOpen(false)
-    setType("observacion")
-    setProcess("")
-    setDescription("")
-    setCriteria("")
-    setSeverity("menor")
+    start(async () => {
+      const r = await addAuditFinding({
+        auditId,
+        type,
+        processId: process || null,
+        description,
+        criteriaRef: criteria || undefined,
+        severity: type === "no_conformidad" ? severity : undefined,
+      })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Hallazgo registrado.")
+      setOpen(false)
+      setType("observacion")
+      setProcess("")
+      setDescription("")
+      setCriteria("")
+      setSeverity("menor")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -175,7 +200,7 @@ function FindingSheet({ auditId, processes }: { auditId: string; processes: { id
           </div>
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Registrar hallazgo</Button>
+          <Button onClick={submit} loading={pending}>Registrar hallazgo</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

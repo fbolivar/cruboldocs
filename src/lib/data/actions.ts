@@ -1420,3 +1420,111 @@ export async function addNcEvidence(input: {
     return ok(undefined)
   })
 }
+
+// ---------- Auditorías internas ----------
+
+const FINDING_TYPE = ["no_conformidad", "observacion", "oportunidad_mejora", "conformidad"] as const
+const FINDING_SEVERITY = ["menor", "mayor"] as const
+
+function revalidateAudits() {
+  revalidatePath("/app/auditorias", "layout")
+  revalidatePath("/app")
+}
+
+const planAuditSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  objective: z.string().trim().max(2000).optional(),
+  criteria: z.string().trim().max(2000).optional(),
+  leadAuditorId: z.uuid().nullish(),
+  plannedDate: isoDate,
+  processIds: z.array(z.uuid()).min(1).max(50),
+})
+
+export async function planAudit(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = planAuditSchema.safeParse(input)
+    if (!p.success) return fail("Indica título, al menos un proceso y la fecha.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const supabase = await createClient()
+    const { data, error } = await supabase.rpc("plan_audit", {
+      p_org: user.organization.id,
+      p_title: p.data.title,
+      p_objective: p.data.objective ?? "",
+      p_criteria: p.data.criteria ?? "",
+      p_lead: (p.data.leadAuditorId ?? null) as unknown as string,
+      p_planned_date: p.data.plannedDate,
+      p_process_ids: p.data.processIds,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateAudits()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function startAudit(auditId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(auditId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("start_audit", { p_audit: auditId })
+    if (error) return fail(dbMessage(error))
+    revalidateAudits()
+    return ok(undefined)
+  })
+}
+
+const addFindingSchema = z.object({
+  auditId: z.uuid(),
+  type: z.enum(FINDING_TYPE),
+  processId: z.uuid().nullish(),
+  description: z.string().trim().min(5).max(2000),
+  criteriaRef: z.string().trim().max(60).optional(),
+  severity: z.enum(FINDING_SEVERITY).optional(),
+})
+
+export async function addAuditFinding(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = addFindingSchema.safeParse(input)
+    if (!p.success) return fail("Describe el hallazgo e indica su tipo.")
+    const { error } = await (await createClient()).rpc("add_audit_finding", {
+      p_audit: p.data.auditId,
+      p_type: p.data.type,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_description: p.data.description,
+      p_criteria_ref: p.data.criteriaRef ?? "",
+      p_severity: p.data.severity,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateAudits()
+    return ok(undefined)
+  })
+}
+
+export async function generateNcFromFinding(findingId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(findingId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_from_finding", { p_finding: findingId })
+    if (error) return fail(dbMessage(error))
+    revalidateAudits()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function closeAudit(auditId: string, conclusions: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(auditId) || conclusions.trim().length < 1) return fail("Escribe las conclusiones.")
+    const { error } = await (await createClient()).rpc("close_audit", { p_audit: auditId, p_conclusions: conclusions })
+    if (error) return fail(dbMessage(error))
+    revalidateAudits()
+    return ok(undefined)
+  })
+}
+
+export async function cancelAudit(auditId: string, reason: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(auditId) || reason.trim().length < 5) return fail("Indica el motivo de la cancelación.")
+    const { error } = await (await createClient()).rpc("cancel_audit", { p_audit: auditId, p_reason: reason })
+    if (error) return fail(dbMessage(error))
+    revalidateAudits()
+    return ok(undefined)
+  })
+}

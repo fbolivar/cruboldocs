@@ -515,5 +515,43 @@ await throws(() => as(db, U.juan, `insert into public.nonconformities (organizat
 await throws(() => as(db, U.juan, `select public.nc_add_evidence('${U.juan}', '${nc1.id}', null, '${A}/${nc1.id}/x/f.pdf', '${"a".repeat(64)}', 1, 'f.pdf')`),
   "nc_add_evidence no es ejecutable por authenticated: server-only (019)", "permission denied")
 
+// ---------- Auditorías Internas (020) ----------
+// Agregamos el rol `auditor` a un cargo para probar el registro de hallazgos (Carlos = auditor).
+await db.exec(`insert into public.position_roles (organization_id, position_id, role, process_id) values ('${A}', '${POS.gerente}', 'auditor', null);`)
+
+await throws(() => as(db, U.sofia, `select public.plan_audit('${A}', 'Aud', null, null, null, current_date + 5, array['${P.tiA}']::uuid[])`),
+  "Sofía (consulta) no planifica auditorías (020)", "Solo el Líder SIG")
+await throws(() => as(db, U.beto, `select public.plan_audit('${A}', 'Intrusa', null, null, null, current_date + 5, array['${P.tiA}']::uuid[])`),
+  "Beto (org B) no planifica auditorías en A (020)", "Solo el Líder SIG")
+const aud = (await as(db, U.juan, `select id, code from public.plan_audit('${A}', 'Auditoría SGC', 'Objetivo', 'ISO 9001', '${POS.gerente}', current_date + 5, array['${P.tiA}','${P.sigA}']::uuid[])`)).rows[0]
+ok(aud?.code === `AUD-${Y}-001`, `Juan (Líder SIG) planifica una auditoría → AUD-${Y}-001 (020)`)
+ok((await as(db, U.juan, `select count(*)::int n from public.audit_processes where audit_id = '${aud.id}'`)).rows[0].n === 2,
+  "La auditoría cubre 2 procesos (020)")
+ok((await as(db, U.carlos, `select count(*)::int n from public.audits where id = '${aud.id}'`)).rows[0].n === 1, "Carlos (auditor) ve la auditoría (020)")
+ok((await as(db, U.oscar, `select count(*)::int n from public.audits where id = '${aud.id}'`)).rows[0].n === 0, "Óscar (admin sin rol SIG) no ve la auditoría (020)")
+ok((await as(db, U.beto, `select count(*)::int n from public.audits where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve auditorías de A (020)")
+
+await throws(() => as(db, U.carlos, `select public.add_audit_finding('${aud.id}', 'observacion', '${P.tiA}', 'hallazgo largo', null)`),
+  "No se registran hallazgos si la auditoría no está en ejecución (020)", "no está en ejecución")
+await as(db, U.juan, `select public.start_audit('${aud.id}')`)
+// Laura (líder de proceso, sin rol auditor ni lider_sig) no puede registrar hallazgos.
+await throws(() => as(db, U.laura, `select public.add_audit_finding('${aud.id}', 'observacion', '${P.tiA}', 'hallazgo largo', null)`),
+  "Laura (sin rol auditor) no registra hallazgos (020)", "no puede registrar")
+const find = (await as(db, U.carlos, `select public.add_audit_finding('${aud.id}', 'no_conformidad', '${P.tiA}', 'Falla de control de versión', '7.5.3', 'mayor') f`)).rows[0].f
+ok(!!find, "Carlos (auditor) registra un hallazgo de no conformidad (020)")
+
+const ncFromFinding = (await as(db, U.juan, `select public.generate_nc_from_finding('${find}') c`)).rows[0].c
+ok(/^NC-\d{4}-\d{3}$/.test(ncFromFinding), `El hallazgo genera una NC (${ncFromFinding}) (020)`)
+await throws(() => as(db, U.juan, `select public.generate_nc_from_finding('${find}')`),
+  "No se duplica la NC de un hallazgo: idempotente (020)", "ya tiene una no conformidad")
+ok((await as(db, U.juan, `select nonconformity_id is not null r from public.audit_findings where id = '${find}'`)).rows[0].r === true,
+  "El hallazgo queda enlazado a la NC (020)")
+
+await throws(() => as(db, U.juan, `select public.close_audit('${aud.id}', '')`), "No se cierra una auditoría sin conclusiones (020)", "conclusiones")
+await as(db, U.juan, `select public.close_audit('${aud.id}', 'El SGC cumple salvo la NC abierta.')`)
+ok((await as(db, U.juan, `select status from public.audits where id = '${aud.id}'`)).rows[0].status === "cerrada", "El Líder SIG cierra la auditoría (020)")
+await throws(() => as(db, U.juan, `insert into public.audits (organization_id, code, title, planned_date) values ('${A}', 'AUD-X', 't', current_date)`),
+  "Nadie inserta auditorías por REST (020)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

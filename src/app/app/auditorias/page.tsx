@@ -6,8 +6,7 @@ import { AuditSummaryBar } from "@/components/auditorias/audit-summary"
 import { PlanAuditSheet } from "@/components/auditorias/plan-audit-sheet"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser, listPositions, listProcesses } from "@/lib/data/queries"
-import { getAuditSummaryMock, listAuditsMock } from "@/lib/data/audits-mock"
+import { getAuditSummary, getCurrentUser, listAudits, listPositions, listProcesses } from "@/lib/data/queries"
 import { canManageAudits, canSeeAudits } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Auditorías internas" }
@@ -27,10 +26,9 @@ export default async function AuditsPage() {
     )
   }
 
-  // ⚠️ Datos de ejemplo (fase frontend). La fase de backend conecta las consultas reales.
   const [summary, items, processes, positions] = await Promise.all([
-    getAuditSummaryMock(),
-    listAuditsMock(),
+    getAuditSummary(),
+    listAudits(),
     listProcesses(),
     listPositions(),
   ])

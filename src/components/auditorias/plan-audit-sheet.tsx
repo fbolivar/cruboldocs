@@ -1,9 +1,11 @@
 "use client"
 
 import { PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { planAudit } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -24,6 +26,8 @@ export function PlanAuditSheet({
   processes: { id: string; code: string }[]
   auditors: { id: string; name: string }[]
 }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [objective, setObjective] = useState("")
@@ -41,15 +45,29 @@ export function PlanAuditSheet({
       toast.error("Indica título, al menos un proceso y la fecha.")
       return
     }
-    // TODO(backend): server action planAudit(...).
-    toast.success("Auditoría planificada. El líder auditor recibirá la tarea.")
-    setOpen(false)
-    setTitle("")
-    setObjective("")
-    setCriteria("")
-    setProcIds([])
-    setLead("")
-    setPlannedDate("")
+    start(async () => {
+      const r = await planAudit({
+        title,
+        objective: objective || undefined,
+        criteria: criteria || undefined,
+        leadAuditorId: lead || null,
+        plannedDate,
+        processIds: procIds,
+      })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(`Auditoría ${r.data.code} planificada.`)
+      setOpen(false)
+      setTitle("")
+      setObjective("")
+      setCriteria("")
+      setProcIds([])
+      setLead("")
+      setPlannedDate("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -122,7 +140,7 @@ export function PlanAuditSheet({
         </div>
 
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Planificar</Button>
+          <Button onClick={submit} loading={pending}>Planificar</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

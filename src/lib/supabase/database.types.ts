@@ -99,6 +99,103 @@ export type Database = {
           },
         ]
       }
+      audit_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_findings: {
+        Row: {
+          audit_id: string
+          created_at: string
+          created_by: string
+          criteria_ref: string | null
+          description: string
+          id: string
+          nonconformity_id: string | null
+          organization_id: string
+          process_id: string | null
+          severity: string | null
+          type: string
+        }
+        Insert: {
+          audit_id: string
+          created_at?: string
+          created_by?: string
+          criteria_ref?: string | null
+          description: string
+          id?: string
+          nonconformity_id?: string | null
+          organization_id: string
+          process_id?: string | null
+          severity?: string | null
+          type: string
+        }
+        Update: {
+          audit_id?: string
+          created_at?: string
+          created_by?: string
+          criteria_ref?: string | null
+          description?: string
+          id?: string
+          nonconformity_id?: string | null
+          organization_id?: string
+          process_id?: string | null
+          severity?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_findings_audit_id_organization_id_fkey"
+            columns: ["audit_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "audit_findings_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "audit_findings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_findings_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -143,6 +240,115 @@ export type Database = {
           },
           {
             foreignKeyName: "audit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_processes: {
+        Row: {
+          audit_id: string
+          organization_id: string
+          process_id: string
+        }
+        Insert: {
+          audit_id: string
+          organization_id: string
+          process_id: string
+        }
+        Update: {
+          audit_id?: string
+          organization_id?: string
+          process_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_processes_audit_id_organization_id_fkey"
+            columns: ["audit_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "audit_processes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_processes_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      audits: {
+        Row: {
+          cancel_reason: string | null
+          closed_at: string | null
+          code: string
+          conclusions: string | null
+          created_at: string
+          created_by: string
+          criteria: string | null
+          id: string
+          lead_auditor_position_id: string | null
+          objective: string | null
+          organization_id: string
+          planned_date: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          closed_at?: string | null
+          code: string
+          conclusions?: string | null
+          created_at?: string
+          created_by?: string
+          criteria?: string | null
+          id?: string
+          lead_auditor_position_id?: string | null
+          objective?: string | null
+          organization_id: string
+          planned_date: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          closed_at?: string | null
+          code?: string
+          conclusions?: string | null
+          created_at?: string
+          created_by?: string
+          criteria?: string | null
+          id?: string
+          lead_auditor_position_id?: string | null
+          objective?: string | null
+          organization_id?: string
+          planned_date?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audits_lead_auditor_position_id_organization_id_fkey"
+            columns: ["lead_auditor_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "audits_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1758,6 +1964,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      add_audit_finding: {
+        Args: {
+          p_audit: string
+          p_criteria_ref: string
+          p_description: string
+          p_process: string
+          p_severity?: string
+          p_type: string
+        }
+        Returns: string
+      }
       add_comment: {
         Args: { p_body: string; p_version: string }
         Returns: string
@@ -1798,6 +2015,32 @@ export type Database = {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
       }
+      audit_or_fail: {
+        Args: { p_audit: string }
+        Returns: {
+          cancel_reason: string | null
+          closed_at: string | null
+          code: string
+          conclusions: string | null
+          created_at: string
+          created_by: string
+          criteria: string | null
+          id: string
+          lead_auditor_position_id: string | null
+          objective: string | null
+          organization_id: string
+          planned_date: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "audits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       can_edit_draft: {
         Args: {
           d: Database["public"]["Tables"]["documents"]["Row"]
@@ -1805,6 +2048,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      can_manage_audits: { Args: { org: string }; Returns: boolean }
       can_manage_nc: {
         Args: { org: string; process: string }
         Returns: boolean
@@ -1818,16 +2062,25 @@ export type Database = {
         Args: { org: string; process: string }
         Returns: boolean
       }
+      can_see_audits: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
       can_view_content: { Args: { org: string }; Returns: boolean }
+      cancel_audit: {
+        Args: { p_audit: string; p_reason: string }
+        Returns: undefined
+      }
       cancel_nc: {
         Args: { p_nc: string; p_reason: string }
         Returns: undefined
       }
       cancel_nc_action: { Args: { p_action: string }; Returns: undefined }
+      close_audit: {
+        Args: { p_audit: string; p_conclusions: string }
+        Returns: undefined
+      }
       complete_nc_action: { Args: { p_action: string }; Returns: undefined }
       complete_tasks: {
         Args: {
@@ -1952,6 +2205,12 @@ export type Database = {
         }
       }
       frequency_interval: { Args: { f: string }; Returns: string }
+      generate_nc_from_finding: {
+        Args: { p_finding: string }
+        Returns: {
+          code: string
+        }[]
+      }
       has_role: {
         Args: { org: string; process?: string; r: string }
         Returns: boolean
@@ -2058,6 +2317,21 @@ export type Database = {
           position_id: string
           position_name: string
           user_id: string
+        }[]
+      }
+      plan_audit: {
+        Args: {
+          p_criteria: string
+          p_lead: string
+          p_objective: string
+          p_org: string
+          p_planned_date: string
+          p_process_ids: string[]
+          p_title: string
+        }
+        Returns: {
+          code: string
+          id: string
         }[]
       }
       platform_organizations: {
@@ -2187,6 +2461,7 @@ export type Database = {
         }
         Returns: string
       }
+      start_audit: { Args: { p_audit: string }; Returns: undefined }
       storage_can_read_document: { Args: { p_name: string }; Returns: boolean }
       storage_can_read_evidence: { Args: { p_name: string }; Returns: boolean }
       storage_can_read_nc_evidence: {

@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canManageNonconformities, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageNonconformities, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -17,8 +17,15 @@ import { sha256Hex } from "@/lib/data/hash"
 import type {
   ActivityEvent,
   AssessmentKind,
+  AuditDetail,
   AuditEntry,
   AuditFilters,
+  AuditFindingView,
+  AuditListItem,
+  AuditStatus,
+  AuditSummary,
+  FindingSeverity,
+  FindingType,
   ChangeRequest,
   Control,
   CurrentUser,
@@ -328,6 +335,119 @@ export async function getNonconformity(code: string): Promise<NcDetail | null> {
       text: NC_EVENT_TEXT[a.action] ?? a.action,
     })),
     canManage: canManageNonconformities(s.user, n.process_id ?? undefined),
+  }
+}
+
+// ---------- Auditorías internas ----------
+
+/** Tablero de auditorías (RLS filtra lo visible). */
+export async function listAudits(): Promise<AuditListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: auds }, { data: procs }, { data: positions }, { data: aprocs }, { data: finds }] = await Promise.all([
+    s.supabase.from("audits").select("id, code, title, lead_auditor_position_id, planned_date, status").eq("organization_id", s.org).order("planned_date", { ascending: false }),
+    s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("audit_processes").select("audit_id, process_id").eq("organization_id", s.org),
+    s.supabase.from("audit_findings").select("audit_id").eq("organization_id", s.org),
+  ])
+  const procCode = new Map((procs ?? []).map((p) => [p.id, p.code]))
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const procsByAudit = new Map<string, string[]>()
+  for (const ap of aprocs ?? []) {
+    const list = procsByAudit.get(ap.audit_id) ?? []
+    const code = procCode.get(ap.process_id)
+    if (code) list.push(code)
+    procsByAudit.set(ap.audit_id, list)
+  }
+  const findCount = new Map<string, number>()
+  for (const f of finds ?? []) findCount.set(f.audit_id, (findCount.get(f.audit_id) ?? 0) + 1)
+  return (auds ?? []).map((a) => ({
+    id: a.id,
+    code: a.code,
+    title: a.title,
+    processNames: (procsByAudit.get(a.id) ?? []).sort(),
+    leadAuditorName: a.lead_auditor_position_id ? posName.get(a.lead_auditor_position_id) ?? null : null,
+    plannedDate: a.planned_date,
+    status: a.status as AuditStatus,
+    findingCount: findCount.get(a.id) ?? 0,
+  }))
+}
+
+export async function getAuditSummary(): Promise<AuditSummary> {
+  const empty: AuditSummary = { planned: 0, inProgress: 0, closedThisYear: 0, ncFindings: 0 }
+  const s = await scope()
+  if (!s) return empty
+  const [{ data: auds }, { data: finds }] = await Promise.all([
+    s.supabase.from("audits").select("status, planned_date").eq("organization_id", s.org),
+    s.supabase.from("audit_findings").select("type").eq("organization_id", s.org),
+  ])
+  const year = String(new Date().getFullYear())
+  return {
+    planned: (auds ?? []).filter((a) => a.status === "planificada").length,
+    inProgress: (auds ?? []).filter((a) => a.status === "en_ejecucion").length,
+    closedThisYear: (auds ?? []).filter((a) => a.status === "cerrada" && a.planned_date.slice(0, 4) === year).length,
+    ncFindings: (finds ?? []).filter((f) => f.type === "no_conformidad").length,
+  }
+}
+
+const AUDIT_EVENT_TEXT: Record<string, string> = {
+  planificar_auditoria: "Planificó la auditoría.",
+  iniciar_auditoria: "Inició la auditoría.",
+  agregar_hallazgo: "Agregó un hallazgo.",
+  generar_nc_hallazgo: "Generó una no conformidad desde un hallazgo.",
+  cerrar_auditoria: "Cerró la auditoría.",
+  cancelar_auditoria: "Canceló la auditoría.",
+}
+
+/** Ficha completa de una auditoría por su código. null si no existe o no es visible. */
+export async function getAudit(code: string): Promise<AuditDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: a } = await s.supabase.from("audits").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!a) return null
+
+  const [{ data: aprocs }, { data: finds }, { data: procs }, { data: positions }, { data: audit }] = await Promise.all([
+    s.supabase.from("audit_processes").select("process_id").eq("audit_id", a.id),
+    s.supabase.from("audit_findings").select("*").eq("audit_id", a.id).order("created_at"),
+    s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Auditoria").eq("entity_id", a.id).order("at", { ascending: false }),
+  ])
+  const procCode = new Map((procs ?? []).map((p) => [p.id, p.code]))
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const ncIds = (finds ?? []).map((f) => f.nonconformity_id).filter((x): x is string => !!x)
+  const { data: ncs } = ncIds.length
+    ? await s.supabase.from("nonconformities").select("id, code").in("id", ncIds)
+    : { data: [] as { id: string; code: string }[] }
+  const ncCode = new Map((ncs ?? []).map((n) => [n.id, n.code]))
+  const person = await peopleOf(s.org, (audit ?? []).map((x) => x.actor_id))
+
+  const findings: AuditFindingView[] = (finds ?? []).map((f) => ({
+    id: f.id,
+    type: f.type as FindingType,
+    severity: (f.severity as FindingSeverity | null) ?? null,
+    processName: f.process_id ? procCode.get(f.process_id) ?? null : null,
+    description: f.description,
+    criteriaRef: f.criteria_ref,
+    nonconformityCode: f.nonconformity_id ? ncCode.get(f.nonconformity_id) ?? null : null,
+  }))
+
+  return {
+    id: a.id,
+    code: a.code,
+    title: a.title,
+    objective: a.objective,
+    criteria: a.criteria,
+    processNames: (aprocs ?? []).map((ap) => procCode.get(ap.process_id)).filter((x): x is string => !!x).sort(),
+    leadAuditorName: a.lead_auditor_position_id ? posName.get(a.lead_auditor_position_id) ?? null : null,
+    plannedDate: a.planned_date,
+    status: a.status as AuditStatus,
+    conclusions: a.conclusions,
+    findings,
+    timeline: (audit ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: AUDIT_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageAudits(s.user),
+    canAddFinding: canAddFindings(s.user),
   }
 }
 
