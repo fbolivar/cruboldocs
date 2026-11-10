@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -66,6 +66,35 @@ export type Database = {
             columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_usage: {
+        Row: {
+          organization_id: string
+          period: string
+          updated_at: string
+          used: number
+        }
+        Insert: {
+          organization_id: string
+          period: string
+          updated_at?: string
+          used?: number
+        }
+        Update: {
+          organization_id?: string
+          period?: string
+          updated_at?: string
+          used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_usage_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -801,6 +830,7 @@ export type Database = {
       }
       organizations: {
         Row: {
+          ai_agent_enabled: boolean
           created_at: string
           id: string
           name: string
@@ -811,6 +841,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_agent_enabled?: boolean
           created_at?: string
           id?: string
           name: string
@@ -821,6 +852,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_agent_enabled?: boolean
           created_at?: string
           id?: string
           name?: string
@@ -1451,6 +1483,10 @@ export type Database = {
           p_type: string
         }
         Returns: string
+      }
+      ai_agent_consume: {
+        Args: { p_limit: number; p_org: string; p_period: string }
+        Returns: number
       }
       can_edit_draft: {
         Args: {

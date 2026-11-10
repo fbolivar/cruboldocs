@@ -398,5 +398,36 @@ for (const t of ["documents", "organizations", "memberships", "signatures", "aud
   await throws(() => anonQ(`select * from public.${t} limit 1`), `Anónimo no puede leer ${t} (015)`, "permission denied")
 }
 await throws(() => anonQ(`insert into public.organizations (name, nit) values ('x', '900000000-0')`), "Anónimo no puede insertar organizaciones (015)", "permission denied")
+
+// ---------- Crubol-Agent: opt-in y uso por organización (016) ----------
+await svc(`insert into public.ai_agent_usage (organization_id, period, used) values ('${A}', '2026-11', 3)`)
+ok((await as(db, U.beto, `select count(*)::int n from public.ai_agent_usage where organization_id = '${A}'`)).rows[0].n === 0,
+  "Beto (org B) no ve el uso del agente de A (016)")
+ok((await as(db, U.sofia, `select count(*)::int n from public.ai_agent_usage where organization_id = '${A}'`)).rows[0].n === 0,
+  "Sofía (consulta) no ve el uso del agente de A (016)")
+ok((await as(db, U.laura, `select used from public.ai_agent_usage where organization_id = '${A}'`)).rows[0]?.used === 3,
+  "Laura (admin) ve el uso del agente de su organización (016)")
+ok((await as(db, U.juan, `select count(*)::int n from public.ai_agent_usage where organization_id = '${A}'`)).rows[0].n === 1,
+  "Juan (Líder SIG) ve el uso del agente de su organización (016)")
+await throws(() => as(db, U.laura, `insert into public.ai_agent_usage (organization_id, period) values ('${A}', '2026-12')`),
+  "Nadie inserta en ai_agent_usage por REST (016)")
+await as(db, U.laura, `update public.ai_agent_usage set used = 0 where organization_id = '${A}'`)
+ok((await svc(`select used from public.ai_agent_usage where organization_id = '${A}' and period = '2026-11'`)).rows[0].used === 3,
+  "Un UPDATE por REST no cambia ai_agent_usage: sin política de escritura no afecta filas (016)")
+// ai_agent_consume: apagado → falla.
+await throws(() => as(db, U.laura, `select public.ai_agent_consume('${A}', 5, '2026-11')`),
+  "Con el agente apagado, consumir falla (016)", "no está habilitado")
+await svc(`update public.organizations set ai_agent_enabled = true where id = '${A}'`)
+await throws(() => as(db, U.sofia, `select public.ai_agent_consume('${A}', 5, '2026-11')`),
+  "Sofía (consulta) no puede consumir el agente (016)", "Sin permiso")
+await throws(() => as(db, U.laura, `select public.ai_agent_consume('${B}', 5, '2026-11')`),
+  "Laura (A) no consume el agente de B (016)", "Sin permiso")
+ok((await as(db, U.laura, `select public.ai_agent_consume('${A}', 5, '2026-11') r`)).rows[0].r === 1,
+  "Consumir con uso 3/5 deja 1 (016)")
+ok((await as(db, U.laura, `select public.ai_agent_consume('${A}', 5, '2026-11') r`)).rows[0].r === 0,
+  "Consumir con uso 4/5 deja 0 (016)")
+await throws(() => as(db, U.laura, `select public.ai_agent_consume('${A}', 5, '2026-11')`),
+  "Consumir al alcanzar el límite falla (016)", "Límite")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
