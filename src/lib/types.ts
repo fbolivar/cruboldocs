@@ -705,6 +705,128 @@ export interface ReviewDetail {
   canManage: boolean
 }
 
+// ---------- Competencias (ISO 7.2 / 7.3) ----------
+
+export type CompetencyKind = "educacion" | "formacion" | "habilidad" | "experiencia"
+/** Nivel requerido del perfil del cargo. */
+export type CompetencyLevel = 1 | 2 | 3
+/** Nivel evaluado de la persona (0 = sin nivel). */
+export type AssessedLevel = 0 | 1 | 2 | 3
+export type CompetencyStatus = "cumple" | "brecha" | "brecha_en_plan" | "sin_evaluar"
+export type TrainingKind = "interna" | "externa"
+export type TrainingResult = "aprobado" | "no_aprobado" | "asistio"
+
+/** Competencia del catálogo de la organización. */
+export interface CompetencyListItem {
+  id: string
+  name: string
+  description: string | null
+  kind: CompetencyKind
+  isActive: boolean
+  /** Nº de cargos cuyo perfil la exige. */
+  positionCount: number
+}
+
+/** Requisito del perfil de un cargo: una competencia con su nivel. */
+export interface PositionRequirement {
+  id: string
+  competencyId: string
+  competencyName: string
+  kind: CompetencyKind
+  requiredLevel: CompetencyLevel
+  isMandatory: boolean
+  note: string | null
+}
+
+export interface PositionProfileDetail {
+  positionId: string
+  positionName: string
+  processName: string | null
+  requirements: PositionRequirement[]
+}
+
+/** Formación en la lista de /app/competencias/formacion. */
+export interface TrainingListItem {
+  id: string
+  title: string
+  kind: TrainingKind
+  provider: string | null
+  trainingDate: string
+  hours: number | null
+  attendeeCount: number
+}
+
+/** Una formación tomada por una persona (fila de la ficha). */
+export interface TrainingAttendeeView {
+  id: string
+  trainingId: string
+  title: string
+  kind: TrainingKind
+  provider: string | null
+  trainingDate: string
+  hours: number | null
+  result: TrainingResult
+  hasCertificate: boolean
+  certificateName: string | null
+  validUntil: string | null
+}
+
+/** Fila de la ficha de persona: requerido (perfil) vs. evaluado. */
+export interface PersonCompetencyRow {
+  competencyId: string
+  competencyName: string
+  kind: CompetencyKind
+  requiredLevel: CompetencyLevel
+  assessedLevel: AssessedLevel | null
+  status: CompetencyStatus
+  nextReviewDate: string | null
+  /** Id de la tarea de cierre de brecha, si ya se creó. */
+  gapTaskId: string | null
+}
+
+/** Celda de la matriz (persona × competencia). */
+export interface MatrixCell {
+  competencyId: string
+  requiredLevel: CompetencyLevel
+  assessedLevel: AssessedLevel | null
+  status: CompetencyStatus
+}
+
+export interface MatrixRow {
+  membershipId: string
+  personName: string
+  positionName: string
+  processName: string | null
+  cells: MatrixCell[]
+}
+
+/** Matriz derivada: columnas de competencia + filas por persona, agrupables por proceso. */
+export interface CompetencyMatrix {
+  columns: { competencyId: string; competencyName: string; kind: CompetencyKind }[]
+  rows: MatrixRow[]
+}
+
+export interface CompetencySummary {
+  /** % de competencias obligatorias cumplidas sobre las requeridas (alcance visible). */
+  coveragePct: number | null
+  openGaps: number
+  certificatesDueSoon: number
+}
+
+export interface PersonCompetencyDetail {
+  membershipId: string
+  personName: string
+  positionName: string
+  processName: string | null
+  competencies: PersonCompetencyRow[]
+  trainings: TrainingAttendeeView[]
+  timeline: NcTimelineEvent[]
+  /** Líder SIG o Líder del proceso del cargo: evaluar y registrar formación. */
+  canManage: boolean
+  /** La ficha es del propio usuario (solo lectura aunque no gestione). */
+  isSelf: boolean
+}
+
 export type InvitationStatus = "valida" | "vencida" | "usada"
 
 export interface Invitation {

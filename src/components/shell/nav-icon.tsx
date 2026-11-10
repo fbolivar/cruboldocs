@@ -1,8 +1,8 @@
-import { ChartLineIcon, ClipboardCheckIcon, ClipboardListIcon, ClipboardPenIcon, FileTextIcon, HouseIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react"
+import { ChartLineIcon, ClipboardCheckIcon, ClipboardListIcon, ClipboardPenIcon, FileTextIcon, GraduationCapIcon, HouseIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react"
 
 import type { NavIcon as NavIconName } from "@/components/shell/nav-items"
 
-const ICONS = { inicio: HouseIcon, documentos: FileTextIcon, riesgos: TriangleAlertIcon, noconf: ClipboardCheckIcon, auditorias: ClipboardListIcon, indicadores: ChartLineIcon, revisiones: ClipboardPenIcon, admin: SettingsIcon }
+const ICONS = { inicio: HouseIcon, documentos: FileTextIcon, riesgos: TriangleAlertIcon, noconf: ClipboardCheckIcon, auditorias: ClipboardListIcon, indicadores: ChartLineIcon, revisiones: ClipboardPenIcon, competencias: GraduationCapIcon, admin: SettingsIcon }
 
 export function NavIcon({ name, className }: { name: NavIconName; className?: string }) {
   const Icon = ICONS[name]
