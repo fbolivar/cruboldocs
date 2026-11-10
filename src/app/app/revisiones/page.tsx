@@ -5,8 +5,7 @@ import { NewReviewSheet } from "@/components/revisiones/new-review-sheet"
 import { ReviewBoard } from "@/components/revisiones/review-board"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { listReviewsMock } from "@/lib/data/reviews-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, listReviews } from "@/lib/data/queries"
 import { canManageReviews, canSeeReviews } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Revisión por la dirección" }
@@ -26,8 +25,7 @@ export default async function ReviewsPage() {
     )
   }
 
-  // Datos de ejemplo (fase frontend). El backend los reemplaza por queries reales.
-  const items = listReviewsMock()
+  const items = await listReviews()
 
   return (
     <Page wide>

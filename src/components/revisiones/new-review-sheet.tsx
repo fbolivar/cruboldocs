@@ -1,9 +1,11 @@
 "use client"
 
 import { PlusIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { createReview } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea"
 
 /** Crear un acta de revisión (Líder SIG). El envío se conecta en la fase de backend. */
 export function NewReviewSheet() {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [from, setFrom] = useState("")
@@ -28,9 +32,17 @@ export function NewReviewSheet() {
       toast.error("El fin del periodo no puede ser anterior al inicio.")
       return
     }
-    // TODO(backend): server action createReview.
-    toast.success("Acta creada.")
-    setOpen(false)
+    start(async () => {
+      const r = await createReview({ title, periodStart: from, periodEnd: to, meetingDate: meeting, scope: scope || undefined })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(`Acta ${r.data.code} creada.`)
+      setOpen(false)
+      setTitle(""); setFrom(""); setTo(""); setMeeting(""); setScope("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -70,7 +82,7 @@ export function NewReviewSheet() {
           </div>
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Crear acta</Button>
+          <Button onClick={submit} loading={pending}>Crear acta</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

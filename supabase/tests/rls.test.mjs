@@ -616,5 +616,57 @@ ok((await as(db, U.juan, `select status from public.indicators where id = '${ind
 await throws(() => as(db, U.juan, `insert into public.indicators (organization_id, code, name, process_id, unit, direction, target, frequency) values ('${A}', 'IND-X', 't', '${P.tiA}', '%', 'mayor_mejor', 1, 'mensual')`),
   "Nadie inserta indicadores por REST (022)", "row-level security")
 
+// ---------- Revisión por la dirección (023) ----------
+// Juan = Líder SIG (gestiona/firma); Laura = líder de proceso (no gestiona); Sofía = consulta; Carlos = auditor (ve).
+
+await throws(() => as(db, U.laura, `select public.create_review('${A}', 'Acta', current_date - 180, current_date, current_date, null)`),
+  "Laura (sin lider_sig) no crea actas (023)", "Solo el Líder SIG")
+await throws(() => as(db, U.beto, `select public.create_review('${A}', 'Intrusa', current_date - 180, current_date, current_date, null)`),
+  "Beto (org B) no crea actas en A (023)", "Solo el Líder SIG")
+await throws(() => as(db, U.juan, `select public.create_review('${A}', 'Rango malo', current_date, current_date - 10, current_date, null)`),
+  "El fin del periodo no puede ser anterior al inicio (023)", "anterior al inicio")
+
+const rev = (await as(db, U.juan, `select id, code from public.create_review('${A}', 'Revisión 2026-2', current_date - 180, current_date, current_date, 'Desempeño del SGC')`)).rows[0]
+ok(rev?.code === `RD-${Y}-001`, `Juan (Líder SIG) crea un acta → RD-${Y}-001 (023)`)
+const snap = (await as(db, U.juan, `select snapshot from public.management_reviews where id = '${rev.id}'`)).rows[0].snapshot
+ok(snap && snap.nc && snap.indicadores && snap.auditorias && snap.documentos && snap.riesgos && snap.accionesPrevias,
+  "El acta precarga el snapshot con todos los bloques (023)")
+
+ok((await as(db, U.carlos, `select count(*)::int n from public.management_reviews where id = '${rev.id}'`)).rows[0].n === 1, "Carlos (auditor) ve el acta (023)")
+ok((await as(db, U.oscar, `select count(*)::int n from public.management_reviews where id = '${rev.id}'`)).rows[0].n === 0, "Óscar (admin sin rol SIG) no ve el acta (023)")
+ok((await as(db, U.beto, `select count(*)::int n from public.management_reviews where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve actas de A (023)")
+
+await throws(() => as(db, U.laura, `select public.add_review_output('${rev.id}', 'decision', 'Una decisión larga', null, null)`),
+  "Laura no registra decisiones (023)", "Solo el Líder SIG")
+const out = (await as(db, U.juan, `select public.add_review_output('${rev.id}', 'accion_mejora', 'Implementar monitoreo de disponibilidad', '${POS.ti}', current_date + 30) o`)).rows[0].o
+ok(!!out, "Juan registra una acción de mejora (023)")
+const outDec = (await as(db, U.juan, `select public.add_review_output('${rev.id}', 'decision', 'Mantener la certificación', null, null) o`)).rows[0].o
+
+const ncFromOut = (await as(db, U.juan, `select public.generate_nc_from_output('${out}') c`)).rows[0].c
+ok(/^NC-\d{4}-\d{3}$/.test(ncFromOut), `La acción de mejora genera una NC (${ncFromOut}) (023)`)
+await throws(() => as(db, U.juan, `select public.generate_nc_from_output('${out}')`),
+  "No se duplica la NC de una decisión: idempotente (023)", "ya tiene una no conformidad")
+await throws(() => as(db, U.juan, `select public.generate_nc_from_output('${outDec}')`),
+  "Una decisión que no es acción de mejora no genera NC (023)", "Solo una acción de mejora")
+
+// Cerrar y firmar (ADR-004): exige reautenticación reciente y hash válido.
+await throws(() => as(db, U.laura, `select public.close_review('${rev.id}', now(), '${"a".repeat(64)}', null, 't')`),
+  "Laura no cierra el acta (023)", "Solo el Líder SIG")
+await throws(() => as(db, U.juan, `select public.close_review('${rev.id}', now() - interval '20 minutes', '${"a".repeat(64)}', null, 't')`),
+  "No se cierra sin reautenticación reciente (023)", "confirmar tu identidad")
+await throws(() => as(db, U.juan, `select public.close_review('${rev.id}', now(), 'hash-invalido', null, 't')`),
+  "No se cierra con una firma inválida (023)", "Firma inválida")
+await as(db, U.juan, `select public.close_review('${rev.id}', now(), '${"a".repeat(64)}', null, 'navegador')`)
+ok((await as(db, U.juan, `select status from public.management_reviews where id = '${rev.id}'`)).rows[0].status === "cerrada", "El Líder SIG cierra y firma el acta (023)")
+
+// Inmutable tras cerrar.
+await throws(() => as(db, U.juan, `select public.add_review_output('${rev.id}', 'decision', 'Tardía', null, null)`),
+  "No se agregan decisiones tras cerrar el acta (023)", "ya no es editable")
+await throws(() => as(db, U.juan, `select public.refresh_review_snapshot('${rev.id}')`),
+  "No se actualiza el snapshot tras cerrar (023)", "ya no es editable")
+
+await throws(() => as(db, U.juan, `insert into public.management_reviews (organization_id, code, title, period_start, period_end, meeting_date) values ('${A}', 'RD-X', 't', current_date, current_date, current_date)`),
+  "Nadie inserta actas por REST (023)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

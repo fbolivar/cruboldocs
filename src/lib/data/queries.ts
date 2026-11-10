@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageIndicators, canManageNonconformities, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageIndicators, canManageNonconformities, canManageReviews, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -47,6 +47,13 @@ import type {
   TrendPoint,
   Invitation,
   Member,
+  ReviewDetail,
+  ReviewInputs,
+  ReviewListItem,
+  ReviewOutputKind,
+  ReviewOutputView,
+  ReviewSnapshot,
+  ReviewStatus,
   NcActionStatus,
   NcActionType,
   NcActionView,
@@ -588,6 +595,102 @@ export async function getIndicator(code: string): Promise<IndicatorDetail | null
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: INDICATOR_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageIndicators(s.user),
     canMeasure: canMeasureIndicator(s.user, i.process_id),
+  }
+}
+
+// ---------- Revisión por la dirección (ISO 9.3) ----------
+
+const REVIEW_EVENT_TEXT: Record<string, string> = {
+  crear_revision: "Creó el acta.",
+  actualizar_snapshot_revision: "Actualizó los datos del sistema.",
+  editar_revision: "Editó las entradas.",
+  agregar_decision: "Agregó una decisión.",
+  generar_nc_decision: "Generó una no conformidad desde una decisión.",
+  cerrar_revision: "Cerró y firmó el acta.",
+  cancelar_revision: "Canceló el acta.",
+}
+
+const n = (v: unknown): number => (typeof v === "number" ? v : 0)
+const nOrNull = (v: unknown): number | null => (typeof v === "number" ? v : null)
+
+function toSnapshot(raw: unknown): ReviewSnapshot {
+  const s = (raw ?? {}) as Record<string, Record<string, unknown>>
+  return {
+    nc: { abiertas: n(s.nc?.abiertas), cerradas: n(s.nc?.cerradas), eficaces: n(s.nc?.eficaces) },
+    auditorias: { realizadas: n(s.auditorias?.realizadas), hallazgosNc: n(s.auditorias?.hallazgosNc) },
+    indicadores: { cumplenPct: nOrNull(s.indicadores?.cumplenPct), enRiesgo: n(s.indicadores?.enRiesgo), noCumplen: n(s.indicadores?.noCumplen) },
+    riesgos: { altos: n(s.riesgos?.altos), controlesATiempoPct: nOrNull(s.riesgos?.controlesATiempoPct) },
+    documentos: { vigentes: n(s.documentos?.vigentes), porVencer: n(s.documentos?.porVencer) },
+    accionesPrevias: { total: n(s.accionesPrevias?.total), pendientes: n(s.accionesPrevias?.pendientes) },
+  }
+}
+
+function toInputs(raw: unknown): ReviewInputs {
+  const i = (raw ?? {}) as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === "string" ? v : "")
+  return {
+    satisfaccion: str(i.satisfaccion), retroalimentacion: str(i.retroalimentacion),
+    proveedores: str(i.proveedores), recursos: str(i.recursos), mejora: str(i.mejora),
+  }
+}
+
+export async function listReviews(): Promise<ReviewListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: revs }, { data: outs }] = await Promise.all([
+    s.supabase.from("management_reviews").select("id, code, title, period_start, period_end, meeting_date, status").eq("organization_id", s.org).order("meeting_date", { ascending: false }),
+    s.supabase.from("review_outputs").select("review_id").eq("organization_id", s.org),
+  ])
+  const count = new Map<string, number>()
+  for (const o of outs ?? []) count.set(o.review_id, (count.get(o.review_id) ?? 0) + 1)
+  return (revs ?? []).map((r) => ({
+    id: r.id, code: r.code, title: r.title,
+    periodStart: r.period_start, periodEnd: r.period_end, meetingDate: r.meeting_date,
+    status: r.status as ReviewStatus, outputCount: count.get(r.id) ?? 0,
+  }))
+}
+
+/** Ficha completa de un acta por su código. null si no existe o no es visible. */
+export async function getReview(code: string): Promise<ReviewDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: r } = await s.supabase.from("management_reviews").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!r) return null
+
+  const [{ data: outs }, { data: positions }, { data: log }] = await Promise.all([
+    s.supabase.from("review_outputs").select("*").eq("review_id", r.id).order("created_at"),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "RevisionDireccion").eq("entity_id", r.id).order("at", { ascending: false }),
+  ])
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const ncIds = (outs ?? []).map((o) => o.nonconformity_id).filter((x): x is string => !!x)
+  const { data: ncs } = ncIds.length
+    ? await s.supabase.from("nonconformities").select("id, code").in("id", ncIds)
+    : { data: [] as { id: string; code: string }[] }
+  const ncCode = new Map((ncs ?? []).map((x) => [x.id, x.code]))
+  const person = await peopleOf(s.org, [r.approved_by, ...(log ?? []).map((x) => x.actor_id)])
+
+  const outputs: ReviewOutputView[] = (outs ?? []).map((o) => ({
+    id: o.id,
+    kind: o.kind as ReviewOutputKind,
+    description: o.description,
+    responsibleName: o.responsible_position_id ? posName.get(o.responsible_position_id) ?? null : null,
+    dueDate: o.due_date,
+    nonconformityCode: o.nonconformity_id ? ncCode.get(o.nonconformity_id) ?? null : null,
+  }))
+
+  return {
+    id: r.id, code: r.code, title: r.title,
+    periodStart: r.period_start, periodEnd: r.period_end, meetingDate: r.meeting_date,
+    attendees: r.attendees, scope: r.scope,
+    status: r.status as ReviewStatus,
+    snapshot: toSnapshot(r.snapshot), inputs: toInputs(r.inputs),
+    outputs,
+    approvedByName: r.approved_by ? person(r.approved_by).fullName : null,
+    approvedAt: r.approved_at,
+    cancelReason: r.cancel_reason,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: REVIEW_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageReviews(s.user),
   }
 }
 

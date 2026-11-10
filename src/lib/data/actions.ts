@@ -1667,3 +1667,155 @@ export async function generateNcFromMeasurement(measurementId: string): Promise<
     return ok({ code: data?.[0]?.code ?? "" })
   })
 }
+
+// ---------- Revisión por la dirección ----------
+
+const OUTPUT_KIND = ["decision", "accion_mejora", "recurso", "cambio_sgc"] as const
+
+function revalidateReviews() {
+  revalidatePath("/app/revisiones", "layout")
+  revalidatePath("/app")
+}
+
+const createReviewSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  periodStart: isoDate,
+  periodEnd: isoDate,
+  meetingDate: isoDate,
+  scope: z.string().trim().max(2000).optional(),
+})
+
+export async function createReview(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = createReviewSchema.safeParse(input)
+    if (!p.success) return fail("Indica título, periodo y fecha de la reunión.")
+    if (p.data.periodEnd < p.data.periodStart) return fail("El fin del periodo no puede ser anterior al inicio.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_review", {
+      p_org: user.organization.id,
+      p_title: p.data.title,
+      p_start: p.data.periodStart,
+      p_end: p.data.periodEnd,
+      p_meeting: p.data.meetingDate,
+      p_scope: p.data.scope ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateReviews()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function refreshReviewSnapshot(reviewId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(reviewId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("refresh_review_snapshot", { p_review: reviewId })
+    if (error) return fail(dbMessage(error))
+    revalidateReviews()
+    return ok(undefined)
+  })
+}
+
+const reviewInputsSchema = z.object({
+  attendees: z.string().trim().max(2000).optional(),
+  scope: z.string().trim().max(2000).optional(),
+  inputs: z.object({
+    satisfaccion: z.string().max(4000),
+    retroalimentacion: z.string().max(4000),
+    proveedores: z.string().max(4000),
+    recursos: z.string().max(4000),
+    mejora: z.string().max(4000),
+  }),
+})
+
+export async function updateReviewInputs(reviewId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(reviewId)) return fail(GENERIC)
+    const p = reviewInputsSchema.safeParse(input)
+    if (!p.success) return fail("Revisa las entradas del acta.")
+    const { error } = await (await createClient()).rpc("update_review", {
+      p_review: reviewId,
+      p_attendees: p.data.attendees ?? "",
+      p_scope: p.data.scope ?? "",
+      p_inputs: p.data.inputs,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateReviews()
+    return ok(undefined)
+  })
+}
+
+const addOutputSchema = z.object({
+  reviewId: z.uuid(),
+  kind: z.enum(OUTPUT_KIND),
+  description: z.string().trim().min(5).max(2000),
+  responsibleId: z.uuid().nullish(),
+  dueDate: isoDate.nullish(),
+})
+
+export async function addReviewOutput(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = addOutputSchema.safeParse(input)
+    if (!p.success) return fail("Describe la decisión e indica su tipo.")
+    const { error } = await (await createClient()).rpc("add_review_output", {
+      p_review: p.data.reviewId,
+      p_kind: p.data.kind,
+      p_description: p.data.description,
+      p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_due: (p.data.dueDate ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateReviews()
+    return ok(undefined)
+  })
+}
+
+export async function generateNcFromOutput(outputId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(outputId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_from_output", { p_output: outputId })
+    if (error) return fail(dbMessage(error))
+    revalidateReviews()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function cancelReview(reviewId: string, reason: string): Promise<Result> {
+  return guard(async () => {
+    const text = reason.trim()
+    if (!isUuid(reviewId) || text.length < 5 || text.length > 2000) return fail("Indica el motivo de la cancelación.")
+    const { error } = await (await createClient()).rpc("cancel_review", { p_review: reviewId, p_reason: text })
+    if (error) return fail(dbMessage(error))
+    revalidateReviews()
+    return ok(undefined)
+  })
+}
+
+/** Cierra y firma el acta: reautentica (ADR-004), registra hash + IP, y llama al RPC. */
+export async function closeReview(input: { reviewId: string; password: string }): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(input.reviewId)) return fail(GENERIC)
+    if (!input.password) return fail("Escribe tu contraseña para firmar.")
+    const user = await getCurrentUser()
+    if (!(await withinLimits([["firma:usuario", user.id]], { failClosed: true }))) return fail(TOO_MANY)
+    const ip = await clientIp()
+    const ephemeral = createEphemeralClient(ip)
+    const { data: reauth, error: authErr } = await ephemeral.auth.signInWithPassword({ email: user.email, password: input.password })
+    if (authErr || reauth.user?.id !== user.id) return fail("La contraseña no es correcta. El acta no se cerró.")
+    await ephemeral.auth.signOut({ scope: "local" })
+
+    const reauthAt = new Date().toISOString()
+    const hash = await sha256Hex(`${input.reviewId}|${user.id}|${reauthAt}`)
+    const h = await headers()
+    const { error } = await (await createClient()).rpc("close_review", {
+      p_review: input.reviewId,
+      p_reauth_at: reauthAt,
+      p_hash: hash,
+      p_ip: ip ?? undefined,
+      p_ua: (h.get("user-agent") ?? "").slice(0, 400),
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateReviews()
+    return ok(undefined)
+  })
+}

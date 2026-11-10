@@ -1,9 +1,11 @@
 "use client"
 
 import { RefreshCwIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { refreshReviewSnapshot, updateReviewInputs } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -17,26 +19,60 @@ const FIELDS: { key: keyof ReviewInputs; label: string }[] = [
   { key: "mejora", label: "Oportunidades de mejora" },
 ]
 
-/** Botón para recalcular el snapshot (solo en borrador). Stub; backend. */
-export function RefreshSnapshotButton() {
+/** Botón para recalcular el snapshot (solo en borrador). */
+export function RefreshSnapshotButton({ reviewId }: { reviewId: string }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   function run() {
-    // TODO(backend): server action refreshReviewSnapshot.
-    toast.success("Datos del sistema actualizados.")
+    start(async () => {
+      const r = await refreshReviewSnapshot(reviewId)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Datos del sistema actualizados.")
+      router.refresh()
+    })
   }
   return (
-    <Button size="sm" variant="outline" onClick={run}>
+    <Button size="sm" variant="outline" onClick={run} loading={pending}>
       <RefreshCwIcon /> Actualizar datos del sistema
     </Button>
   )
 }
 
 /** Entradas de texto 9.3.2. Editables en borrador; solo lectura si el acta está cerrada. */
-export function ReviewInputsForm({ inputs, editable }: { inputs: ReviewInputs; editable: boolean }) {
+export function ReviewInputsForm({
+  reviewId,
+  inputs,
+  attendees,
+  scope,
+  editable,
+}: {
+  reviewId: string
+  inputs: ReviewInputs
+  attendees: string | null
+  scope: string | null
+  editable: boolean
+}) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [values, setValues] = useState<ReviewInputs>(inputs)
 
   function save() {
-    // TODO(backend): server action updateReview (entradas de texto).
-    toast.success("Entradas guardadas.")
+    start(async () => {
+      const r = await updateReviewInputs(reviewId, {
+        attendees: attendees ?? undefined,
+        scope: scope ?? undefined,
+        inputs: values,
+      })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Entradas guardadas.")
+      router.refresh()
+    })
   }
 
   if (!editable) {
@@ -66,7 +102,7 @@ export function ReviewInputsForm({ inputs, editable }: { inputs: ReviewInputs; e
         </div>
       ))}
       <div>
-        <Button size="sm" variant="outline" onClick={save}>Guardar entradas</Button>
+        <Button size="sm" variant="outline" onClick={save} loading={pending}>Guardar entradas</Button>
       </div>
     </div>
   )

@@ -2,14 +2,15 @@
 
 import { ClipboardPenIcon, ExternalLinkIcon, PlusIcon } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { OutputKindChip } from "@/components/revisiones/badges"
 import { OUTPUT_KIND_LABELS } from "@/components/revisiones/labels"
+import { addReviewOutput, generateNcFromOutput } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -18,22 +19,34 @@ import { formatDate } from "@/lib/format"
 import type { ReviewOutputKind, ReviewOutputView } from "@/lib/types"
 
 const KINDS = Object.keys(OUTPUT_KIND_LABELS) as ReviewOutputKind[]
+type Positions = { id: string; name: string }[]
 
 export function ReviewOutputList({
   reviewId,
   outputs,
+  positions,
   canManage,
   editable,
 }: {
   reviewId: string
   outputs: ReviewOutputView[]
+  positions: Positions
   canManage: boolean
   editable: boolean
 }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+
   function generateNc(id: string) {
-    // TODO(backend): server action generateNcFromOutput.
-    toast.success("No conformidad generada desde la decisión.")
-    void id
+    start(async () => {
+      const r = await generateNcFromOutput(id)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success(`No conformidad ${r.data.code} generada desde la decisión.`)
+      router.refresh()
+    })
   }
 
   if (outputs.length === 0) {
@@ -42,7 +55,7 @@ export function ReviewOutputList({
         icon={ClipboardPenIcon}
         title="Aún no hay decisiones"
         description={editable && canManage ? "Registra la primera decisión de la revisión." : "Las decisiones se registran al conducir la revisión."}
-        action={editable && canManage ? <AddOutputSheet reviewId={reviewId} /> : undefined}
+        action={editable && canManage ? <AddOutputSheet reviewId={reviewId} positions={positions} /> : undefined}
       />
     )
   }
@@ -65,8 +78,8 @@ export function ReviewOutputList({
                     <ExternalLinkIcon className="size-3.5" /> {o.nonconformityCode}
                   </Link>
                 ) : (
-                  canManage && editable && (
-                    <Button size="sm" variant="outline" onClick={() => generateNc(o.id)}>Generar no conformidad</Button>
+                  canManage && (
+                    <Button size="sm" variant="outline" onClick={() => generateNc(o.id)} disabled={pending}>Generar no conformidad</Button>
                   )
                 )}
               </div>
@@ -74,12 +87,14 @@ export function ReviewOutputList({
           </li>
         ))}
       </ul>
-      {canManage && editable && <div><AddOutputSheet reviewId={reviewId} /></div>}
+      {canManage && editable && <div><AddOutputSheet reviewId={reviewId} positions={positions} /></div>}
     </div>
   )
 }
 
-function AddOutputSheet({ reviewId }: { reviewId: string }) {
+function AddOutputSheet({ reviewId, positions }: { reviewId: string; positions: Positions }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState<ReviewOutputKind>("decision")
   const [description, setDescription] = useState("")
@@ -91,15 +106,26 @@ function AddOutputSheet({ reviewId }: { reviewId: string }) {
       toast.error("Describe la decisión.")
       return
     }
-    // TODO(backend): server action addReviewOutput.
-    toast.success("Decisión agregada.")
-    void reviewId
-    void responsible
-    setOpen(false)
-    setKind("decision")
-    setDescription("")
-    setResponsible("")
-    setDue("")
+    start(async () => {
+      const r = await addReviewOutput({
+        reviewId,
+        kind,
+        description,
+        responsibleId: responsible || null,
+        dueDate: due || null,
+      })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Decisión agregada.")
+      setOpen(false)
+      setKind("decision")
+      setDescription("")
+      setResponsible("")
+      setDue("")
+      router.refresh()
+    })
   }
 
   const field = "flex flex-col gap-1.5"
@@ -127,8 +153,13 @@ function AddOutputSheet({ reviewId }: { reviewId: string }) {
             <Textarea id="out-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Qué se decide o se compromete" />
           </div>
           <div className={field}>
-            <Label htmlFor="out-resp">Responsable (opcional)</Label>
-            <Input id="out-resp" value={responsible} onChange={(e) => setResponsible(e.target.value)} placeholder="Cargo responsable" />
+            <Label>Responsable (opcional)</Label>
+            <Select value={responsible} onValueChange={setResponsible}>
+              <SelectTrigger><SelectValue placeholder="Cargo responsable" /></SelectTrigger>
+              <SelectContent>
+                {positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div className={field}>
             <Label htmlFor="out-due">Plazo (opcional)</Label>
@@ -136,7 +167,7 @@ function AddOutputSheet({ reviewId }: { reviewId: string }) {
           </div>
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Agregar decisión</Button>
+          <Button onClick={submit} loading={pending}>Agregar decisión</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

@@ -1,9 +1,11 @@
 "use client"
 
 import { PenLineIcon, XCircleIcon } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { cancelReview, closeReview } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +16,8 @@ const MEANING = "Apruebo esta acta de revisión por la dirección."
 
 /** Cierra y firma el acta con reautenticación (patrón ADR-004). Stub; backend. */
 export function CloseReviewButton({ reviewId }: { reviewId: string }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [password, setPassword] = useState("")
 
@@ -22,11 +26,17 @@ export function CloseReviewButton({ reviewId }: { reviewId: string }) {
       toast.error("Escribe tu contraseña para firmar.")
       return
     }
-    // TODO(backend): reautenticar + server action closeReview (registra hash + IP).
-    toast.success("Acta cerrada y firmada.")
-    void reviewId
-    setOpen(false)
-    setPassword("")
+    start(async () => {
+      const r = await closeReview({ reviewId, password })
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Acta cerrada y firmada.")
+      setOpen(false)
+      setPassword("")
+      router.refresh()
+    })
   }
 
   return (
@@ -47,7 +57,7 @@ export function CloseReviewButton({ reviewId }: { reviewId: string }) {
           </div>
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button onClick={submit}>Firmar y cerrar</Button>
+          <Button onClick={submit} loading={pending}>Firmar y cerrar</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
@@ -56,6 +66,8 @@ export function CloseReviewButton({ reviewId }: { reviewId: string }) {
 
 /** Cancela el acta con motivo (Líder SIG, en borrador). Stub; backend. */
 export function CancelReviewButton({ reviewId }: { reviewId: string }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState("")
 
@@ -64,11 +76,17 @@ export function CancelReviewButton({ reviewId }: { reviewId: string }) {
       toast.error("Indica el motivo de la cancelación.")
       return
     }
-    // TODO(backend): server action cancelReview.
-    toast.success("Acta cancelada.")
-    void reviewId
-    setOpen(false)
-    setReason("")
+    start(async () => {
+      const r = await cancelReview(reviewId, reason)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      toast.success("Acta cancelada.")
+      setOpen(false)
+      setReason("")
+      router.refresh()
+    })
   }
 
   return (
@@ -85,7 +103,7 @@ export function CancelReviewButton({ reviewId }: { reviewId: string }) {
           <Textarea id="rev-cancel" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Por qué se cancela" />
         </div>
         <SheetFooter className="border-t border-borde">
-          <Button variant="destructive" onClick={submit}>Cancelar acta</Button>
+          <Button variant="destructive" onClick={submit} loading={pending}>Cancelar acta</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

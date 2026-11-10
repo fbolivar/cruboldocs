@@ -1145,6 +1145,122 @@ export type Database = {
           },
         ]
       }
+      management_review_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "management_review_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      management_reviews: {
+        Row: {
+          approval_hash: string | null
+          approved_at: string | null
+          approved_by: string | null
+          attendees: string | null
+          cancel_reason: string | null
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          inputs: Json
+          ip: unknown
+          meeting_date: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          reauth_at: string | null
+          scope: string | null
+          snapshot: Json
+          status: string
+          title: string
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          approval_hash?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          attendees?: string | null
+          cancel_reason?: string | null
+          code: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          inputs?: Json
+          ip?: unknown
+          meeting_date: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          reauth_at?: string | null
+          scope?: string | null
+          snapshot?: Json
+          status?: string
+          title: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          approval_hash?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          attendees?: string | null
+          cancel_reason?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          inputs?: Json
+          ip?: unknown
+          meeting_date?: string
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          reauth_at?: string | null
+          scope?: string | null
+          snapshot?: Json
+          status?: string
+          title?: string
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "management_reviews_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "management_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           created_at: string
@@ -1833,6 +1949,74 @@ export type Database = {
           },
         ]
       }
+      review_outputs: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string
+          due_date: string | null
+          id: string
+          kind: string
+          nonconformity_id: string | null
+          organization_id: string
+          responsible_position_id: string | null
+          review_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          kind: string
+          nonconformity_id?: string | null
+          organization_id: string
+          responsible_position_id?: string | null
+          review_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          kind?: string
+          nonconformity_id?: string | null
+          organization_id?: string
+          responsible_position_id?: string | null
+          review_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_outputs_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "review_outputs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_outputs_responsible_position_id_organization_id_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "review_outputs_review_id_organization_id_fkey"
+            columns: ["review_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "management_reviews"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       risk_assessments: {
         Row: {
           assessed_at: string
@@ -2189,6 +2373,16 @@ export type Database = {
         }
         Returns: string
       }
+      add_review_output: {
+        Args: {
+          p_description: string
+          p_due: string
+          p_kind: string
+          p_responsible: string
+          p_review: string
+        }
+        Returns: string
+      }
       ai_agent_consume: {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
@@ -2238,6 +2432,7 @@ export type Database = {
         Args: { org: string; p_user: string }
         Returns: boolean
       }
+      can_manage_reviews: { Args: { org: string }; Returns: boolean }
       can_manage_risk: {
         Args: { org: string; process: string }
         Returns: boolean
@@ -2246,6 +2441,7 @@ export type Database = {
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
+      can_see_reviews: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
       can_view_content: { Args: { org: string }; Returns: boolean }
@@ -2258,8 +2454,22 @@ export type Database = {
         Returns: undefined
       }
       cancel_nc_action: { Args: { p_action: string }; Returns: undefined }
+      cancel_review: {
+        Args: { p_reason: string; p_review: string }
+        Returns: undefined
+      }
       close_audit: {
         Args: { p_audit: string; p_conclusions: string }
+        Returns: undefined
+      }
+      close_review: {
+        Args: {
+          p_hash: string
+          p_ip: unknown
+          p_reauth_at: string
+          p_review: string
+          p_ua: string
+        }
         Returns: undefined
       }
       complete_nc_action: { Args: { p_action: string }; Returns: undefined }
@@ -2271,6 +2481,10 @@ export type Database = {
           p_type: string
         }
         Returns: undefined
+      }
+      compute_review_snapshot: {
+        Args: { p_end: string; p_org: string; p_start: string }
+        Returns: Json
       }
       confirm_read: { Args: { p_version: string }; Returns: undefined }
       create_document: {
@@ -2339,6 +2553,20 @@ export type Database = {
           expires_at: string
           organization_id: string
           position_id: string
+        }[]
+      }
+      create_review: {
+        Args: {
+          p_end: string
+          p_meeting: string
+          p_org: string
+          p_scope: string
+          p_start: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          id: string
         }[]
       }
       create_risk: {
@@ -2414,6 +2642,12 @@ export type Database = {
       }
       generate_nc_from_measurement: {
         Args: { p_measurement: string }
+        Returns: {
+          code: string
+        }[]
+      }
+      generate_nc_from_output: {
+        Args: { p_output: string }
         Returns: {
           code: string
         }[]
@@ -2604,6 +2838,10 @@ export type Database = {
         }
         Returns: string
       }
+      refresh_review_snapshot: {
+        Args: { p_review: string }
+        Returns: undefined
+      }
       register_evidence: {
         Args: {
           p_actor: string
@@ -2649,6 +2887,39 @@ export type Database = {
       return_version: {
         Args: { p_reason: string; p_version: string }
         Returns: undefined
+      }
+      review_or_fail: {
+        Args: { p_review: string }
+        Returns: {
+          approval_hash: string | null
+          approved_at: string | null
+          approved_by: string | null
+          attendees: string | null
+          cancel_reason: string | null
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          inputs: Json
+          ip: unknown
+          meeting_date: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          reauth_at: string | null
+          scope: string | null
+          snapshot: Json
+          status: string
+          title: string
+          updated_at: string
+          user_agent: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "management_reviews"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       risk_or_fail: {
         Args: { p_risk: string }
@@ -2740,6 +3011,15 @@ export type Database = {
           p_target_max: number
           p_tolerance: number
           p_unit: string
+        }
+        Returns: undefined
+      }
+      update_review: {
+        Args: {
+          p_attendees: string
+          p_inputs: Json
+          p_review: string
+          p_scope: string
         }
         Returns: undefined
       }

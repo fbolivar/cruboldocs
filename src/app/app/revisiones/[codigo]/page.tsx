@@ -12,8 +12,7 @@ import { ReviewOutputList } from "@/components/revisiones/review-outputs"
 import { SnapshotCard } from "@/components/revisiones/snapshot-card"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getReviewMock } from "@/lib/data/reviews-mock"
-import { getCurrentUser } from "@/lib/data/queries"
+import { getCurrentUser, getReview, listPositions } from "@/lib/data/queries"
 import { canSeeReviews } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
@@ -24,9 +23,11 @@ export default async function ReviewPage({ params }: { params: Promise<{ codigo:
   const user = await getCurrentUser()
   if (!canSeeReviews(user)) notFound()
 
-  const review = getReviewMock(decodeURIComponent(codigo))
+  const review = await getReview(decodeURIComponent(codigo))
   if (!review) notFound()
 
+  const positions = await listPositions()
+  const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
   const editable = review.status === "borrador"
   const blocks = snapshotBlocks(review.snapshot)
 
@@ -57,14 +58,14 @@ export default async function ReviewPage({ params }: { params: Promise<{ codigo:
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle>Entradas (9.3.2)</CardTitle>
-            {review.canManage && editable && <RefreshSnapshotButton />}
+            {review.canManage && editable && <RefreshSnapshotButton reviewId={review.id} />}
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {blocks.map((b) => <SnapshotCard key={b.title} block={b} />)}
             </div>
             <div className="border-t border-borde pt-4">
-              <ReviewInputsForm inputs={review.inputs} editable={review.canManage && editable} />
+              <ReviewInputsForm reviewId={review.id} inputs={review.inputs} attendees={review.attendees} scope={review.scope} editable={review.canManage && editable} />
             </div>
           </CardContent>
         </Card>
@@ -74,7 +75,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ codigo:
             <CardTitle>Salidas · Decisiones (9.3.3)</CardTitle>
           </CardHeader>
           <CardContent>
-            <ReviewOutputList reviewId={review.id} outputs={review.outputs} canManage={review.canManage} editable={editable} />
+            <ReviewOutputList reviewId={review.id} outputs={review.outputs} positions={positionOptions} canManage={review.canManage} editable={editable} />
           </CardContent>
         </Card>
 
