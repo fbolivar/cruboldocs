@@ -830,5 +830,84 @@ ok((await as(db, U.beto, `select count(*)::int n from public.pqrs_cases where or
 await throws(() => as(db, U.sofia, `insert into public.pqrs_cases (organization_id, code, type, channel, description, received_date, due_date) values ('${A}', 'X', 'queja', 'web', 'x intrusa', current_date, current_date)`),
   "Nadie inserta PQRS por REST (027)", "row-level security")
 
+// ========== 028 · Actas/reuniones y Objetivos de calidad / BSC (ISO 6.2) ==========
+const YEAR = new Date().getFullYear()
+
+// --- Actas ---
+const m1 = (await as(db, U.juan, `select id, code from public.create_minute('${A}', 'Revisión mensual del SIG', 'comité', current_date, null, 'Ana, Juan', 'Temas varios')`)).rows[0]
+ok(m1.code === "ACT-" + YEAR + "-001", "Numeración ACT-AAAA-001 (028)")
+const m2 = (await as(db, U.laura, `select id, code from public.create_minute('${A}', 'Comité de calidad', 'comité', current_date, '${P.sigA}', null, null)`)).rows[0]
+ok(m2.code === "ACT-" + YEAR + "-002", "Numeración incremental ACT-AAAA-002; Líder de proceso crea (028)")
+await throws(() => as(db, U.sofia, `select public.create_minute('${A}', 'Intrusa', 'otro', current_date, null, null, null)`),
+  "Sofía (consulta) no crea actas (028)", "No puedes crear")
+await throws(() => as(db, U.beto, `select public.create_minute('${A}', 'Intrusa B', 'otro', current_date, null, null, null)`),
+  "Beto (org B) no crea actas en A (028)", "No puedes crear")
+
+await as(db, U.juan, `select public.update_minute('${m1.id}', 'Revisión mensual SIG (v2)', 'comité', current_date, null, 'Ana, Juan, Pedro', 'Orden del día')`)
+ok((await as(db, U.juan, `select title from public.meeting_minutes where id = '${m1.id}'`)).rows[0].title === "Revisión mensual SIG (v2)", "Editar acta en borrador (028)")
+await as(db, U.juan, `select public.close_minute('${m1.id}')`)
+ok((await as(db, U.juan, `select status from public.meeting_minutes where id = '${m1.id}'`)).rows[0].status === "cerrada", "Cerrar acta → cerrada (028)")
+await throws(() => as(db, U.juan, `select public.update_minute('${m1.id}', 'x', 'comité', current_date, null, null, null)`),
+  "No se edita un acta cerrada (028)", "ya no es editable")
+await throws(() => as(db, U.juan, `select public.add_commitment('${m1.id}', 'Tardío', null, null)`),
+  "Un acta cerrada no admite nuevos compromisos (028)", "ya no admite")
+
+// Compromiso con responsable → genera tarea 'cumplir_compromiso'
+const com = (await as(db, U.juan, `select public.add_commitment('${m2.id}', 'Actualizar el procedimiento PR-07', '${POS.calidad}', current_date + 5) id`)).rows[0].id
+ok((await as(db, U.laura, `select count(*)::int n from public.tasks where type = 'cumplir_compromiso' and entity_type = 'acta' and entity_id = '${com}' and status = 'pendiente'`)).rows[0].n === 1,
+  "add_commitment genera tarea cumplir_compromiso al cargo responsable (028)")
+await throws(() => as(db, U.sofia, `select public.add_commitment('${m2.id}', 'Intrusa', null, null)`),
+  "Sofía (consulta) no agrega compromisos (028)", "No puedes agregar")
+
+// El compromiso sobrevive al cierre del acta y se puede cumplir
+await as(db, U.juan, `select public.close_minute('${m2.id}')`)
+await as(db, U.juan, `select public.complete_commitment('${com}')`)
+ok((await as(db, U.juan, `select status from public.meeting_commitments where id = '${com}'`)).rows[0].status === "cumplido",
+  "complete_commitment permitido con el acta cerrada (ADR-032) (028)")
+ok((await as(db, U.laura, `select count(*)::int n from public.tasks where type = 'cumplir_compromiso' and entity_id = '${com}' and status = 'completada'`)).rows[0].n === 1,
+  "Cumplir el compromiso completa su tarea (028)")
+
+// --- Objetivos / BSC ---
+const o1 = (await as(db, U.juan, `select id, code from public.create_objective('${A}', 'Reducir el costo de la no calidad', 'financiera', '${P.sigA}', '-15%', ${YEAR}, array['${indTi.id}']::uuid[])`)).rows[0]
+ok(o1.code === "OBJ-" + YEAR + "-001", "Numeración OBJ-AAAA-001 (028)")
+const prog1 = (await as(db, U.juan, `select indicator_count, progress_pct from public.objectives_with_progress('${A}') where id = '${o1.id}'`)).rows[0]
+ok(prog1.indicator_count === 1 && Number(prog1.progress_pct) === 100, "Avance derivado: indicador con última medición 'cumple' → 100% (028)")
+
+const o2 = (await as(db, U.juan, `select id, code from public.create_objective('${A}', 'Estandarizar el despacho', 'procesos', null, null, null, array[]::uuid[])`)).rows[0]
+const prog2 = (await as(db, U.juan, `select indicator_count, progress_pct from public.objectives_with_progress('${A}') where id = '${o2.id}'`)).rows[0]
+ok(prog2.indicator_count === 0 && prog2.progress_pct === null, "Objetivo sin indicadores → avance Sin datos (null) (028)")
+
+// Aislamiento: un indicador de B no se liga a un objetivo de A
+const indB = (await as(db, U.beto, `select id from public.create_indicator('${B}', 'KPI B', '${P.sigB}', null, '%', 'mayor_mejor', 90, null, 5, 'mensual', null, false)`)).rows[0]
+await as(db, U.juan, `select public.update_objective('${o2.id}', 'Estandarizar el despacho', 'procesos', null, null, null, 'activo', array['${indB.id}']::uuid[])`)
+ok((await as(db, U.juan, `select indicator_count from public.objectives_with_progress('${A}') where id = '${o2.id}'`)).rows[0].indicator_count === 0,
+  "No se liga un indicador de otra organización (028)")
+
+// update_objective re-sincroniza (baja lógica): quitar el indicador del objetivo o1
+await as(db, U.juan, `select public.update_objective('${o1.id}', 'Reducir el costo de la no calidad', 'financiera', '${P.sigA}', '-15%', ${YEAR}, 'activo', array[]::uuid[])`)
+ok((await as(db, U.juan, `select indicator_count from public.objectives_with_progress('${A}') where id = '${o1.id}'`)).rows[0].indicator_count === 0,
+  "update_objective desliga indicadores (baja lógica, sin DELETE) (028)")
+
+await as(db, U.juan, `select public.set_objective_status('${o1.id}', 'cumplido')`)
+ok((await as(db, U.juan, `select status from public.quality_objectives where id = '${o1.id}'`)).rows[0].status === "cumplido", "set_objective_status cambia el estado (028)")
+await throws(() => as(db, U.sofia, `select public.create_objective('${A}', 'Intrusa', 'cliente', null, null, null, array[]::uuid[])`),
+  "Sofía (consulta) no crea objetivos (028)", "No puedes crear")
+await throws(() => as(db, U.beto, `select public.set_objective_status('${o1.id}', 'activo')`),
+  "Beto (org B) no toca objetivos de A (028)", "no encontrado")
+
+// Aislamiento de lectura + bloqueo de INSERT por REST
+ok((await as(db, U.beto, `select count(*)::int n from public.meeting_minutes where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve actas de A (028)")
+ok((await as(db, U.beto, `select count(*)::int n from public.quality_objectives where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve objetivos de A (028)")
+await throws(() => as(db, U.sofia, `insert into public.meeting_minutes (organization_id, code, title, meeting_type, meeting_date) values ('${A}', 'X', 'Intrusa', 'otro', current_date)`),
+  "Nadie inserta actas por REST (028)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.meeting_commitments (organization_id, minute_id, description) values ('${A}', '${m2.id}', 'x')`),
+  "Nadie inserta compromisos por REST (028)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.quality_objectives (organization_id, code, description, perspective) values ('${A}', 'X', 'Intrusa', 'financiera')`),
+  "Nadie inserta objetivos por REST (028)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.objective_indicators (organization_id, objective_id, indicator_id) values ('${A}', '${o1.id}', '${indTi.id}')`),
+  "Nadie liga indicadores por REST (028)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.meeting_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "meeting_counters es deny-all (028)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
