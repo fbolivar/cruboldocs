@@ -429,5 +429,75 @@ ok((await as(db, U.laura, `select public.ai_agent_consume('${A}', 5, '2026-11') 
 await throws(() => as(db, U.laura, `select public.ai_agent_consume('${A}', 5, '2026-11')`),
   "Consumir al alcanzar el límite falla (016)", "Límite")
 
+// ---------- No Conformidades / CAPA (017) ----------
+const Y = new Date().getFullYear()
+// El estado del seed se muta en pruebas anteriores; este bloque corre al final. Restauramos las
+// membresías que necesita (service_role) para probar el módulo de forma aislada.
+await svc(`insert into public.memberships (organization_id, user_id, position_id, is_org_admin, is_external, valid_from, valid_until, status) values
+    ('${A}','${U.juan}','${POS.lider}',false,false,current_date-100,null,'activo'),
+    ('${A}','${U.laura}','${POS.calidad}',true,false,current_date-100,null,'activo'),
+    ('${A}','${U.carlos}','${POS.gerente}',false,false,current_date-100,null,'activo'),
+    ('${A}','${U.diana}','${POS.ti}',false,false,current_date-100,null,'activo'),
+    ('${A}','${U.sofia}','${POS.analista}',false,false,current_date-100,null,'activo'),
+    ('${A}','${U.oscar}','${POS.jefe}',true,false,current_date-100,null,'activo')
+  on conflict (organization_id, user_id) do update set status='activo', valid_until=null,
+    position_id=excluded.position_id, is_org_admin=excluded.is_org_admin`)
+// Sofía (consulta) puede REPORTAR aunque no gestione el SIG. NC sobre el proceso TI.
+const nc1 = (await as(db, U.sofia,
+  `select id, code from public.report_nonconformity('${A}', 'auditoria_interna', '${P.tiA}', 'Falla en TI', 'Descripción de la no conformidad', 'mayor')`)).rows[0]
+ok(nc1?.code === `NC-${Y}-001`, `Sofía (consulta) reporta una NC y recibe ${`NC-${Y}-001`} (017)`)
+await throws(() => as(db, U.beto, `select public.report_nonconformity('${A}', 'otro', null, 'Intrusa', 'x larga aqui', 'menor')`),
+  "Beto (org B) no reporta NC en A (017)", "No perteneces")
+
+ok((await as(db, U.juan, `select count(*)::int n from public.nonconformities where id = '${nc1.id}'`)).rows[0].n === 1,
+  "Juan (Líder SIG) ve la NC (017)")
+ok((await as(db, U.oscar, `select count(*)::int n from public.nonconformities where id = '${nc1.id}'`)).rows[0].n === 0,
+  "Óscar (admin sin rol SIG) no ve la NC (017)")
+ok((await as(db, U.beto, `select count(*)::int n from public.nonconformities where organization_id = '${A}'`)).rows[0].n === 0,
+  "Beto (org B) no ve NC de A (017)")
+
+// El reportante ve su propia NC aunque su cargo no sea del SIG (Carlos = aprobador).
+const nc2 = (await as(db, U.carlos,
+  `select id, code from public.report_nonconformity('${A}', 'queja_pqrs', null, 'Queja', 'Otra descripción larga', 'menor')`)).rows[0]
+ok(nc2?.code === `NC-${Y}-002`, `La numeración sigue consecutiva: ${`NC-${Y}-002`} (017)`)
+ok((await as(db, U.carlos, `select count(*)::int n from public.nonconformities where id = '${nc2.id}'`)).rows[0].n === 1,
+  "Carlos (aprobador) ve la NC que él reportó (017)")
+ok((await as(db, U.carlos, `select count(*)::int n from public.nonconformities where id = '${nc1.id}'`)).rows[0].n === 0,
+  "Carlos no ve una NC ajena que no reportó (017)")
+
+// Gestión: Sofía (consulta) no; Laura (líder de otro proceso) no; Juan (Líder SIG) sí.
+await throws(() => as(db, U.sofia, `select public.set_nc_cause('${nc1.id}', 'causa raíz identificada')`),
+  "Sofía (consulta) no gestiona la NC (017)", "no puede gestionar")
+await throws(() => as(db, U.laura, `select public.set_nc_cause('${nc1.id}', 'causa raíz identificada')`),
+  "Laura (líder de otro proceso) no gestiona la NC de TI (017)", "no puede gestionar")
+await as(db, U.juan, `select public.set_nc_cause('${nc1.id}', 'El procedimiento no define el reintento', '${POS.ti}')`)
+ok((await as(db, U.juan, `select status from public.nonconformities where id = '${nc1.id}'`)).rows[0].status === "plan_accion",
+  "Fijar la causa pasa la NC a plan_accion (017)")
+
+const act = (await as(db, U.juan,
+  `select public.add_nc_action('${nc1.id}', 'correctiva', 'Actualizar el procedimiento', '${POS.ti}', (current_date + 10)) a`)).rows[0].a
+ok(!!act, "Juan agrega una acción al plan (017)")
+ok((await as(db, U.juan, `select status from public.nonconformities where id = '${nc1.id}'`)).rows[0].status === "en_ejecucion",
+  "Agregar acción pasa la NC a en_ejecucion (017)")
+ok((await as(db, U.diana, `select count(*)::int n from public.tasks where type = 'ejecutar_accion_nc' and status = 'pendiente'`)).rows[0].n === 1,
+  "Diana (cargo responsable) recibe la tarea de la acción (017)")
+
+await throws(() => as(db, U.sofia, `select public.complete_nc_action('${act}')`),
+  "Sofía (ni responsable ni líder) no completa la acción (017)", "responsable o un líder")
+await as(db, U.diana, `select public.complete_nc_action('${act}')`)
+ok((await as(db, U.juan, `select status from public.nonconformities where id = '${nc1.id}'`)).rows[0].status === "verificacion",
+  "Al completar todas las acciones, la NC pasa a verificación (017)")
+
+await throws(() => as(db, U.sofia, `select public.verify_nc('${nc1.id}', true, 'ok')`),
+  "Sofía no verifica la eficacia (017)", "Líder SIG o el dueño")
+await as(db, U.juan, `select public.verify_nc('${nc1.id}', true, 'Verificado: no se repite')`)
+ok((await as(db, U.juan, `select status from public.nonconformities where id = '${nc1.id}'`)).rows[0].status === "cerrada",
+  "Verificación eficaz cierra la NC (017)")
+await throws(() => as(db, U.juan, `select public.verify_nc('${nc1.id}', true, 'x')`),
+  "No se verifica una NC que no está en verificación (017)", "no está en verificación")
+
+await throws(() => as(db, U.juan, `insert into public.nonconformities (organization_id, code, source, title, description, severity, reported_by, detected_at) values ('${A}', 'NC-X', 'otro', 't', 'd', 'menor', '${U.juan}', current_date)`),
+  "Nadie inserta NC por REST: sin política de escritura (017)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
