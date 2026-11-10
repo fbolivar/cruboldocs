@@ -7,25 +7,21 @@ import { LogoHex, Wordmark } from "@/components/ui/logo-hex"
 export const metadata: Metadata = {
   title: "Términos de servicio",
   description: "Condiciones de uso del servicio CrubolDocs de Crubol Technology S.A.S.",
-  // BORRADOR: no indexar hasta la aprobación legal. robots.ts no lo permite todavía.
-  robots: { index: false, follow: false },
 }
 
-// ⚠️ BORRADOR — PENDIENTE DE REVISIÓN LEGAL. No enlazar desde la app ni agregar a robots.ts
-// ni fijar la vigencia hasta que un abogado lo apruebe (decisión 7.6-1: el cliente responde por
-// el contenido que carga; 7.6 (1): sin antivirus en v1, riesgo declarado aquí; 7.6 (2): supresión
-// por anonimización). Datos de la empresa reutilizados de /tratamiento-de-datos.
-// Adición 2026-11-10: §9 "Asistente de IA (Crubol-Agent)" (opt-in, solo propone, humano confirma,
-// Anthropic como encargado en EE. UU. sin entrenamiento). Debe estar vigente antes de activar el
-// agente para cualquier organización.
+// Texto aprobado por el abogado de Fernando (2026-11-10), incluida la §9 "Asistente de IA
+// (Crubol-Agent)" (opt-in, solo propone, humano confirma, Anthropic como encargado en EE. UU.
+// sin entrenamiento). Decisiones reflejadas: 7.6-1 (el cliente responde por el contenido que
+// carga), sin antivirus en v1 (riesgo declarado), supresión por anonimización. Datos de la
+// empresa reutilizados de /tratamiento-de-datos.
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
   nit: "902107870-4",
   domicilio: "Calle 77A # 85-46, Bogotá D.C., Colombia",
   ciudad: "Bogotá D.C.",
-  correo: "info@crubol.com", // TODO legal: confirmar buzón para notificaciones contractuales
+  correo: "info@crubol.com",
   correoDatos: "datos@crubol.com",
-  vigenciaDesde: "la fecha de su publicación",
+  vigenciaDesde: "el 10 de noviembre de 2026",
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

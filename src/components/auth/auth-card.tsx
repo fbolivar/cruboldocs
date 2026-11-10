@@ -8,12 +8,17 @@ export function AuthCard({ className, ...props }: React.ComponentProps<"section"
 }
 
 export const DATA_POLICY_HREF = "/tratamiento-de-datos"
+export const TERMS_HREF = "/terminos"
 
-/** Pie del acceso con enlace a la política de tratamiento de datos (Ley 1581). */
+/** Pie del acceso con enlaces a los términos de servicio y a la política de datos (Ley 1581). */
 export function AuthFooter() {
   return (
     <p className="text-center text-small text-texto-sec">
       Crubol Technology S.A.S. ·{" "}
+      <a href={TERMS_HREF} className="font-medium text-acento underline-offset-4 hover:underline">
+        Términos
+      </a>{" "}
+      ·{" "}
       <a href={DATA_POLICY_HREF} className="font-medium text-acento underline-offset-4 hover:underline">
         Tratamiento de datos (Ley 1581)
       </a>

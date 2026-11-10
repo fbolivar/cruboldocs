@@ -9,17 +9,15 @@ export const metadata: Metadata = {
   description: "Cómo CrubolDocs trata los datos personales conforme a la Ley 1581 de 2012.",
 }
 
-// Texto aprobado por Fernando tras la revisión legal (2026-09-24). La vigencia es la fecha
-// de publicación en producción: se fija el día del deploy (fase deploy).
-// ⚠️ Adición 2026-11-10 (§6, bullet Anthropic / Crubol-Agent): PENDIENTE de visto bueno de
-// Fernando. Debe quedar publicada ANTES de encender `ai_agent_enabled` para cualquier
-// organización (la divulgación precede al tratamiento).
+// Texto aprobado tras revisión legal (2026-09-24) y re-aprobado por el abogado de Fernando el
+// 2026-11-10 con la adición del §6 (Anthropic / Crubol-Agent como encargado). Vigencia fijada en
+// la fecha de esa actualización.
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
   nit: "902107870-4",
   domicilio: "Calle 77A # 85-46, Bogotá D.C., Colombia",
   correo: "datos@crubol.com",
-  vigenciaDesde: "la fecha de su publicación",
+  vigenciaDesde: "el 10 de noviembre de 2026",
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
