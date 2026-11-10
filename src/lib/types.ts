@@ -828,6 +828,71 @@ export interface PersonCompetencyDetail {
   isSelf: boolean
 }
 
+// ---------- Proveedores (ISO 8.4) ----------
+
+export type SupplierKind = "bien" | "servicio" | "ambos"
+export type SupplierCriticality = "alta" | "media" | "baja"
+export type SupplierStatus = "pendiente" | "aprobado" | "condicionado" | "rechazado" | "inactivo"
+export type EvaluationKind = "inicial" | "periodica"
+export type EvaluationResult = "aprobado" | "condicionado" | "rechazado"
+
+export interface SupplierListItem {
+  id: string
+  code: string
+  name: string
+  kind: SupplierKind
+  criticality: SupplierCriticality
+  status: SupplierStatus
+  processName: string | null
+  nextEvalDate: string | null
+}
+
+export interface SupplierSummary {
+  approved: number
+  conditionedOrRejected: number
+  /** Activos con reevaluación vencida o dentro de 30 días. */
+  dueForReeval: number
+}
+
+export interface SupplierEvaluationView {
+  id: string
+  kind: EvaluationKind
+  evalDate: string
+  scoreQuality: number
+  scoreDelivery: number
+  scoreService: number
+  totalScore: number
+  result: EvaluationResult
+  nextEvalDate: string | null
+  note: string | null
+  evaluatedBy: string | null
+}
+
+export interface SupplierDetail {
+  id: string
+  code: string
+  name: string
+  nit: string | null
+  kind: SupplierKind
+  category: string | null
+  criticality: SupplierCriticality
+  processName: string | null
+  processId: string | null
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  status: SupplierStatus
+  isActive: boolean
+  /** Puntaje y resultado de la última evaluación; null si aún Pendiente. */
+  lastScore: number | null
+  lastResult: EvaluationResult | null
+  nextEvalDate: string | null
+  evaluations: SupplierEvaluationView[]
+  timeline: NcTimelineEvent[]
+  /** Líder SIG o Líder del proceso del proveedor: registrar/editar/evaluar/baja. */
+  canManage: boolean
+}
+
 export type InvitationStatus = "valida" | "vencida" | "usada"
 
 export interface Invitation {

@@ -68,6 +68,16 @@ export function canManageCompetencies(user: CurrentUser, processId?: string): bo
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla Proveedores: mismos roles del SIG que los demás módulos. */
+export function canSeeSuppliers(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Registra/edita/evalúa/da de baja proveedores: Líder SIG o Líder del proceso del proveedor. */
+export function canManageSuppliers(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)

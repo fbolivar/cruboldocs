@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeIndicators, canSeeNonconformities, canSeeReviews, canSeeRisks } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeIndicators, canSeeNonconformities, canSeeReviews, canSeeRisks, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "admin"
+export type NavIcon = "inicio" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "admin"
 
 export interface NavItem {
   href: string
@@ -23,6 +23,7 @@ export function navItemsFor(user: CurrentUser): NavItem[] {
   if (canSeeIndicators(user)) items.push({ href: "/app/indicadores", label: "Indicadores", icon: "indicadores" })
   if (canSeeReviews(user)) items.push({ href: "/app/revisiones", label: "Revisión por la dirección", icon: "revisiones" })
   if (canSeeCompetencies(user)) items.push({ href: "/app/competencias", label: "Competencias", icon: "competencias" })
+  if (canSeeSuppliers(user)) items.push({ href: "/app/proveedores", label: "Proveedores", icon: "proveedores" })
   if (canSeeAdmin(user)) items.push({ href: "/app/admin", label: "Administración", icon: "admin", separated: true })
   return items
 }
