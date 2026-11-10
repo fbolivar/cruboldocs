@@ -649,15 +649,20 @@ await throws(() => as(db, U.juan, `select public.generate_nc_from_output('${out}
 await throws(() => as(db, U.juan, `select public.generate_nc_from_output('${outDec}')`),
   "Una decisión que no es acción de mejora no genera NC (023)", "Solo una acción de mejora")
 
-// Cerrar y firmar (ADR-004): exige reautenticación reciente y hash válido.
-await throws(() => as(db, U.laura, `select public.close_review('${rev.id}', now(), '${"a".repeat(64)}', null, 't')`),
-  "Laura no cierra el acta (023)", "Solo el Líder SIG")
-await throws(() => as(db, U.juan, `select public.close_review('${rev.id}', now() - interval '20 minutes', '${"a".repeat(64)}', null, 't')`),
-  "No se cierra sin reautenticación reciente (023)", "confirmar tu identidad")
-await throws(() => as(db, U.juan, `select public.close_review('${rev.id}', now(), 'hash-invalido', null, 't')`),
-  "No se cierra con una firma inválida (023)", "Firma inválida")
-await as(db, U.juan, `select public.close_review('${rev.id}', now(), '${"a".repeat(64)}', null, 'navegador')`)
-ok((await as(db, U.juan, `select status from public.management_reviews where id = '${rev.id}'`)).rows[0].status === "cerrada", "El Líder SIG cierra y firma el acta (023)")
+// Cerrar y firmar (ADR-004): admin-only tras el endurecimiento 024 (AUD MED-01). La reautenticación vive
+// en la server action; el RPC recibe al aprobador explícito y autoriza su rol Líder SIG directamente.
+// MED-01: un usuario autenticado NO puede invocar close_review directo (ni siquiera la firma vieja de 5 args).
+await throws(() => as(db, U.juan, `select public.close_review('${rev.id}', now(), '${"a".repeat(64)}', null, 't')`),
+  "authenticated no puede ejecutar close_review directo (024, MED-01)", "permission denied")
+await throws(() => svc(`select public.close_review('${rev.id}', '${U.laura}', now(), '${"a".repeat(64)}', null, 't')`),
+  "Laura (no Líder SIG) no cierra el acta (024)", "Solo el Líder SIG")
+await throws(() => svc(`select public.close_review('${rev.id}', '${U.juan}', now() - interval '20 minutes', '${"a".repeat(64)}', null, 't')`),
+  "No se cierra sin reautenticación reciente (024)", "confirmar tu identidad")
+await throws(() => svc(`select public.close_review('${rev.id}', '${U.juan}', now(), 'hash-invalido', null, 't')`),
+  "No se cierra con una firma inválida (024)", "Firma inválida")
+await svc(`select public.close_review('${rev.id}', '${U.juan}', now(), '${"a".repeat(64)}', null, 'navegador')`)
+ok((await as(db, U.juan, `select status, approved_by from public.management_reviews where id = '${rev.id}'`)).rows[0].status === "cerrada", "El Líder SIG cierra y firma el acta (024)")
+ok((await as(db, U.juan, `select approved_by from public.management_reviews where id = '${rev.id}'`)).rows[0].approved_by === U.juan, "El acta queda firmada por el aprobador explícito (024)")
 
 // Inmutable tras cerrar.
 await throws(() => as(db, U.juan, `select public.add_review_output('${rev.id}', 'decision', 'Tardía', null, null)`),

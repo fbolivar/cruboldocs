@@ -1807,8 +1807,11 @@ export async function closeReview(input: { reviewId: string; password: string })
     const reauthAt = new Date().toISOString()
     const hash = await sha256Hex(`${input.reviewId}|${user.id}|${reauthAt}`)
     const h = await headers()
-    const { error } = await (await createClient()).rpc("close_review", {
+    // close_review es admin-only (AUD MED-01): el único camino para firmar pasa por esta acción, que
+    // ya reautenticó contra Auth. Se pasa el aprobador explícito porque bajo service_role no hay auth.uid().
+    const { error } = await createAdminClient().rpc("close_review", {
       p_review: input.reviewId,
+      p_approver: user.id,
       p_reauth_at: reauthAt,
       p_hash: hash,
       p_ip: ip ?? undefined,

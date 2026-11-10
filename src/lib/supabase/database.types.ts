@@ -2462,16 +2462,28 @@ export type Database = {
         Args: { p_audit: string; p_conclusions: string }
         Returns: undefined
       }
-      close_review: {
-        Args: {
-          p_hash: string
-          p_ip: unknown
-          p_reauth_at: string
-          p_review: string
-          p_ua: string
-        }
-        Returns: undefined
-      }
+      close_review:
+        | {
+            Args: {
+              p_approver: string
+              p_hash: string
+              p_ip: unknown
+              p_reauth_at: string
+              p_review: string
+              p_ua: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_hash: string
+              p_ip: unknown
+              p_reauth_at: string
+              p_review: string
+              p_ua: string
+            }
+            Returns: undefined
+          }
       complete_nc_action: { Args: { p_action: string }; Returns: undefined }
       complete_tasks: {
         Args: {
