@@ -8,7 +8,7 @@
 | Suite | Comando | Qué cubre |
 |---|---|---|
 | Unitarias (Vitest) | `npm test` | Rol × estado de la ficha, permisos, segregación de funciones, riesgo P×I, bandeja, fechas en Bogotá, CSV (inyección de fórmulas), firmas binarias de archivos, redirección segura, filtros de URL, CSP, límites de intentos y Turnstile |
-| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos y de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
+| RLS (PGlite) | `npm run test:rls` | 2 organizaciones, cada rol, flujo del documento, de riesgos, de **no conformidades/CAPA** (ciclo completo, verificación obligatoria, numeración) y de **auditorías internas** (planificar→ejecutar→cerrar, autorización por rol, hallazgo→NC, numeración), inmutabilidad, Superadmin con `aal2`, invitaciones, recertificación |
 | E2E dev (Playwright) | `npm run test:e2e` | Rutas protegidas, login/recuperar (validación y CAPTCHA), invitación inválida, 404, cabeceras, nonce, cron sin secreto; escritorio y móvil |
 | E2E producción | `npm run build` y luego `npm run test:e2e:prod` | Lo anterior sobre el build, más HSTS y CSP estricta |
 | Todo | `npm run check` | lint + tsc + unitarias + RLS + build (**no correrlo con el dev de 3001 activo**) |
@@ -42,17 +42,30 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 16. [ ] **Anular:** un líder anula una NC con motivo; queda *Anulada* y sus tareas pendientes se cierran.
 17. [ ] **Visibilidad/permisos:** un **cargo sin rol SIG** (p. ej. aprobador) no ve el tablero salvo las NC que él reportó; **no** puede gestionar (causa/acciones/verificar). El ítem "No conformidades" solo aparece en el menú para roles del SIG.
 
+### 2.2 Auditorías internas (Módulo 2)
+
+> Requiere un usuario con rol **Líder SIG** (planifica/inicia/cierra) y un cargo con rol **auditor** (registra hallazgos). Reutiliza los cargos del módulo anterior; asigna el rol `auditor` a uno.
+
+18. [ ] **Líder SIG** usa **Planificar auditoría** (título, objetivo/criterios, uno o más procesos, líder auditor, fecha): aparece `AUD-AAAA-001` en el tablero. Si asignó líder auditor, a ese cargo le llega la tarea *Conducir auditoría*.
+19. [ ] **Líder SIG** abre la ficha y pulsa **Iniciar auditoría**: el stepper pasa a *En ejecución* y se habilita **Registrar hallazgo**.
+20. [ ] **Auditor** registra varios hallazgos de distinto tipo (no conformidad con severidad, observación, oportunidad de mejora, conformidad): aparecen con su badge y, si corresponde, el proceso y el criterio.
+21. [ ] **Auditor / Líder SIG** pulsa **Generar no conformidad** en un hallazgo de tipo *no conformidad*: se crea una `NC-AAAA-###` (origen *auditoría interna*), el hallazgo muestra el enlace a la NC y el botón ya no reaparece (idempotente). La NC existe en el Módulo 1.
+22. [ ] **Líder SIG** **cierra** la auditoría con conclusiones (no se puede cerrar sin conclusiones): el stepper pasa a *Cerrada* y la tarea del líder auditor se completa.
+23. [ ] **Cancelar:** en otra auditoría no cerrada, el Líder SIG la **cancela** con motivo; queda *Cancelada* y sus tareas pendientes se cierran.
+24. [ ] **Visibilidad/permisos:** un cargo con rol SIG de solo lectura (p. ej. *consulta*) ve el tablero pero **no** puede planificar/iniciar/registrar/cerrar; un cargo sin ningún rol SIG **no** ve el ítem "Auditorías" en el menú. Solo el **auditor** (o el Líder SIG) registra hallazgos.
+
 ## 3. Regresión
 
-18. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos y **no conformidades** (tablero y ficha) sin desplazamiento horizontal. La barra inferior funciona.
-19. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos ni no conformidades (checklist de configuración en Inicio; tablero de NC vacío).
-20. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
-21. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
-22. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
-23. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
-24. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
+25. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades** y **auditorías** (tablero y ficha) sin desplazamiento horizontal. La barra inferior funciona.
+26. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades ni auditorías (checklist de configuración en Inicio; tableros vacíos de NC y de auditorías).
+27. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
+28. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
+29. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
+30. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
+31. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
 
 ## Historial
 - 2026-09-24 — Primera versión (fase testing): 157 unitarias, 160 RLS, 44 E2E en dev + 2 solo de producción.
 - 2026-09-25 — Pre-lanzamiento: 167 RLS (anónimo sin privilegios, migración 015) y 48 E2E contra el build (se agrega robots.txt).
 - 2026-11-10 — Módulo No Conformidades/CAPA (migraciones 017–018): 171 unitarias, **201 RLS**, E2E con las rutas del módulo; camino dorado manual §2.1.
+- 2026-11-10 — Módulo Auditorías internas (migraciones 020–021): 175 unitarias, **218 RLS**, E2E con las rutas del módulo (`/app/auditorias` y la ficha); camino dorado manual §2.2.
