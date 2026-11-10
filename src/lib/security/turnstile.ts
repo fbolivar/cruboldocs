@@ -35,25 +35,8 @@ export async function verifyTurnstile(token: string | undefined, action: Turnsti
       body,
       signal: AbortSignal.timeout(5000),
     })
-    const data = (await res.json()) as {
-      success?: boolean
-      action?: string
-      hostname?: string
-      "error-codes"?: string[]
-    }
-    const ok = data.success === true && data.action === action && hostnameAllowed(data.hostname)
-    if (!ok) {
-      // Diagnóstico temporal (sin token ni secreto): ver la causa en los logs de Vercel.
-      console.warn("turnstile-fail", {
-        success: data.success,
-        action: data.action,
-        expectedAction: action,
-        hostname: data.hostname,
-        expectedHost: process.env.NEXT_PUBLIC_APP_URL ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname : null,
-        errorCodes: data["error-codes"],
-      })
-    }
-    return ok
+    const data = (await res.json()) as { success?: boolean; action?: string; hostname?: string }
+    return data.success === true && data.action === action && hostnameAllowed(data.hostname)
   } catch (e) {
     console.error("turnstile", e)
     return false
