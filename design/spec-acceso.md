@@ -57,7 +57,7 @@
 - Mensajes de error genéricos: no filtrar existencia de usuarios.
 - Aceptación de datos en la invitación: es el momento de consentimiento de la Ley 1581.
 
-## 7. Rediseño del login (2026-11-09 — **pendiente de aprobación de Fernando**)
+## 7. Rediseño del login (2026-11-09 — **APROBADO por Fernando el 2026-11-09**)
 
 Inspiración: login split-screen con panel de bienvenida ilustrado + tarjeta de formulario limpia.
 **Adaptado a la realidad de CrubolDocs:** sin registro/"sign in", sin login social, sin "keep connected"
