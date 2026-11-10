@@ -24,8 +24,11 @@ export async function verifyTurnstile(token: string | undefined, action: Turnsti
     return true
   }
   if (!token || token.length > 2048) return false
+  // `remoteip` es opcional y, detrás de un CDN/proxy (Cloudflare), la IP que ve el servidor
+  // puede no coincidir con la que resolvió el reto → siteverify devuelve success:false. No lo
+  // enviamos: el control por IP vive en el rate limiting, no aquí. `ip` se mantiene en la firma.
+  void ip
   const body = new URLSearchParams({ secret, response: token })
-  if (ip) body.set("remoteip", ip)
   try {
     const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
       method: "POST",
