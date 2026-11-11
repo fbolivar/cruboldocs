@@ -119,15 +119,24 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 58. [ ] **Avance derivado:** el objetivo muestra el **avance** (semáforo + %) calculado de sus indicadores; un objetivo **sin indicadores** muestra **"Sin datos"** (no 0%). Editar (card → Sheet) **re-sincroniza** los indicadores ligados y permite cambiar el **estado** a Cumplido/No cumplido/Archivado.
 59. [ ] **Visibilidad/permisos:** un cargo **consulta** ve ambos tableros pero **no** gestiona; un cargo sin rol SIG **no** ve los ítems "Actas" ni "Objetivos" en el menú; los **asistentes** (dato personal) quedan fuera del CSV y del resumen.
 
+### 2.9 Tablero gerencial (v1.1-1)
+
+> Requiere un usuario con rol **Líder SIG**, **auditor** o **dirección** (gerente/aprobador). Para ver el consolidado conviene tener datos en varios módulos (NC, indicadores con medición, objetivos, PQRS).
+
+60. [ ] **Vista consolidada** (`/app/tablero`): se ven los KPIs por bloque (Mejora/Desempeño/Cliente/Documentos) y los 4 paneles (NC por estado/severidad, indicadores por cumplimiento, objetivos por perspectiva BSC, PQRS+satisfacción). Cada KPI enlaza a su módulo.
+61. [ ] **Filtros:** cambiar **Proceso** y **Periodo (año)** recarga los datos (los agregados se recalculan en servidor); un objetivo/indicador de otro proceso deja de contar. El avance BSC usa semáforo o **"Sin datos"**.
+62. [ ] **Exportar:** "CSV" de cada panel descarga sus cifras (sin datos personales); "Imprimir / PDF" abre el diálogo con una vista **limpia** (sin menú ni botones) y el encabezado con **organización · periodo · proceso · fecha**.
+63. [ ] **Permisos:** un cargo sin rol SIG ni dirección **no** ve el ítem "Tablero" en el menú y `/app/tablero` muestra "No tienes acceso"; los roles acotados ven el tablero según su RLS.
+
 ## 3. Regresión
 
-60. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades**, **auditorías**, **indicadores**, **revisión por la dirección**, **competencias** (la matriz como lista por persona), **proveedores** (ficha con el medidor), **PQRS** (lista y ficha con stepper; panel de satisfacción), **actas** (lista y ficha con compromisos) y **objetivos** (tablero BSC por perspectiva apilado) sin desplazamiento horizontal. La barra inferior funciona.
-61. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades, auditorías, indicadores, revisiones, competencias, proveedores, PQRS, actas ni objetivos (checklist de configuración en Inicio; tableros vacíos; actas: sin actas; objetivos: sin objetivos, y un objetivo sin indicadores muestra **"Sin datos"**).
-62. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
-63. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
-64. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
-65. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
-66. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
+64. [ ] **Móvil (390 px):** bandeja, lista de documentos, ficha, riesgos, **no conformidades**, **auditorías**, **indicadores**, **revisión por la dirección**, **competencias** (la matriz como lista por persona), **proveedores** (ficha con el medidor), **PQRS** (lista y ficha con stepper; panel de satisfacción), **actas** (lista y ficha con compromisos), **objetivos** (tablero BSC por perspectiva apilado) y **tablero** (KPIs y paneles apilados) sin desplazamiento horizontal. La barra inferior funciona.
+65. [ ] **Estados vacíos:** organización nueva sin documentos, riesgos, no conformidades, auditorías, indicadores, revisiones, competencias, proveedores, PQRS, actas ni objetivos (checklist de configuración en Inicio; tableros vacíos; actas: sin actas; objetivos: sin objetivos, y un objetivo sin indicadores muestra **"Sin datos"**; el **tablero** muestra "Aún no hay datos del SGC").
+66. [ ] **Errores de red:** con la red cortada (DevTools → Offline), una acción muestra el error y no pierde el formulario.
+67. [ ] **Recuperar contraseña** en producción: llega el correo, el enlace abre `/restablecer`, y un enlace vencido vuelve a `/recuperar`.
+68. [ ] **Límites de intentos:** 9 logins fallidos con el mismo correo muestran "Demasiados intentos".
+69. [ ] **Acceso vencido:** un externo con vigencia vencida entra y ve `/sin-acceso`.
+70. [ ] **Cron:** `GET /api/cron/diario` con `Authorization: Bearer <CRON_SECRET>` responde 200 y vacía el outbox.
 
 ## Historial
 - 2026-09-24 — Primera versión (fase testing): 157 unitarias, 160 RLS, 44 E2E en dev + 2 solo de producción.
@@ -140,3 +149,4 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 - 2026-11-10 — Módulo Proveedores (migración 026): 218 unitarias, **296 RLS** (puntaje y resultado calculados en servidor por umbral, estado vigente y próxima reevaluación, baja lógica, numeración PRV-AAAA-###, aislamiento), E2E con las rutas del módulo (`/app/proveedores` y la ficha); camino dorado manual §2.6.
 - 2026-11-10 — Módulo PQRS y satisfacción (migración 027): 228 unitarias, **314 RLS** (dato personal por rol SIG, cierre exige respuesta, reclamo→NC idempotente 'queja_pqrs', satisfacción 0–100/upsert, numeración PQRS-AAAA-###, aislamiento), E2E con las rutas del módulo (`/app/pqrs` y la ficha); camino dorado manual §2.7.
 - 2026-11-10 — Módulo Actas/reuniones y Objetivos de calidad/BSC (migración 028): 237 unitarias, **341 RLS** (actas y compromisos por rol, compromiso→tarea, compromiso se cumple aun con acta cerrada, objetivos con avance derivado de indicadores de la misma org y "Sin datos" sin indicadores, baja lógica de `objective_indicators`, numeración ACT/OBJ-AAAA-###, aislamiento), E2E con las rutas del módulo (`/app/actas` +ficha y `/app/objetivos`); camino dorado manual §2.8. **Cierre de la suite ISO 9001 (módulos 1–8).**
+- 2026-11-10 — v1.1-1 Tablero gerencial (sin migración; módulo de solo lectura): E2E `/app/tablero` protegida sin sesión; aislamiento heredado de la RLS de las 8 tablas (sin objetos nuevos); camino dorado manual §2.9 (filtros proceso/año, CSV por panel, Imprimir/PDF). Seguridad **APTO** (`AUD-20261110-tablero.md`). Sin unitarias nuevas (el tablero es DB-bound; su dataviz reutiliza helpers ya probados).
