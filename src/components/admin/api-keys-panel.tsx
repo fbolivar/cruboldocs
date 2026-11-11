@@ -16,13 +16,20 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger
 import { formatDate } from "@/lib/format"
 import type { ApiKeyView, ApiScope } from "@/lib/types"
 
-const SCOPES: { scope: ApiScope; label: string }[] = [
+const READ_SCOPES: { scope: ApiScope; label: string }[] = [
   { scope: "read:nonconformities", label: "No conformidades" },
   { scope: "read:indicators", label: "Indicadores" },
   { scope: "read:risks", label: "Riesgos" },
   { scope: "read:audits", label: "Auditorías" },
   { scope: "read:pqrs", label: "PQRS" },
 ]
+const WRITE_SCOPES: { scope: ApiScope; label: string }[] = [
+  { scope: "write:nonconformities", label: "No conformidades" },
+  { scope: "write:indicators", label: "Mediciones de indicador" },
+  { scope: "write:pqrs", label: "PQRS" },
+  { scope: "write:nonconforming_outputs", label: "Salidas no conformes" },
+]
+const SCOPES = [...READ_SCOPES, ...WRITE_SCOPES]
 const scopeLabel = (s: ApiScope) => SCOPES.find((x) => x.scope === s)?.label ?? s
 const field = "flex flex-col gap-1.5"
 
@@ -128,8 +135,17 @@ function NewApiKeySheet() {
                 <Input id="ak-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="p. ej. Integración BI" />
               </div>
               <fieldset className="flex flex-col gap-2">
-                <legend className="mb-1 text-small font-medium text-texto">Permisos (solo lectura)</legend>
-                {SCOPES.map((s) => (
+                <legend className="mb-1 text-small font-medium text-texto">Lectura</legend>
+                {READ_SCOPES.map((s) => (
+                  <label key={s.scope} className="flex items-center gap-2 text-body text-texto">
+                    <input type="checkbox" checked={scopes.includes(s.scope)} onChange={() => toggle(s.scope)} className="accent-acento" />
+                    {s.label}
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-1 text-small font-medium text-texto">Escritura</legend>
+                {WRITE_SCOPES.map((s) => (
                   <label key={s.scope} className="flex items-center gap-2 text-body text-texto">
                     <input type="checkbox" checked={scopes.includes(s.scope)} onChange={() => toggle(s.scope)} className="accent-acento" />
                     {s.label}
