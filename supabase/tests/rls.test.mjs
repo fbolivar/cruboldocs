@@ -1410,5 +1410,29 @@ await throws(() => as(db, U.beto, `select public.set_dashboard_layout('${A}', '[
 await throws(() => as(db, U.juan, `insert into public.dashboard_preferences (organization_id, user_id, layout) values ('${A}', '${U.juan}', '[]'::jsonb)`),
   "Nadie inserta preferencias por REST (043)", "row-level security")
 
+
+// ========== 044 · Fotos de formularios / inspecciones (ISO + PWA) ==========
+const fotoTpl = (await as(db, U.juan, `select * from public.create_template('${A}', 'Inspección EPP', 'inspeccion', null, '')`)).rows[0]
+const fotoField = (await as(db, U.juan, `select public.add_field('${fotoTpl.id}', 'imagen', 'Fotos EPP') as id`)).rows[0].id
+ok(fotoField != null, "Se agrega un campo de tipo imagen (044)")
+await as(db, U.juan, `select public.update_field('${fotoField}', 'Fotos EPP', '', true, null, '{"max":2}'::jsonb)`)
+await as(db, U.juan, `select public.publish_template('${fotoTpl.id}')`)
+// Enviar con 2 fotos válidas (prefijo <org>/<template>/)
+const fotoSub = (await as(db, U.juan, `select public.submit_new_submission('${fotoTpl.id}', jsonb_build_object('${fotoField}', jsonb_build_array('${A}/${fotoTpl.id}/a.jpg','${A}/${fotoTpl.id}/b.jpg'))) as id`)).rows[0].id
+ok(fotoSub != null, "Se envía una respuesta con 2 fotos válidas (044)")
+// Más fotos que el máximo (3 > 2) se rechaza
+await throws(() => as(db, U.juan, `select public.submit_new_submission('${fotoTpl.id}', jsonb_build_object('${fotoField}', jsonb_build_array('${A}/${fotoTpl.id}/a.jpg','${A}/${fotoTpl.id}/b.jpg','${A}/${fotoTpl.id}/c.jpg')))`),
+  "Supera el máximo de fotos (044)", "hasta 2 fotos")
+// Ruta de otra organización se rechaza
+await throws(() => as(db, U.juan, `select public.submit_new_submission('${fotoTpl.id}', jsonb_build_object('${fotoField}', jsonb_build_array('${B}/${fotoTpl.id}/a.jpg')))`),
+  "Una foto con prefijo de otra org se rechaza (044)", "no es válida")
+// Campo requerido vacío se rechaza
+await throws(() => as(db, U.juan, `select public.submit_new_submission('${fotoTpl.id}', '{}'::jsonb)`),
+  "El campo de foto obligatorio exige al menos una (044)", "obligatorio")
+// storage_can_read_form_photo
+ok((await as(db, U.juan, `select public.storage_can_read_form_photo('${A}/${fotoTpl.id}/a.jpg') ok`)).rows[0].ok === true, "Un miembro lee las fotos de su organización (044)")
+ok((await as(db, U.beto, `select public.storage_can_read_form_photo('${A}/${fotoTpl.id}/a.jpg') ok`)).rows[0].ok === false, "Otra organización no lee las fotos de A (044)")
+ok((await as(db, U.juan, `select public.storage_can_read_form_photo('${A}/solo-dos') ok`)).rows[0].ok === false, "Una ruta mal formada no es legible (044)")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
