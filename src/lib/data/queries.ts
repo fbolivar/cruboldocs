@@ -2769,11 +2769,15 @@ export async function getSstSummary(): Promise<SstSummary> {
   const e = evals?.[0]
   if (!e) return empty
   const [{ data: items }, { data: actions }] = await Promise.all([
-    s.supabase.from("sst_evaluation_items").select("status").eq("organization_id", s.org).eq("evaluation_id", e.id),
+    s.supabase.from("sst_evaluation_items").select("status, standard:sst_standards(applies_7, applies_21)").eq("organization_id", s.org).eq("evaluation_id", e.id),
     s.supabase.from("sst_actions").select("status, due_date").eq("organization_id", s.org).eq("evaluation_id", e.id),
   ])
   const today = todayIsoDate()
-  const count = (st: string) => (items ?? []).filter((i) => i.status === st).length
+  // Solo los estándares que APLICAN al nivel (los demás quedan autocalificados; no inflan el conteo).
+  type SumRow = { status: string; standard: { applies_7: boolean; applies_21: boolean } | null }
+  const applicable = ((items ?? []) as SumRow[]).filter((i) =>
+    e.tier === 60 ? true : e.tier === 7 ? i.standard?.applies_7 : i.standard?.applies_21)
+  const count = (st: string) => applicable.filter((i) => i.status === st).length
   const open = (actions ?? []).filter((a) => a.status === "pendiente" || a.status === "en_curso")
   return {
     evaluationCode: e.code, period: e.period, tier: e.tier,
@@ -2810,25 +2814,26 @@ export async function getSstEvaluation(code: string): Promise<SstEvaluationDetai
     .eq("code", code)
     .maybeSingle()
   if (!e) return null
-  const tierCol = e.tier === 7 ? "weight_7" : e.tier === 21 ? "weight_21" : "weight_60"
   const [{ data: items }, { data: standards }, { data: actions }, { data: positions }, { data: log }] = await Promise.all([
     s.supabase.from("sst_evaluation_items").select("id, standard_id, status, justification").eq("organization_id", s.org).eq("evaluation_id", e.id),
-    s.supabase.from("sst_standards").select("id, code, name, cycle, component, order_index, weight_7, weight_21, weight_60").order("order_index", { ascending: true }),
+    s.supabase.from("sst_standards").select("id, code, name, cycle, component, order_index, weight_60, applies_7, applies_21").order("order_index", { ascending: true }),
     s.supabase.from("sst_actions").select("id, standard_id, description, responsible_position_id, due_date, status").eq("organization_id", s.org).eq("evaluation_id", e.id),
     s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
     s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "SG-SST").eq("entity_id", e.id).order("at", { ascending: false }),
   ])
   const stdMap = new Map((standards ?? []).map((x) => [x.id, x]))
   const posMap = new Map((positions ?? []).map((p) => [p.id, p.name]))
-  const weightOf = (st: { weight_7: number | null; weight_21: number | null; weight_60: number | null }) =>
-    (st[tierCol as "weight_7" | "weight_21" | "weight_60"] ?? 0)
+  // Metodología oficial: peso único weight_60; el estándar aplica según el nivel (Res. 0312).
+  const appliesOf = (st: { applies_7: boolean; applies_21: boolean }) =>
+    e.tier === 60 ? true : e.tier === 7 ? st.applies_7 : st.applies_21
 
   const views: SstItemView[] = (items ?? []).map((i) => {
     const st = stdMap.get(i.standard_id)!
     return {
       itemId: i.id, standardId: i.standard_id, code: st.code, name: st.name,
       cycle: st.cycle as SstCycle, component: st.component as SstComponent,
-      weight: weightOf(st), status: i.status as SstItemStatus, justification: i.justification,
+      weight: st.weight_60 ?? 0, status: i.status as SstItemStatus, justification: i.justification,
+      applicable: appliesOf(st),
     }
   }).sort((a, b) => (stdMap.get(a.standardId)!.order_index - stdMap.get(b.standardId)!.order_index))
 
