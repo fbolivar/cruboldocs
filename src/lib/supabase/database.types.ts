@@ -1127,6 +1127,35 @@ export type Database = {
           },
         ]
       }
+      dashboard_preferences: {
+        Row: {
+          layout: Json
+          organization_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          layout?: Json
+          organization_id: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          layout?: Json
+          organization_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_preferences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_distribution: {
         Row: {
           document_id: string
@@ -6593,6 +6622,10 @@ export type Database = {
       }
       set_course_archived: {
         Args: { p_archived: boolean; p_course: string }
+        Returns: undefined
+      }
+      set_dashboard_layout: {
+        Args: { p_layout: Json; p_org: string }
         Returns: undefined
       }
       set_entity_norms: {

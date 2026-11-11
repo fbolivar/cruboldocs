@@ -17,6 +17,7 @@ import { z } from "zod"
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
 import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import {
   createUploadTicket,
   promoteUpload,
@@ -3801,4 +3802,29 @@ export async function exportProcessesCsv(): Promise<string> {
     { header: "Líder", value: (r) => r.leaderName ?? "" },
     { header: "Caracterizado", value: (r) => (r.characterized ? "Sí" : "No") },
   ])
+}
+
+// ---------- Tablero configurable (v1.3-3b) ----------
+
+const BLOCK_KEYS = [
+  "kpi_mejora", "kpi_desempeno", "kpi_cliente", "kpi_documentos",
+  "panel_nc", "panel_indicadores", "panel_objetivos", "panel_pqrs",
+] as const
+const layoutSchema = z.array(z.object({ key: z.enum(BLOCK_KEYS), visible: z.boolean() })).max(16)
+
+export async function setDashboardLayout(blocks: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = layoutSchema.safeParse(blocks)
+    if (!p.success) return fail("Configuración del tablero no válida.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const stored = toStoredLayout(p.data)
+    const { error } = await (await createClient()).rpc("set_dashboard_layout", {
+      p_org: user.organization.id,
+      p_layout: stored as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app/tablero", "layout")
+    return ok(undefined)
+  })
 }

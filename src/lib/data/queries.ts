@@ -9,6 +9,7 @@ import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
 import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
+import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -153,6 +154,7 @@ import type {
   ProcessMapItem,
   ProcessMapSummary,
   ProcessDetail,
+  DashboardBlock,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3369,4 +3371,18 @@ export async function getProcessDetail(code: string): Promise<ProcessDetail | nu
     },
     canManage: canManageProcess(s.user, p.id),
   }
+}
+
+// ---------- Tablero configurable (v1.3-3b) ----------
+
+export async function getDashboardLayout(): Promise<DashboardBlock[]> {
+  const s = await scope()
+  if (!s) return mergeLayout(null)
+  const { data } = await s.supabase
+    .from("dashboard_preferences")
+    .select("layout")
+    .eq("organization_id", s.org)
+    .eq("user_id", s.user.id)
+    .maybeSingle()
+  return mergeLayout(data?.layout ?? null)
 }

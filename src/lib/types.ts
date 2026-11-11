@@ -1768,6 +1768,17 @@ export interface ProcessDetail {
   canManage: boolean
 }
 
+// ---------- Tablero configurable (v1.3-3b) ----------
+
+export type DashboardBlockKey =
+  | "kpi_mejora" | "kpi_desempeno" | "kpi_cliente" | "kpi_documentos"
+  | "panel_nc" | "panel_indicadores" | "panel_objetivos" | "panel_pqrs"
+
+export interface DashboardBlock {
+  key: DashboardBlockKey
+  visible: boolean
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }
