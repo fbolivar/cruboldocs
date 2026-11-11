@@ -1070,5 +1070,82 @@ await throws(() => as(db, U.sofia, `insert into public.env_aspects (organization
 await throws(() => as(db, U.sofia, `insert into public.env_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "env_counters es deny-all (032)", "row-level security")
 
+// ========== 033 · Constructor de formularios ==========
+// Crear plantilla (juan lider_sig); numeración FORM-AAAA-001
+const tpl = (await as(db, U.juan, `select id, code from public.create_template('${A}', 'Inspección de EPP', 'inspeccion', '${P.sigA}', '')`)).rows[0]
+ok(tpl.code === "FORM-" + YEAR + "-001", "Numeración FORM-AAAA-001 (033)")
+ok((await as(db, U.juan, `select status, draft_version from public.form_templates where id = '${tpl.id}'`)).rows[0].status === "borrador", "Plantilla nace en borrador v1 (033)")
+
+// Rol: consulta y otra org no crean
+await throws(() => as(db, U.sofia, `select public.create_template('${A}', 'X', 'otro', null, '')`),
+  "Sofía (consulta) no crea plantillas (033)", "No puedes crear")
+await throws(() => as(db, U.beto, `select public.create_template('${A}', 'X', 'otro', null, '')`),
+  "Beto (org B) no crea plantillas en A (033)", "No puedes crear")
+
+// Campos
+const f1 = (await as(db, U.juan, `select public.add_field('${tpl.id}', 'texto', 'Nombre') as id`)).rows[0].id
+await as(db, U.juan, `select public.update_field('${f1}', 'Nombre', null, true, null, null)`)
+const f2 = (await as(db, U.juan, `select public.add_field('${tpl.id}', 'seleccion', 'Estado') as id`)).rows[0].id
+await as(db, U.juan, `select public.update_field('${f2}', 'Estado', null, true, '["Bueno","Regular","Malo"]'::jsonb, null)`)
+const f3 = (await as(db, U.juan, `select public.add_field('${tpl.id}', 'numero', 'Cantidad') as id`)).rows[0].id
+await as(db, U.juan, `select public.update_field('${f3}', 'Cantidad', null, false, null, '{"min":0,"max":100}'::jsonb)`)
+const f4 = (await as(db, U.juan, `select public.add_field('${tpl.id}', 'si_no', '¿Usa casco?') as id`)).rows[0].id
+ok((await as(db, U.juan, `select count(*)::int n from public.form_fields where template_id = '${tpl.id}' and version = 1 and is_active`)).rows[0].n === 4, "4 campos en el borrador v1 (033)")
+
+// Publicar sin campos falla (otra plantilla); publicar con campos ok
+const tpl0 = (await as(db, U.juan, `select id from public.create_template('${A}', 'Vacía', 'otro', null, '')`)).rows[0]
+await throws(() => as(db, U.juan, `select public.publish_template('${tpl0.id}')`), "No se publica una plantilla sin campos (033)", "al menos un campo")
+await as(db, U.juan, `select public.publish_template('${tpl.id}')`)
+ok((await as(db, U.juan, `select status, published_version from public.form_templates where id = '${tpl.id}'`)).rows[0].published_version === 1, "Publicar fija published_version=1 (033)")
+
+// Publicada es inmutable sin nueva versión
+await throws(() => as(db, U.juan, `select public.add_field('${tpl.id}', 'texto', 'Otro')`), "No se edita una plantilla publicada sin nueva versión (033)", "nueva versión")
+
+// Diligenciar: miembro no-SIG (carlos aprobador) obtiene el formulario publicado y responde
+const pubForm = (await as(db, U.carlos, `select public.get_published_form_by_code('${A}', '${tpl.code}') as f`)).rows[0].f
+ok(Array.isArray(pubForm.fields) && pubForm.fields.length === 4 && pubForm.version === 1, "get_published_form_by_code devuelve la v1 publicada (033)")
+// Requerido faltante
+await throws(() => as(db, U.carlos, `select public.submit_new_submission('${tpl.id}', jsonb_build_object('${f2}', 'Bueno'))`),
+  "Falta un requerido → rechazado (033)", "obligatorio")
+// Opción inválida
+await throws(() => as(db, U.carlos, `select public.submit_new_submission('${tpl.id}', jsonb_build_object('${f1}', 'Ana', '${f2}', 'Pésimo'))`),
+  "Opción fuera del catálogo → rechazada (033)", "no es válida")
+// Número fuera de rango
+await throws(() => as(db, U.carlos, `select public.submit_new_submission('${tpl.id}', jsonb_build_object('${f1}', 'Ana', '${f2}', 'Bueno', '${f3}', 150))`),
+  "Número sobre el máximo → rechazado (033)", "máximo")
+// Respuesta válida
+const sub = (await as(db, U.carlos, `select public.submit_new_submission('${tpl.id}', jsonb_build_object('${f1}', 'Ana', '${f2}', 'Bueno', '${f3}', 50, '${f4}', true)) as id`)).rows[0].id
+ok(!!sub, "Carlos (miembro) envía una respuesta válida (033)")
+ok((await as(db, U.carlos, `select status from public.form_submissions where id = '${sub}'`)).rows[0].status === "enviada", "La respuesta queda enviada (033)")
+
+// Borrador: guarda y no cuenta como enviada hasta submit
+const draft = (await as(db, U.diana, `select public.save_submission_draft(null, '${tpl.id}', jsonb_build_object('${f1}', 'Luis')) as id`)).rows[0].id
+ok((await as(db, U.diana, `select status from public.form_submissions where id = '${draft}'`)).rows[0].status === "borrador", "save_submission_draft crea un borrador (033)")
+// El autor diligencia su propio borrador; otro no
+await throws(() => as(db, U.carlos, `select public.save_submission_draft('${draft}', '${tpl.id}', '{}'::jsonb)`),
+  "Un borrador es privado de su autor (033)", "no encontrada")
+
+// Nueva versión clona campos → draft 2 editable
+await as(db, U.juan, `select public.new_template_version('${tpl.id}')`)
+ok((await as(db, U.juan, `select draft_version from public.form_templates where id = '${tpl.id}'`)).rows[0].draft_version === 2, "new_template_version abre draft 2 (033)")
+ok((await as(db, U.juan, `select count(*)::int n from public.form_fields where template_id = '${tpl.id}' and version = 2 and is_active`)).rows[0].n === 4, "La v2 clona los 4 campos (033)")
+const f5 = (await as(db, U.juan, `select public.add_field('${tpl.id}', 'texto', 'Observación') as id`)).rows[0].id
+ok(!!f5, "Se agregan campos al borrador v2 (033)")
+
+// Archivar bloquea edición
+await as(db, U.juan, `select public.set_template_archived('${tpl0.id}', true)`)
+await throws(() => as(db, U.juan, `select public.update_template_data('${tpl0.id}', 'X', 'otro', null, '')`),
+  "Una plantilla archivada no es editable (033)", "archivada")
+
+// Visibilidad por rol
+ok((await as(db, U.sofia, `select count(*)::int n from public.form_templates where organization_id = '${A}'`)).rows[0].n >= 1, "Sofía (consulta) ve las plantillas del SIG (033)")
+ok((await as(db, U.beto, `select count(*)::int n from public.form_templates where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve plantillas de A (033)")
+
+// REST directo + contador deny-all
+await throws(() => as(db, U.juan, `insert into public.form_templates (organization_id, code, title, category) values ('${A}', 'Z', 'Z', 'otro')`),
+  "Nadie inserta plantillas por REST (033)", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.form_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "form_counters es deny-all (033)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
