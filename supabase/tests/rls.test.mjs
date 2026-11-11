@@ -1744,5 +1744,38 @@ await throws(() => as(db, U.sofia, `insert into public.approval_flows (organizat
 await throws(() => as(db, U.sofia, `insert into public.sol_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "sol_counters es deny-all (051)", "row-level security")
 
+// ========== 052 · BI / Constructor de informes (saved_reports) ==========
+// Compartir es del Líder SIG/Admin; privado lo crea cualquier miembro.
+const repShared = (await as(db, U.laura, `select id from public.create_saved_report('${A}', 'NC por proceso', 'nc', '{}'::jsonb, 'compartida')`)).rows[0].id
+const repMine = (await as(db, U.sofia, `select id from public.create_saved_report('${A}', 'Mi borrador', 'pqrs', '{}'::jsonb, 'privada')`)).rows[0].id
+await throws(() => as(db, U.sofia, `select public.create_saved_report('${A}', 'Intenta compartir', 'nc', '{}'::jsonb, 'compartida')`),
+  "La consulta no comparte informes (052)", "Líder SIG")
+await throws(() => as(db, U.beto, `select public.create_saved_report('${A}', 'Intruso', 'nc', '{}'::jsonb, 'privada')`),
+  "Beto (org B) no crea informes en A (052)", "Sin acceso")
+await throws(() => as(db, U.laura, `select public.create_saved_report('${A}', 'Fuente mala', 'inventado', '{}'::jsonb, 'privada')`),
+  "Fuente no válida rechazada (052)", "Fuente no válida")
+
+// Visibilidad: compartida la ven todos; la privada solo su autor.
+ok((await as(db, U.sofia, `select count(*)::int n from public.saved_reports where organization_id='${A}'`)).rows[0].n === 2, "Sofía ve el compartido y su propio privado (052)")
+ok((await as(db, U.juan, `select count(*)::int n from public.saved_reports where id='${repMine}'`)).rows[0].n === 0, "Juan no ve el informe privado de Sofía (052)")
+ok((await as(db, U.juan, `select count(*)::int n from public.saved_reports where id='${repShared}'`)).rows[0].n === 1, "Juan ve el informe compartido (052)")
+
+// Edición: autor del privado o Líder SIG del compartido.
+await as(db, U.sofia, `select public.update_saved_report('${repMine}', 'Mi borrador v2', 'pqrs', '{}'::jsonb, 'privada')`)
+ok((await as(db, U.sofia, `select name from public.saved_reports where id='${repMine}'`)).rows[0].name === "Mi borrador v2", "El autor edita su informe privado (052)")
+await throws(() => as(db, U.sofia, `select public.update_saved_report('${repShared}', 'Hackeado', 'nc', '{}'::jsonb, 'compartida')`),
+  "La consulta no edita un informe compartido ajeno (052)", "No puedes editar")
+await as(db, U.juan, `select public.update_saved_report('${repShared}', 'NC por proceso v2', 'nc', '{}'::jsonb, 'compartida')`)
+ok((await as(db, U.juan, `select name from public.saved_reports where id='${repShared}'`)).rows[0].name === "NC por proceso v2", "El Líder SIG edita el informe compartido (052)")
+
+// Eliminar (baja lógica): desaparece de la vista.
+await as(db, U.sofia, `select public.discard_saved_report('${repMine}')`)
+ok((await as(db, U.sofia, `select count(*)::int n from public.saved_reports where id='${repMine}'`)).rows[0].n === 0, "Eliminar un informe lo oculta (baja lógica) (052)")
+
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.saved_reports where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve informes de A (052)")
+await throws(() => as(db, U.sofia, `insert into public.saved_reports (organization_id, name, dataset) values ('${A}', 'X', 'nc')`),
+  "Nadie inserta informes por REST (052)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
