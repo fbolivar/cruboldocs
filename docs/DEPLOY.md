@@ -111,3 +111,24 @@ En Supabase → Authentication:
 - [ ] Camino dorado y recuperar contraseña probados en la URL real
 - [ ] Headers de seguridad verificados; logs y cron activos
 - [ ] Rollback documentado y entendido
+
+## 8. SSO (Entrar con Google / Microsoft) — v1.3-5b
+
+El código del SSO (botones en `/login` + ruta `/auth/callback`) ya está desplegado, pero cada
+proveedor se **enciende por configuración**; sin ella, el botón no aparece (flag en 0/vacío).
+
+Para habilitar un proveedor:
+1. **Supabase → Authentication → Providers:** habilitar **Google** y/o **Azure (Microsoft)** y pegar
+   el *Client ID* y *Client Secret* de cada uno.
+2. **Google Cloud Console** (APIs y servicios → Credenciales → ID de cliente OAuth, tipo Web) y/o
+   **Microsoft Entra ID** (Registros de aplicaciones): registrar la app y agregar como *redirect URI*
+   la **URL de callback de Supabase**: `https://<project-ref>.supabase.co/auth/v1/callback`.
+   Autorizar el origen `https://cruboldocs.crubol.com`.
+3. **Vercel → Environment Variables** (tipo *Config*, no *Secret*): `NEXT_PUBLIC_SSO_GOOGLE=1` y/o
+   `NEXT_PUBLIC_SSO_MICROSOFT=1`. Como son `NEXT_PUBLIC_*`, requieren **rebuild** (no basta redeploy).
+
+Notas:
+- El SSO **autentica**, no da acceso: un correo sin membresía entra pero ve `/sin-acceso`. El alta
+  sigue por invitación (sin cambios). Para que un usuario entre a su organización, su correo del
+  proveedor debe **coincidir** con el de su invitación/membresía.
+- El callback solo redirige a rutas **internas** (`next` validado); no se acepta un destino externo.
