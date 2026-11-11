@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeLegal, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeLegal, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "formularios" | "admin"
+export type NavIcon = "inicio" | "tablero" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "formularios" | "admin"
 
 export interface NavItem {
   href: string
@@ -30,6 +30,7 @@ export function navItemsFor(user: CurrentUser): NavItem[] {
   if (canSeeObjectives(user)) items.push({ href: "/app/objetivos", label: "Objetivos", icon: "objetivos" })
   if (canSeeLegal(user)) items.push({ href: "/app/requisitos-legales", label: "Requisitos legales", icon: "legal" })
   if (canSeeHazards(user)) items.push({ href: "/app/peligros", label: "Peligros SST", icon: "peligros" })
+  if (canSeeSst(user)) items.push({ href: "/app/sg-sst", label: "SG-SST (0312)", icon: "sgsst" })
   if (canSeeEnv(user)) items.push({ href: "/app/aspectos-ambientales", label: "Aspectos ambientales", icon: "ambiental" })
   if (canSeeForms(user)) items.push({ href: "/app/formularios", label: "Formularios", icon: "formularios" })
   if (canSeeAdmin(user)) items.push({ href: "/app/admin", label: "Administración", icon: "admin", separated: true })

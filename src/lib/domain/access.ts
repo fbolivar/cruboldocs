@@ -171,6 +171,16 @@ export function canFillForms(user: CurrentUser): boolean {
   return Boolean(user.organization)
 }
 
+/** Pantalla SG-SST (Estándares Mínimos, Res. 0312): mismos roles del SIG que los demás módulos. */
+export function canSeeSst(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/diligencia/cierra autoevaluaciones y gestiona el plan de mejora: Líder SIG o Líder de proceso. */
+export function canManageSst(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso")
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)

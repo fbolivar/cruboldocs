@@ -1147,6 +1147,62 @@ await throws(() => as(db, U.juan, `insert into public.form_templates (organizati
 await throws(() => as(db, U.juan, `insert into public.form_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "form_counters es deny-all (033)", "row-level security")
 
+// ========== 035 · SG-SST (Estándares Mínimos, Res. 0312) ==========
+// Catálogo sembrado: los 3 niveles suman 100
+const sums = (await svc(`select coalesce(sum(weight_7),0) s7, coalesce(sum(weight_21),0) s21, coalesce(sum(weight_60),0) s60, count(*)::int n from public.sst_standards`)).rows[0]
+ok(Number(sums.n) === 60 && Number(sums.s7) === 100 && Number(sums.s21) === 100 && Number(sums.s60) === 100,
+  "Catálogo: 60 estándares; niveles 7/21/60 suman 100 (035)")
+
+// Derivación de nivel por tamaño y riesgo
+const ev60 = (await as(db, U.juan, `select id, code from public.create_evaluation('${A}', 2026, 60, 3)`)).rows[0]
+ok(ev60.code === "SGSST-2026-001", "Numeración SGSST-2026-001 (035)")
+ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${ev60.id}'`)).rows[0].tier === 60, "60 trab. riesgo III → nivel 60 (035)")
+ok((await as(db, U.juan, `select count(*)::int n from public.sst_evaluation_items where evaluation_id = '${ev60.id}'`)).rows[0].n === 60, "Se crean 60 ítems para el nivel 60 (035)")
+const ev7 = (await as(db, U.juan, `select id from public.create_evaluation('${A}', 2026, 5, 2)`)).rows[0]
+ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${ev7.id}'`)).rows[0].tier === 7, "5 trab. riesgo II → nivel 7 (035)")
+ok((await as(db, U.juan, `select count(*)::int n from public.sst_evaluation_items where evaluation_id = '${ev7.id}'`)).rows[0].n === 7, "Se crean 7 ítems para el nivel 7 (035)")
+const ev21 = (await as(db, U.juan, `select id from public.create_evaluation('${A}', 2026, 30, 2)`)).rows[0]
+ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${ev21.id}'`)).rows[0].tier === 21, "30 trab. riesgo II → nivel 21 (035)")
+const ev60b = (await as(db, U.juan, `select id from public.create_evaluation('${A}', 2026, 5, 4)`)).rows[0]
+ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${ev60b.id}'`)).rows[0].tier === 60, "Riesgo IV fuerza nivel 60 aunque sea micro (035)")
+
+// Scoring server-side en el nivel 60
+const itemOf = async (code) => (await as(db, U.juan, `select i.id from public.sst_evaluation_items i join public.sst_standards s on s.id = i.standard_id where i.evaluation_id = '${ev60.id}' and s.code = '${code}'`)).rows[0].id
+await as(db, U.juan, `select public.set_item_status('${await itemOf("2.1.1")}', 'cumple', null)`)
+ok((await as(db, U.juan, `select score from public.sst_evaluations where id = '${ev60.id}'`)).rows[0].score === "1.00", "Cumple de peso 1 → puntaje 1.00 (035)")
+await as(db, U.juan, `select public.set_item_status('${await itemOf("5.1.1")}', 'no_aplica', 'No hay brigada por tamaño')`)
+ok((await as(db, U.juan, `select score from public.sst_evaluations where id = '${ev60.id}'`)).rows[0].score === "6.00", "No aplica justificado de peso 5 suma al puntaje (035)")
+await as(db, U.juan, `select public.set_item_status('${await itemOf("5.1.2")}', 'no_cumple', null)`)
+ok((await as(db, U.juan, `select score, rating from public.sst_evaluations where id = '${ev60.id}'`)).rows[0].score === "6.00", "No cumple no suma (035)")
+ok((await as(db, U.juan, `select rating from public.sst_evaluations where id = '${ev60.id}'`)).rows[0].rating === "critico", "Puntaje < 60 → valoración crítico (035)")
+
+// No aplica exige justificación; cerrar exige todo respondido
+const na221 = await itemOf("2.2.1")
+await throws(() => as(db, U.juan, `select public.set_item_status('${na221}', 'no_aplica', null)`),
+  "No aplica sin justificación es rechazado (035)", "Justifica")
+await throws(() => as(db, U.juan, `select public.close_evaluation('${ev60.id}')`),
+  "No se cierra con estándares pendientes (035)", "Faltan")
+
+// Plan de mejora: solo para No cumple
+await throws(() => as(db, U.juan, `select public.add_sst_action('${ev60.id}', (select id from public.sst_standards where code = '2.1.1'), 'x', null, null)`),
+  "Acción de mejora sobre un Cumple es rechazada (035)", "No cumple")
+const sstAct = (await as(db, U.juan, `select public.add_sst_action('${ev60.id}', (select id from public.sst_standards where code = '5.1.2'), 'Conformar brigada', null, null) as id`)).rows[0].id
+ok(!!sstAct, "Acción de mejora sobre un No cumple se crea (035)")
+
+// Roles y aislamiento
+await throws(() => as(db, U.sofia, `select public.create_evaluation('${A}', 2026, 10, 2)`),
+  "Sofía (consulta) no crea autoevaluaciones (035)", "No puedes crear")
+await throws(() => as(db, U.beto, `select public.create_evaluation('${A}', 2026, 10, 2)`),
+  "Beto (org B) no crea autoevaluaciones en A (035)", "No puedes crear")
+ok((await as(db, U.beto, `select count(*)::int n from public.sst_evaluations where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve autoevaluaciones de A (035)")
+ok((await as(db, U.sofia, `select count(*)::int n from public.sst_evaluations where organization_id = '${A}'`)).rows[0].n >= 1, "Sofía (consulta) ve las autoevaluaciones del SIG (035)")
+// El catálogo es referencia pública para cualquier miembro
+ok((await as(db, U.beto, `select count(*)::int n from public.sst_standards`)).rows[0].n === 60, "El catálogo de estándares es visible para cualquier miembro (035)")
+await throws(() => as(db, U.juan, `insert into public.sst_evaluations (organization_id, code, period, worker_count, risk_class, tier) values ('${A}', 'X', 2026, 1, 1, 7)`),
+  "Nadie inserta autoevaluaciones por REST (035)", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.sst_counters (organization_id, year, last_seq) values ('${A}', 2026, 9)`),
+  "sst_counters es deny-all (035)", "row-level security")
+
 // ========== 034 · Crubol-Agent copiloto — consumo por rol gestor ==========
 await svc(`update public.organizations set ai_agent_enabled = true where id = '${A}'`)
 await svc(`delete from public.ai_agent_usage where organization_id = '${A}'`)

@@ -1399,6 +1399,89 @@ export interface SubmissionDetail {
   values: Record<string, FieldValue>
 }
 
+// ---------- SG-SST: Estándares Mínimos (Res. 0312) (v1.2-2) ----------
+
+export type SstCycle = "planear" | "hacer" | "verificar" | "actuar"
+export type SstComponent =
+  | "recursos" | "gestion_integral" | "gestion_salud"
+  | "peligros_riesgos" | "gestion_amenazas" | "verificacion" | "mejoramiento"
+export type SstItemStatus = "pendiente" | "cumple" | "no_cumple" | "no_aplica"
+export type SstRating = "critico" | "moderado" | "aceptable"
+export type SstEvaluationStatus = "borrador" | "cerrada"
+export type SstActionStatus = "pendiente" | "en_curso" | "hecha" | "cancelada"
+
+export interface SstSummary {
+  evaluationCode: string | null
+  period: number | null
+  tier: number | null
+  score: number | null
+  rating: SstRating | null
+  cumple: number
+  noCumple: number
+  noAplica: number
+  pendiente: number
+  openActions: number
+  overdueActions: number
+}
+
+export interface SstEvaluationListItem {
+  id: string
+  code: string
+  period: number
+  tier: number
+  workerCount: number
+  riskClass: number
+  status: SstEvaluationStatus
+  score: number | null
+  rating: SstRating | null
+}
+
+export interface SstItemView {
+  itemId: string
+  standardId: string
+  code: string
+  name: string
+  cycle: SstCycle
+  component: SstComponent
+  weight: number
+  status: SstItemStatus
+  justification: string | null
+}
+
+export interface SstPhaseTotal {
+  cycle: SstCycle
+  possible: number
+  obtained: number
+}
+
+export interface SstActionView {
+  id: string
+  standardCode: string
+  standardName: string
+  description: string
+  responsibleName: string | null
+  dueDate: string | null
+  status: SstActionStatus
+  overdue: boolean
+}
+
+export interface SstEvaluationDetail {
+  id: string
+  code: string
+  period: number
+  tier: number
+  workerCount: number
+  riskClass: number
+  status: SstEvaluationStatus
+  score: number | null
+  rating: SstRating | null
+  canManage: boolean
+  items: SstItemView[]
+  phases: SstPhaseTotal[]
+  actions: SstActionView[]
+  timeline: NcTimelineEvent[]
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

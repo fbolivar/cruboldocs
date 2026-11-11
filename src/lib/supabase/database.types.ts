@@ -3622,6 +3622,250 @@ export type Database = {
           },
         ]
       }
+      sst_actions: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string
+          due_date: string | null
+          evaluation_id: string
+          id: string
+          organization_id: string
+          responsible_position_id: string | null
+          standard_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          description: string
+          due_date?: string | null
+          evaluation_id: string
+          id?: string
+          organization_id: string
+          responsible_position_id?: string | null
+          standard_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string
+          due_date?: string | null
+          evaluation_id?: string
+          id?: string
+          organization_id?: string
+          responsible_position_id?: string | null
+          standard_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sst_actions_evaluation_id_organization_id_fkey"
+            columns: ["evaluation_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "sst_evaluations"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "sst_actions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sst_actions_responsible_position_id_organization_id_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "sst_actions_standard_id_fkey"
+            columns: ["standard_id"]
+            isOneToOne: false
+            referencedRelation: "sst_standards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sst_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sst_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sst_evaluation_items: {
+        Row: {
+          evaluation_id: string
+          id: string
+          justification: string | null
+          organization_id: string
+          standard_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          evaluation_id: string
+          id?: string
+          justification?: string | null
+          organization_id: string
+          standard_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          evaluation_id?: string
+          id?: string
+          justification?: string | null
+          organization_id?: string
+          standard_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sst_evaluation_items_evaluation_id_organization_id_fkey"
+            columns: ["evaluation_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "sst_evaluations"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "sst_evaluation_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sst_evaluation_items_standard_id_fkey"
+            columns: ["standard_id"]
+            isOneToOne: false
+            referencedRelation: "sst_standards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sst_evaluations: {
+        Row: {
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          period: number
+          rating: string | null
+          risk_class: number
+          score: number | null
+          status: string
+          tier: number
+          updated_at: string
+          worker_count: number
+        }
+        Insert: {
+          closed_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id: string
+          period: number
+          rating?: string | null
+          risk_class: number
+          score?: number | null
+          status?: string
+          tier: number
+          updated_at?: string
+          worker_count: number
+        }
+        Update: {
+          closed_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+          period?: number
+          rating?: string | null
+          risk_class?: number
+          score?: number | null
+          status?: string
+          tier?: number
+          updated_at?: string
+          worker_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sst_evaluations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sst_standards: {
+        Row: {
+          code: string
+          component: string
+          cycle: string
+          id: string
+          is_active: boolean
+          name: string
+          order_index: number
+          weight_21: number | null
+          weight_60: number | null
+          weight_7: number | null
+        }
+        Insert: {
+          code: string
+          component: string
+          cycle: string
+          id?: string
+          is_active?: boolean
+          name: string
+          order_index?: number
+          weight_21?: number | null
+          weight_60?: number | null
+          weight_7?: number | null
+        }
+        Update: {
+          code?: string
+          component?: string
+          cycle?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          order_index?: number
+          weight_21?: number | null
+          weight_60?: number | null
+          weight_7?: number | null
+        }
+        Relationships: []
+      }
       submission_values: {
         Row: {
           field_id: string
@@ -4213,6 +4457,16 @@ export type Database = {
         }
         Returns: string
       }
+      add_sst_action: {
+        Args: {
+          p_description: string
+          p_due: string
+          p_eval: string
+          p_responsible: string
+          p_standard: string
+        }
+        Returns: string
+      }
       add_training_attendee: {
         Args: {
           p_membership: string
@@ -4331,6 +4585,7 @@ export type Database = {
         Args: { org: string; process?: string }
         Returns: boolean
       }
+      can_manage_sst: { Args: { org: string }; Returns: boolean }
       can_manage_suppliers: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -4352,6 +4607,7 @@ export type Database = {
       can_see_reviews: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
       can_see_sig: { Args: { org: string }; Returns: boolean }
+      can_see_sst: { Args: { org: string }; Returns: boolean }
       can_see_suppliers: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
       can_view_content: { Args: { org: string }; Returns: boolean }
@@ -4376,6 +4632,7 @@ export type Database = {
         Args: { p_audit: string; p_conclusions: string }
         Returns: undefined
       }
+      close_evaluation: { Args: { p_eval: string }; Returns: undefined }
       close_minute: { Args: { p_minute: string }; Returns: undefined }
       close_pqrs: {
         Args: { p_case: string; p_satisfied: boolean }
@@ -4471,6 +4728,18 @@ export type Database = {
           p_type: string
         }
         Returns: string
+      }
+      create_evaluation: {
+        Args: {
+          p_org: string
+          p_period: number
+          p_risk: number
+          p_workers: number
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
       }
       create_hazard: {
         Args: {
@@ -5376,6 +5645,10 @@ export type Database = {
         Args: { p_active: boolean; p_hazard: string }
         Returns: undefined
       }
+      set_item_status: {
+        Args: { p_item: string; p_justification?: string; p_status: string }
+        Returns: undefined
+      }
       set_nc_cause: {
         Args: { p_cause: string; p_nc: string; p_owner?: string }
         Returns: undefined
@@ -5397,6 +5670,10 @@ export type Database = {
           p_position: string
         }
         Returns: string
+      }
+      set_sst_action_status: {
+        Args: { p_action: string; p_status: string }
+        Returns: undefined
       }
       set_supplier_active: {
         Args: { p_active: boolean; p_supplier: string }
@@ -5444,6 +5721,40 @@ export type Database = {
         }
         Returns: string
       }
+      sst_evaluation_or_fail: {
+        Args: { p_eval: string }
+        Returns: {
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          period: number
+          rating: string | null
+          risk_class: number
+          score: number | null
+          status: string
+          tier: number
+          updated_at: string
+          worker_count: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sst_evaluations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      sst_item_weight: {
+        Args: {
+          p_tier: number
+          s: Database["public"]["Tables"]["sst_standards"]["Row"]
+        }
+        Returns: number
+      }
+      sst_recompute: { Args: { p_eval: string }; Returns: undefined }
+      sst_tier: { Args: { p_risk: number; p_workers: number }; Returns: number }
       start_audit: { Args: { p_audit: string }; Returns: undefined }
       storage_can_read_document: { Args: { p_name: string }; Returns: boolean }
       storage_can_read_evidence: { Args: { p_name: string }; Returns: boolean }

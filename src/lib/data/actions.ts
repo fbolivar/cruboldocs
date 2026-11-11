@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, getFormTemplate, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -3115,4 +3115,105 @@ export async function exportFormCsv(code: string): Promise<string> {
 export async function fetchSubmission(id: string): Promise<SubmissionDetail | null> {
   if (!isUuid(id)) return null
   return getSubmission(id)
+}
+
+// ---------- SG-SST: Estándares Mínimos (Res. 0312) (v1.2-2) ----------
+
+function revalidateSst() {
+  revalidatePath("/app/sg-sst", "layout")
+  revalidatePath("/app")
+}
+
+const evaluationSchema = z.object({
+  period: z.number().int().min(2019).max(2100),
+  workers: z.number().int().min(1).max(1000000),
+  risk: z.number().int().min(1).max(5),
+})
+
+export async function createEvaluation(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = evaluationSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el período, el número de trabajadores y la clase de riesgo.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_evaluation", {
+      p_org: user.organization.id, p_period: p.data.period, p_workers: p.data.workers, p_risk: p.data.risk,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSst()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function setItemStatus(itemId: string, status: string, justification?: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(itemId)) return fail(GENERIC)
+    if (!["pendiente", "cumple", "no_cumple", "no_aplica"].includes(status)) return fail("Estado no válido.")
+    const { error } = await (await createClient()).rpc("set_item_status", {
+      p_item: itemId, p_status: status, p_justification: justification ?? undefined,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSst()
+    return ok(undefined)
+  })
+}
+
+export async function closeEvaluation(evaluationId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(evaluationId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("close_evaluation", { p_eval: evaluationId })
+    if (error) return fail(dbMessage(error))
+    revalidateSst()
+    return ok(undefined)
+  })
+}
+
+const sstActionSchema = z.object({
+  evaluationId: z.uuid(),
+  standardId: z.uuid(),
+  description: z.string().trim().min(3).max(1000),
+  responsibleId: z.uuid().nullish(),
+  dueDate: isoDate.nullish(),
+})
+
+export async function addSstAction(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = sstActionSchema.safeParse(input)
+    if (!p.success) return fail("Completa la descripción de la acción de mejora.")
+    const { data, error } = await (await createClient()).rpc("add_sst_action", {
+      p_eval: p.data.evaluationId, p_standard: p.data.standardId, p_description: p.data.description,
+      p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_due: (p.data.dueDate ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSst()
+    return ok({ id: (data as unknown as string) ?? "" })
+  })
+}
+
+export async function setSstActionStatus(actionId: string, status: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(actionId)) return fail(GENERIC)
+    if (!["pendiente", "en_curso", "hecha", "cancelada"].includes(status)) return fail("Estado no válido.")
+    const { error } = await (await createClient()).rpc("set_sst_action_status", { p_action: actionId, p_status: status })
+    if (error) return fail(dbMessage(error))
+    revalidateSst()
+    return ok(undefined)
+  })
+}
+
+const SST_CYCLE_LABEL: Record<string, string> = { planear: "Planear", hacer: "Hacer", verificar: "Verificar", actuar: "Actuar" }
+const SST_ITEM_LABEL: Record<string, string> = { pendiente: "Pendiente", cumple: "Cumple", no_cumple: "No cumple", no_aplica: "No aplica" }
+
+export async function exportSstCsv(code: string): Promise<string> {
+  const e = await getSstEvaluation(code)
+  if (!e) return ""
+  return toCsv(e.items, [
+    { header: "Código", value: (i) => i.code },
+    { header: "Estándar", value: (i) => i.name },
+    { header: "Ciclo", value: (i) => SST_CYCLE_LABEL[i.cycle] ?? i.cycle },
+    { header: "Peso", value: (i) => String(i.weight) },
+    { header: "Estado", value: (i) => SST_ITEM_LABEL[i.status] ?? i.status },
+    { header: "Justificación", value: (i) => i.justification ?? "" },
+  ])
 }

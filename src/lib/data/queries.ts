@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canFillForms, canManageAudits, canManageCompetencies, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canFillForms, canManageAudits, canManageCompetencies, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -136,6 +136,18 @@ import type {
   SubmissionDetail,
   SubmissionStatus,
   FieldValue,
+  SstSummary,
+  SstEvaluationListItem,
+  SstEvaluationDetail,
+  SstItemView,
+  SstPhaseTotal,
+  SstActionView,
+  SstCycle,
+  SstRating,
+  SstEvaluationStatus,
+  SstItemStatus,
+  SstComponent,
+  SstActionStatus,
 } from "@/lib/types"
 
 export const PAGE_SIZE = 25
@@ -2728,4 +2740,124 @@ export async function listSubmissionsForExport(
     templateVersion: x.template_version,
     values: bySub.get(x.id) ?? {},
   }))
+}
+
+// ---------- SG-SST: Estándares Mínimos (Res. 0312) (v1.2-2) ----------
+
+const SST_EVENT_TEXT: Record<string, string> = {
+  crear_autoevaluacion: "Creó la autoevaluación.",
+  cerrar_autoevaluacion: "Cerró la autoevaluación.",
+  crear_mejora_sst: "Agregó una acción de mejora.",
+}
+
+const SST_CYCLES: SstCycle[] = ["planear", "hacer", "verificar", "actuar"]
+
+export async function getSstSummary(): Promise<SstSummary> {
+  const s = await scope()
+  const empty: SstSummary = {
+    evaluationCode: null, period: null, tier: null, score: null, rating: null,
+    cumple: 0, noCumple: 0, noAplica: 0, pendiente: 0, openActions: 0, overdueActions: 0,
+  }
+  if (!s) return empty
+  const { data: evals } = await s.supabase
+    .from("sst_evaluations")
+    .select("id, code, period, tier, score, rating")
+    .eq("organization_id", s.org)
+    .order("period", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+  const e = evals?.[0]
+  if (!e) return empty
+  const [{ data: items }, { data: actions }] = await Promise.all([
+    s.supabase.from("sst_evaluation_items").select("status").eq("organization_id", s.org).eq("evaluation_id", e.id),
+    s.supabase.from("sst_actions").select("status, due_date").eq("organization_id", s.org).eq("evaluation_id", e.id),
+  ])
+  const today = todayIsoDate()
+  const count = (st: string) => (items ?? []).filter((i) => i.status === st).length
+  const open = (actions ?? []).filter((a) => a.status === "pendiente" || a.status === "en_curso")
+  return {
+    evaluationCode: e.code, period: e.period, tier: e.tier,
+    score: e.score, rating: e.rating as SstRating | null,
+    cumple: count("cumple"), noCumple: count("no_cumple"), noAplica: count("no_aplica"), pendiente: count("pendiente"),
+    openActions: open.length,
+    overdueActions: open.filter((a) => a.due_date !== null && a.due_date <= today).length,
+  }
+}
+
+export async function listSstEvaluations(): Promise<SstEvaluationListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase
+    .from("sst_evaluations")
+    .select("id, code, period, tier, worker_count, risk_class, status, score, rating")
+    .eq("organization_id", s.org)
+    .order("period", { ascending: false })
+    .order("code", { ascending: false })
+  return (data ?? []).map((e) => ({
+    id: e.id, code: e.code, period: e.period, tier: e.tier,
+    workerCount: e.worker_count, riskClass: e.risk_class,
+    status: e.status as SstEvaluationStatus, score: e.score, rating: e.rating as SstRating | null,
+  }))
+}
+
+export async function getSstEvaluation(code: string): Promise<SstEvaluationDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: e } = await s.supabase
+    .from("sst_evaluations")
+    .select("*")
+    .eq("organization_id", s.org)
+    .eq("code", code)
+    .maybeSingle()
+  if (!e) return null
+  const tierCol = e.tier === 7 ? "weight_7" : e.tier === 21 ? "weight_21" : "weight_60"
+  const [{ data: items }, { data: standards }, { data: actions }, { data: positions }, { data: log }] = await Promise.all([
+    s.supabase.from("sst_evaluation_items").select("id, standard_id, status, justification").eq("organization_id", s.org).eq("evaluation_id", e.id),
+    s.supabase.from("sst_standards").select("id, code, name, cycle, component, order_index, weight_7, weight_21, weight_60").order("order_index", { ascending: true }),
+    s.supabase.from("sst_actions").select("id, standard_id, description, responsible_position_id, due_date, status").eq("organization_id", s.org).eq("evaluation_id", e.id),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "SG-SST").eq("entity_id", e.id).order("at", { ascending: false }),
+  ])
+  const stdMap = new Map((standards ?? []).map((x) => [x.id, x]))
+  const posMap = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const weightOf = (st: { weight_7: number | null; weight_21: number | null; weight_60: number | null }) =>
+    (st[tierCol as "weight_7" | "weight_21" | "weight_60"] ?? 0)
+
+  const views: SstItemView[] = (items ?? []).map((i) => {
+    const st = stdMap.get(i.standard_id)!
+    return {
+      itemId: i.id, standardId: i.standard_id, code: st.code, name: st.name,
+      cycle: st.cycle as SstCycle, component: st.component as SstComponent,
+      weight: weightOf(st), status: i.status as SstItemStatus, justification: i.justification,
+    }
+  }).sort((a, b) => (stdMap.get(a.standardId)!.order_index - stdMap.get(b.standardId)!.order_index))
+
+  const phases: SstPhaseTotal[] = SST_CYCLES.map((cycle) => {
+    const inPhase = views.filter((v) => v.cycle === cycle)
+    const possible = inPhase.reduce((acc, v) => acc + v.weight, 0)
+    const obtained = inPhase
+      .filter((v) => v.status === "cumple" || (v.status === "no_aplica" && (v.justification ?? "").trim() !== ""))
+      .reduce((acc, v) => acc + v.weight, 0)
+    return { cycle, possible: Math.round(possible * 100) / 100, obtained: Math.round(obtained * 100) / 100 }
+  }).filter((p) => p.possible > 0)
+
+  const today = todayIsoDate()
+  const actionViews: SstActionView[] = (actions ?? []).map((a) => {
+    const st = stdMap.get(a.standard_id)
+    return {
+      id: a.id, standardCode: st?.code ?? "", standardName: st?.name ?? "",
+      description: a.description, responsibleName: a.responsible_position_id ? posMap.get(a.responsible_position_id) ?? null : null,
+      dueDate: a.due_date, status: a.status as SstActionStatus,
+      overdue: (a.status === "pendiente" || a.status === "en_curso") && a.due_date !== null && a.due_date <= today,
+    }
+  })
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: e.id, code: e.code, period: e.period, tier: e.tier,
+    workerCount: e.worker_count, riskClass: e.risk_class,
+    status: e.status as SstEvaluationStatus, score: e.score, rating: e.rating as SstRating | null,
+    canManage: canManageSst(s.user),
+    items: views, phases, actions: actionViews,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: SST_EVENT_TEXT[x.action] ?? x.action })),
+  }
 }
