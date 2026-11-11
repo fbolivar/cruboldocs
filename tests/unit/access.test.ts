@@ -4,7 +4,7 @@ import { adminTabsFor, canManageRisks, canSeeAdmin, canSeeRisks, canSeeSignature
 
 import { PROC, user } from "./fixtures"
 
-const ALL_ORG_TABS = ["usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria", "api"]
+const ALL_ORG_TABS = ["usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria", "api", "flujos"]
 
 describe("adminTabsFor", () => {
   it("Admin de empresa: todas las pestañas de la organización, sin Organizaciones", () => {

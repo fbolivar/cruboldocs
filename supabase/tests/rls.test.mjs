@@ -1684,5 +1684,65 @@ ok((await as(db, U.beto, `select count(*)::int n from public.content_translation
 await throws(() => as(db, U.sofia, `insert into public.content_translations (organization_id, entity_type, entity_id, locale, field, value) values ('${A}', 'documento', '${DOC}', 'en', 'title', 'x')`),
   "Nadie inserta traducciones por REST (050)", "row-level security")
 
+// ========== 051 · BPM-lite: Solicitudes y aprobaciones configurables ==========
+// Gestión de flujos: Líder SIG o Admin de organización.
+const flow = (await as(db, U.juan, `select id from public.create_approval_flow('${A}', 'Aprobación de compra', 'Compras menores')`)).rows[0].id
+await throws(() => as(db, U.sofia, `select public.create_approval_flow('${A}', 'Intrusa', null)`),
+  "Sofía (sin rol) no crea flujos (051)", "No puedes gestionar")
+await throws(() => as(db, U.beto, `select public.create_approval_flow('${A}', 'Intrusa B', null)`),
+  "Beto (org B) no crea flujos en A (051)", "No puedes gestionar")
+// Pasos: cargo debe ser de la org
+await as(db, U.juan, `select public.set_flow_steps('${flow}', '[{"name":"Jefe de área","position":"${POS.calidad}"},{"name":"Gerencia","position":"${POS.gerente}"}]'::jsonb)`)
+await throws(() => as(db, U.juan, `select public.set_flow_steps('${flow}', '[{"name":"X","position":"${POS.betoB}"}]'::jsonb)`),
+  "Un paso con cargo de otra org se rechaza (051)", "cargo inválido")
+
+// Radicar: cualquier miembro activo
+const sol1 = (await as(db, U.sofia, `select code from public.create_approval_request('${A}', '${flow}', 'Compra de laptops', 'Para el equipo')`)).rows[0].code
+ok(sol1 === "SOL-" + YEAR + "-001", "Numeración SOL-AAAA-001 (051)")
+const req1 = (await svc(`select id from public.approval_requests where organization_id='${A}' and code='${sol1}'`)).rows[0].id
+// Pasos copiados: editar la plantilla no altera la solicitud en curso
+await as(db, U.juan, `select public.set_flow_steps('${flow}', '[{"name":"Solo gerencia","position":"${POS.gerente}"}]'::jsonb)`)
+ok((await svc(`select count(*)::int n from public.approval_request_steps where request_id='${req1}'`)).rows[0].n === 2, "Los pasos se copian al radicar: editar la plantilla no afecta lo en curso (051)")
+// Tarea del primer paso para el cargo aprobador
+ok((await svc(`select count(*)::int n from public.tasks where entity_id='${req1}' and type='aprobar_solicitud' and assignee_position_id='${POS.calidad}' and status='pendiente'`)).rows[0].n === 1, "Se crea la tarea de aprobación del primer paso (051)")
+
+// Solo el cargo del paso actual decide
+await throws(() => as(db, U.carlos, `select public.decide_approval_step('${req1}', true, null)`),
+  "Carlos (gerencia) no decide el paso 1 (051)", "No te corresponde")
+await throws(() => as(db, U.sofia, `select public.decide_approval_step('${req1}', true, null)`),
+  "El solicitante no decide si no es el cargo (051)", "No te corresponde")
+await as(db, U.laura, `select public.decide_approval_step('${req1}', true, 'Ok del área')`)
+ok((await svc(`select current_step, status from public.approval_requests where id='${req1}'`)).rows[0].current_step === 2, "Aprobar el paso 1 avanza al paso 2 (051)")
+// La tarea del paso 1 se completa y aparece la del paso 2
+ok((await svc(`select count(*)::int n from public.tasks where entity_id='${req1}' and assignee_position_id='${POS.gerente}' and status='pendiente'`)).rows[0].n === 1, "El paso siguiente genera su tarea (051)")
+await as(db, U.carlos, `select public.decide_approval_step('${req1}', true, null)`)
+ok((await svc(`select status from public.approval_requests where id='${req1}'`)).rows[0].status === "aprobada", "Aprobar el último paso deja la solicitud aprobada (051)")
+await throws(() => as(db, U.carlos, `select public.decide_approval_step('${req1}', true, null)`),
+  "Una solicitud cerrada no se vuelve a decidir (051)", "ya no está en curso")
+
+// Rechazo termina la solicitud
+await as(db, U.juan, `select public.set_flow_steps('${flow}', '[{"name":"Jefe de área","position":"${POS.calidad}"},{"name":"Gerencia","position":"${POS.gerente}"}]'::jsonb)`)
+const sol2 = (await as(db, U.sofia, `select code from public.create_approval_request('${A}', '${flow}', 'Compra rechazable', null)`)).rows[0].code
+const req2 = (await svc(`select id from public.approval_requests where code='${sol2}' and organization_id='${A}'`)).rows[0].id
+await throws(() => as(db, U.laura, `select public.decide_approval_step('${req2}', false, null)`),
+  "Rechazar exige motivo (051)", "motivo del rechazo")
+await as(db, U.laura, `select public.decide_approval_step('${req2}', false, 'No hay presupuesto')`)
+ok((await svc(`select status from public.approval_requests where id='${req2}'`)).rows[0].status === "rechazada", "Rechazar un paso cierra la solicitud (051)")
+
+// Anular: el solicitante o el Líder SIG, mientras esté pendiente
+const sol3 = (await as(db, U.sofia, `select code from public.create_approval_request('${A}', '${flow}', 'Compra anulable', null)`)).rows[0].code
+const req3 = (await svc(`select id from public.approval_requests where code='${sol3}' and organization_id='${A}'`)).rows[0].id
+await throws(() => as(db, U.diana, `select public.cancel_approval_request('${req3}', null)`),
+  "Un tercero no anula la solicitud ajena (051)", "No puedes anular")
+await as(db, U.sofia, `select public.cancel_approval_request('${req3}', 'Ya no se necesita')`)
+ok((await svc(`select status from public.approval_requests where id='${req3}'`)).rows[0].status === "anulada", "El solicitante anula su solicitud (051)")
+
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.approval_requests where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve solicitudes de A (051)")
+await throws(() => as(db, U.sofia, `insert into public.approval_flows (organization_id, name) values ('${A}', 'X')`),
+  "Nadie inserta flujos por REST (051)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.sol_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "sol_counters es deny-all (051)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
