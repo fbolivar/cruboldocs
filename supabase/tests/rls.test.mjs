@@ -1474,5 +1474,44 @@ await throws(() => as(db, U.juan, `insert into public.nonconforming_outputs (org
 await throws(() => as(db, U.juan, `insert into public.snc_counters (organization_id, year, last_seq) values ('${A}', 2026, 9)`),
   "snc_counters es deny-all (045)", "row-level security")
 
+
+// ========== 046 · API pública: claves de API ==========
+const H1 = "a".repeat(64)
+const H2 = "b".repeat(64)
+// Líder SIG crea una clave
+const apiKey = (await as(db, U.juan, `select public.create_api_key('${A}', 'Integración BI', array['read:indicators','read:risks'], 'ck_live_ab12…', '${H1}') as id`)).rows[0].id
+ok(apiKey != null, "Líder SIG crea una clave de API (046)")
+ok((await as(db, U.juan, `select array_length(scopes,1) n from public.api_keys where id = '${apiKey}'`)).rows[0].n === 2, "La clave guarda sus scopes (046)")
+ok((await as(db, U.juan, `select key_hash from public.api_keys where id = '${apiKey}'`)).rows[0].key_hash === H1, "La clave guarda solo el hash (046)")
+// Admin de organización también puede (Oscar)
+await as(db, U.oscar, `select public.create_api_key('${A}', 'Panel', array['read:audits'], 'ck_live_cd34…', '${H2}')`)
+// Scope inválido rechazado
+await throws(() => as(db, U.juan, `select public.create_api_key('${A}', 'x', array['write:todo'], 'p', '${"c".repeat(64)}')`),
+  "Un permiso no válido se rechaza (046)", "Permiso no válido")
+// Hash mal formado rechazado
+await throws(() => as(db, U.juan, `select public.create_api_key('${A}', 'x', array['read:risks'], 'p', 'no-es-hash')`),
+  "Un hash mal formado se rechaza (046)", "Clave no válida")
+// Consulta no administra claves
+await throws(() => as(db, U.sofia, `select public.create_api_key('${A}', 'x', array['read:risks'], 'p', '${"d".repeat(64)}')`),
+  "Sofía (consulta) no crea claves (046)", "No puedes administrar")
+// Responsable de control tampoco
+await throws(() => as(db, U.diana, `select public.create_api_key('${A}', 'x', array['read:risks'], 'p', '${"e".repeat(64)}')`),
+  "Responsable de control no crea claves (046)", "No puedes administrar")
+// Revocar
+await as(db, U.juan, `select public.revoke_api_key('${apiKey}')`)
+ok((await as(db, U.juan, `select revoked_at is not null ok from public.api_keys where id = '${apiKey}'`)).rows[0].ok === true, "Revocar marca revoked_at (046)")
+await throws(() => as(db, U.juan, `select public.revoke_api_key('${apiKey}')`),
+  "Una clave revocada no se revoca de nuevo (046)", "ya está revocada")
+// Visibilidad: quien administra ve; la consulta no
+ok((await as(db, U.juan, `select count(*)::int n from public.api_keys where organization_id = '${A}'`)).rows[0].n >= 2, "El administrador ve las claves de su org (046)")
+ok((await as(db, U.sofia, `select count(*)::int n from public.api_keys where organization_id = '${A}'`)).rows[0].n === 0, "La consulta no ve las claves (046)")
+// Aislamiento multi-tenant
+await throws(() => as(db, U.beto, `select public.create_api_key('${A}', 'x', array['read:risks'], 'p', '${"f".repeat(64)}')`),
+  "Beto (org B) no crea claves en A (046)", "No puedes administrar")
+ok((await as(db, U.beto, `select count(*)::int n from public.api_keys where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve las claves de A (046)")
+// REST directo bloqueado
+await throws(() => as(db, U.juan, `insert into public.api_keys (organization_id, name, key_prefix, key_hash, scopes) values ('${A}', 'x', 'p', '${"0".repeat(64)}', array['read:risks'])`),
+  "Nadie inserta claves por REST (046)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
