@@ -1387,5 +1387,28 @@ await throws(() => as(db, U.sofia, `select public.update_process_characterizatio
 await throws(() => as(db, U.beto, `select public.update_process_characterization('${P.sigA}', 'x', ${NULLS9}, null)`),
   "Beto (org B) no caracteriza procesos de A (042)", "no encontrado o sin acceso")
 
+
+// ========== 043 · Tablero configurable (preferencia por usuario) ==========
+await as(db, U.juan, `select public.set_dashboard_layout('${A}', '["panel_pqrs","kpi_mejora"]'::jsonb)`)
+ok(JSON.stringify((await as(db, U.juan, `select layout from public.dashboard_preferences where organization_id = '${A}' and user_id = '${U.juan}'`)).rows[0].layout) === '["panel_pqrs","kpi_mejora"]', "Guarda el layout del usuario (043)")
+// Upsert: la segunda llamada reemplaza y no duplica
+await as(db, U.juan, `select public.set_dashboard_layout('${A}', '["kpi_desempeno"]'::jsonb)`)
+ok((await as(db, U.juan, `select count(*)::int n from public.dashboard_preferences where organization_id = '${A}' and user_id = '${U.juan}'`)).rows[0].n === 1, "La preferencia es única por usuario (upsert) (043)")
+ok(JSON.stringify((await as(db, U.juan, `select layout from public.dashboard_preferences where user_id = '${U.juan}'`)).rows[0].layout) === '["kpi_desempeno"]', "El upsert reemplaza el layout (043)")
+// Aislamiento entre usuarios: Sofía no ve la preferencia de Juan
+ok((await as(db, U.sofia, `select count(*)::int n from public.dashboard_preferences where organization_id = '${A}'`)).rows[0].n === 0, "Sofía no ve la preferencia de Juan (RLS por usuario) (043)")
+// Claves inválidas rechazadas
+await throws(() => as(db, U.juan, `select public.set_dashboard_layout('${A}', '["foo"]'::jsonb)`),
+  "Una clave desconocida se rechaza (043)", "Bloque desconocido")
+// No-array rechazado
+await throws(() => as(db, U.juan, `select public.set_dashboard_layout('${A}', '{}'::jsonb)`),
+  "Un layout no-array se rechaza (043)", "no válida")
+// Otra organización no guarda preferencia en A
+await throws(() => as(db, U.beto, `select public.set_dashboard_layout('${A}', '["kpi_mejora"]'::jsonb)`),
+  "Beto (org B) no guarda preferencia en A (043)", "Sin acceso")
+// Nadie inserta por REST
+await throws(() => as(db, U.juan, `insert into public.dashboard_preferences (organization_id, user_id, layout) values ('${A}', '${U.juan}', '[]'::jsonb)`),
+  "Nadie inserta preferencias por REST (043)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
