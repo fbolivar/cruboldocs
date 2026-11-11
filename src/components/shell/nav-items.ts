@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeDashboard, canSeeIndicators, canSeeLegal, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeDashboard, canSeeHazards, canSeeIndicators, canSeeLegal, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "admin"
+export type NavIcon = "inicio" | "tablero" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "admin"
 
 export interface NavItem {
   href: string
@@ -29,6 +29,7 @@ export function navItemsFor(user: CurrentUser): NavItem[] {
   if (canSeeMinutes(user)) items.push({ href: "/app/actas", label: "Actas", icon: "actas" })
   if (canSeeObjectives(user)) items.push({ href: "/app/objetivos", label: "Objetivos", icon: "objetivos" })
   if (canSeeLegal(user)) items.push({ href: "/app/requisitos-legales", label: "Requisitos legales", icon: "legal" })
+  if (canSeeHazards(user)) items.push({ href: "/app/peligros", label: "Peligros SST", icon: "peligros" })
   if (canSeeAdmin(user)) items.push({ href: "/app/admin", label: "Administración", icon: "admin", separated: true })
   return items
 }

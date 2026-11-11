@@ -6,6 +6,7 @@ export const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   cargos: "Cargos y roles",
   procesos: "Procesos",
   tipos: "Tipos de documento",
+  normas: "Normas",
   recertificacion: "Recertificación",
   auditoria: "Auditoría",
   organizaciones: "Organizaciones",

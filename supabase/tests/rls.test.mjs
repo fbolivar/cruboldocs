@@ -992,5 +992,51 @@ await throws(() => as(db, U.sofia, `insert into public.legal_evaluations (organi
 await throws(() => as(db, U.sofia, `insert into public.legal_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "legal_counters es deny-all (030)", "row-level security")
 
+// ========== 031 · Multi-norma y peligros SST (GTC-45) ==========
+// Normas
+const norm45 = (await as(db, U.juan, `select public.upsert_norm('${A}', '45001', 'ISO 45001') id`)).rows[0].id
+ok(typeof norm45 === "string", "Líder SIG activa una norma (031)")
+await throws(() => as(db, U.sofia, `select public.upsert_norm('${A}', '9001', 'ISO 9001')`),
+  "Sofía (consulta) no administra normas (031)", "No puedes administrar")
+await throws(() => as(db, U.beto, `select public.upsert_norm('${A}', '9001', 'ISO 9001')`),
+  "Beto (org B) no administra normas de A (031)", "No puedes administrar")
+
+// Etiquetado polimórfico (proceso ↔ norma), con baja lógica al re-sincronizar
+await as(db, U.juan, `select public.set_entity_norms('${A}', 'proceso', '${P.sigA}', array['${norm45}']::uuid[])`)
+ok((await as(db, U.juan, `select count(*)::int n from public.entity_norms where entity_type='proceso' and entity_id='${P.sigA}' and is_active`)).rows[0].n === 1, "Etiqueta una entidad con una norma (031)")
+await as(db, U.juan, `select public.set_entity_norms('${A}', 'proceso', '${P.sigA}', array[]::uuid[])`)
+ok((await as(db, U.juan, `select count(*)::int n from public.entity_norms where entity_type='proceso' and entity_id='${P.sigA}' and is_active`)).rows[0].n === 0, "Re-sincronizar desactiva el vínculo (baja lógica, 031)")
+await throws(() => as(db, U.sofia, `select public.set_entity_norms('${A}', 'proceso', '${P.sigA}', array['${norm45}']::uuid[])`),
+  "Sofía (consulta) no etiqueta por norma (031)", "No puedes etiquetar")
+
+// Peligros GTC-45
+const hz = (await as(db, U.juan, `select id, code from public.create_hazard('${A}', '${P.sigA}', 'Planta', 'Ruido continuo', 'fisico', 'Protección auditiva', 10, 4, 100, 'EPP', null, null)`)).rows[0]
+ok(hz.code === "PEL-" + YEAR + "-001", "Numeración PEL-AAAA-001 (031)")
+const v = (await as(db, U.juan, `select np, nr, risk_level from public.hazards where id = '${hz.id}'`)).rows[0]
+ok(v.np === 40 && v.nr === 4000 && v.risk_level === "I", "GTC-45 calcula NP=40, NR=4000, Nivel I en el servidor (031)")
+await throws(() => as(db, U.juan, `select public.create_hazard('${A}', null, null, 'Malo', 'fisico', null, 5, 4, 100, null, null, null)`),
+  "Valoración GTC-45 inválida rechazada (ND=5) (031)", "no válida")
+await throws(() => as(db, U.sofia, `select public.create_hazard('${A}', null, 'x', 'Intruso', 'fisico', null, 2, 1, 10, null, null, null)`),
+  "Sofía (consulta) no registra peligros (031)", "No puedes registrar")
+await throws(() => as(db, U.beto, `select public.create_hazard('${A}', null, 'x', 'Intruso B', 'fisico', null, 2, 1, 10, null, null, null)`),
+  "Beto (org B) no registra peligros en A (031)", "No puedes registrar")
+
+// Editar recalcula; inactivar bloquea edición
+await as(db, U.juan, `select public.update_hazard('${hz.id}', '${P.sigA}', 'Planta', 'Ruido', 'fisico', null, 2, 2, 25, null, null, null)`)
+ok(Number((await as(db, U.juan, `select nr from public.hazards where id = '${hz.id}'`)).rows[0].nr) === 100, "Editar recalcula NR (2×2×25=100) (031)")
+await as(db, U.juan, `select public.set_hazard_active('${hz.id}', false)`)
+await throws(() => as(db, U.juan, `select public.update_hazard('${hz.id}', null, null, 'x', 'fisico', null, 2, 2, 25, null, null, null)`),
+  "Un peligro inactivo no es editable (031)", "ya no es editable")
+
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.hazards where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve peligros de A (031)")
+ok((await as(db, U.beto, `select count(*)::int n from public.norms where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve normas de A (031)")
+await throws(() => as(db, U.sofia, `insert into public.norms (organization_id, code, name) values ('${A}', 'X', 'Intrusa')`),
+  "Nadie inserta normas por REST (031)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.hazards (organization_id, code, hazard, classification, nd, ne, nc, np, nr, risk_level) values ('${A}', 'X', 'h', 'fisico', 2, 2, 25, 4, 100, 'III')`),
+  "Nadie inserta peligros por REST (031)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.entity_norms (organization_id, norm_id, entity_type, entity_id) values ('${A}', '${norm45}', 'proceso', '${P.sigA}')`),
+  "Nadie etiqueta por REST (031)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

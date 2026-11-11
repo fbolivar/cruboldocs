@@ -1,5 +1,6 @@
 import { AuditTab } from "@/components/admin/audit-tab"
 import { DocTypesTab } from "@/components/admin/doc-types-tab"
+import { NormasTab } from "@/components/admin/normas-tab"
 import { OrgsTab } from "@/components/admin/orgs-tab"
 import { PositionsTab } from "@/components/admin/positions-tab"
 import { ProcessesTab } from "@/components/admin/processes-tab"
@@ -19,6 +20,8 @@ export function AdminTabContent({ tab, sp }: { tab: AdminTab; sp: SearchParams }
       return <ProcessesTab />
     case "tipos":
       return <DocTypesTab />
+    case "normas":
+      return <NormasTab />
     case "recertificacion":
       return <RecertTab />
     case "auditoria":

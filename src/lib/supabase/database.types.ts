@@ -1028,6 +1028,174 @@ export type Database = {
           },
         ]
       }
+      entity_norms: {
+        Row: {
+          created_at: string
+          created_by: string
+          entity_id: string
+          entity_type: string
+          id: string
+          is_active: boolean
+          norm_id: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          is_active?: boolean
+          norm_id: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          is_active?: boolean
+          norm_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_norms_norm_id_organization_id_fkey"
+            columns: ["norm_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "norms"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "entity_norms_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hazard_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hazard_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hazards: {
+        Row: {
+          area: string | null
+          classification: string
+          code: string
+          created_at: string
+          created_by: string
+          existing_controls: string | null
+          hazard: string
+          id: string
+          intervention: string | null
+          nc: number
+          nd: number
+          ne: number
+          next_review_date: string | null
+          np: number
+          nr: number
+          organization_id: string
+          process_id: string | null
+          responsible_position_id: string | null
+          risk_level: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          classification: string
+          code: string
+          created_at?: string
+          created_by?: string
+          existing_controls?: string | null
+          hazard: string
+          id?: string
+          intervention?: string | null
+          nc: number
+          nd: number
+          ne: number
+          next_review_date?: string | null
+          np: number
+          nr: number
+          organization_id: string
+          process_id?: string | null
+          responsible_position_id?: string | null
+          risk_level: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          classification?: string
+          code?: string
+          created_at?: string
+          created_by?: string
+          existing_controls?: string | null
+          hazard?: string
+          id?: string
+          intervention?: string | null
+          nc?: number
+          nd?: number
+          ne?: number
+          next_review_date?: string | null
+          np?: number
+          nr?: number
+          organization_id?: string
+          process_id?: string | null
+          responsible_position_id?: string | null
+          risk_level?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hazards_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hazards_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "hazards_responsible_position_id_organization_id_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       indicator_counters: {
         Row: {
           last_seq: number
@@ -2046,6 +2214,44 @@ export type Database = {
             columns: ["verified_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      norms: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "norms_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -3730,6 +3936,10 @@ export type Database = {
         Args: { org: string; process: string }
         Returns: boolean
       }
+      can_manage_sig: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_suppliers: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -3749,6 +3959,7 @@ export type Database = {
       can_see_pqrs: { Args: { org: string }; Returns: boolean }
       can_see_reviews: { Args: { org: string }; Returns: boolean }
       can_see_risks: { Args: { org: string }; Returns: boolean }
+      can_see_sig: { Args: { org: string }; Returns: boolean }
       can_see_suppliers: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
       can_view_content: { Args: { org: string }; Returns: boolean }
@@ -3846,6 +4057,26 @@ export type Database = {
           p_type: string
         }
         Returns: string
+      }
+      create_hazard: {
+        Args: {
+          p_area: string
+          p_classification: string
+          p_controls: string
+          p_hazard: string
+          p_intervention: string
+          p_nc: number
+          p_nd: number
+          p_ne: number
+          p_next_review: string
+          p_org: string
+          p_process: string
+          p_responsible: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
       }
       create_indicator: {
         Args: {
@@ -4147,9 +4378,42 @@ export type Database = {
           title: string
         }[]
       }
+      gtc45_level: { Args: { p_nr: number }; Returns: string }
       has_role: {
         Args: { org: string; process?: string; r: string }
         Returns: boolean
+      }
+      hazard_or_fail: {
+        Args: { p_hazard: string }
+        Returns: {
+          area: string | null
+          classification: string
+          code: string
+          created_at: string
+          created_by: string
+          existing_controls: string | null
+          hazard: string
+          id: string
+          intervention: string | null
+          nc: number
+          nd: number
+          ne: number
+          next_review_date: string | null
+          np: number
+          nr: number
+          organization_id: string
+          process_id: string | null
+          responsible_position_id: string | null
+          risk_level: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "hazards"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       indicator_compliance: {
         Args: {
@@ -4590,8 +4854,25 @@ export type Database = {
       }
       run_daily_jobs: { Args: never; Returns: Json }
       set_active_org: { Args: { org: string }; Returns: undefined }
+      set_entity_norms: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_norm_ids: string[]
+          p_org: string
+        }
+        Returns: undefined
+      }
+      set_hazard_active: {
+        Args: { p_active: boolean; p_hazard: string }
+        Returns: undefined
+      }
       set_nc_cause: {
         Args: { p_cause: string; p_nc: string; p_owner?: string }
+        Returns: undefined
+      }
+      set_norm_active: {
+        Args: { p_active: boolean; p_norm: string }
         Returns: undefined
       }
       set_objective_status: {
@@ -4710,6 +4991,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_hazard: {
+        Args: {
+          p_area: string
+          p_classification: string
+          p_controls: string
+          p_hazard: string
+          p_hazard_text: string
+          p_intervention: string
+          p_nc: number
+          p_nd: number
+          p_ne: number
+          p_next_review: string
+          p_process: string
+          p_responsible: string
+        }
+        Returns: undefined
+      }
       update_indicator: {
         Args: {
           p_description: string
@@ -4801,6 +5099,10 @@ export type Database = {
           p_supplier: string
         }
         Returns: undefined
+      }
+      upsert_norm: {
+        Args: { p_code: string; p_name: string; p_org: string }
+        Returns: string
       }
       verify_nc: {
         Args: { p_effective: boolean; p_nc: string; p_notes?: string }

@@ -88,6 +88,26 @@ export function canManagePqrs(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla Peligros SST (matriz GTC-45): mismos roles del SIG que los demás módulos. */
+export function canSeeHazards(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/valora peligros: Líder SIG o Líder del proceso. */
+export function canManageHazards(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
+/** Administra el catálogo de normas: Admin de organización o Líder SIG. */
+export function canManageNorms(user: CurrentUser): boolean {
+  return user.isOrgAdmin || hasRole(user, "lider_sig")
+}
+
+/** Puede etiquetar registros por norma: Líder SIG o Líder de proceso. */
+export function canTagNorms(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso")
+}
+
 /** Pantalla Requisitos legales: mismos roles del SIG que los demás módulos. */
 export function canSeeLegal(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))
@@ -150,6 +170,7 @@ export type AdminTab =
   | "cargos"
   | "procesos"
   | "tipos"
+  | "normas"
   | "recertificacion"
   | "auditoria"
   | "organizaciones"
@@ -159,7 +180,7 @@ export function adminTabsFor(user: CurrentUser): AdminTab[] {
   // El Superadmin solo administra organizaciones; el resto, solo si además es miembro con ese rol.
   const platform: AdminTab[] = user.isPlatformAdmin ? ["organizaciones"] : []
   if (user.isOrgAdmin || hasRole(user, "lider_sig")) {
-    return [...platform, "usuarios", "cargos", "procesos", "tipos", "recertificacion", "auditoria"]
+    return [...platform, "usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria"]
   }
   if (hasRole(user, "auditor")) return [...platform, "auditoria"]
   return platform

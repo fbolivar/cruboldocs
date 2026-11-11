@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -2660,5 +2660,133 @@ export async function exportLegalCsv(): Promise<string> {
     { header: "Cumplimiento", value: (r) => COMP[r.compliance] ?? r.compliance },
     { header: "Estado", value: (r) => (r.status === "derogado" ? "Derogado" : "Vigente") },
     { header: "Próxima evaluación", value: (r) => (r.nextEvalDate ? formatDate(r.nextEvalDate) : null) },
+  ])
+}
+
+// ---------- Multi-norma y peligros SST (v1.1-4) ----------
+
+function revalidateHazards() {
+  revalidatePath("/app/peligros", "layout")
+  revalidatePath("/app")
+}
+const revalidateNorms = () => { revalidatePath("/app/admin"); revalidatePath("/app", "layout") }
+
+export async function upsertNorm(input: { code: string; name: string }): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const code = (input.code ?? "").trim()
+    const name = (input.name ?? "").trim()
+    if (code.length < 1 || code.length > 40 || name.length < 1 || name.length > 160) return fail("Revisa el código y el nombre de la norma.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("upsert_norm", { p_org: user.organization.id, p_code: code, p_name: name })
+    if (error) return fail(dbMessage(error))
+    revalidateNorms()
+    return ok({ id: data as unknown as string })
+  })
+}
+
+export async function setNormActive(normId: string, active: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(normId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_norm_active", { p_norm: normId, p_active: active })
+    if (error) return fail(dbMessage(error))
+    revalidateNorms()
+    return ok(undefined)
+  })
+}
+
+const NORM_ENTITY_TYPES = ["proceso", "documento", "riesgo", "no_conformidad", "objetivo", "requisito_legal", "peligro"] as const
+export async function setEntityNorms(entityType: string, entityId: string, normIds: string[]): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(entityId)) return fail(GENERIC)
+    if (!(NORM_ENTITY_TYPES as readonly string[]).includes(entityType)) return fail(GENERIC)
+    const ids = (normIds ?? []).filter((x) => isUuid(x))
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { error } = await (await createClient()).rpc("set_entity_norms", {
+      p_org: user.organization.id, p_entity_type: entityType, p_entity_id: entityId, p_norm_ids: ids,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app", "layout")
+    return ok(undefined)
+  })
+}
+
+const ND = [0, 2, 6, 10] as const
+const NE = [1, 2, 3, 4] as const
+const NC = [10, 25, 60, 100] as const
+const hazardSchema = z.object({
+  processId: z.uuid().nullish(),
+  area: z.string().trim().max(200).optional(),
+  hazard: z.string().trim().min(3).max(1000),
+  classification: z.enum(["fisico", "quimico", "biologico", "biomecanico", "psicosocial", "seguridad", "natural"]),
+  controls: z.string().trim().max(2000).optional(),
+  nd: z.number().refine((n) => (ND as readonly number[]).includes(n), "ND"),
+  ne: z.number().refine((n) => (NE as readonly number[]).includes(n), "NE"),
+  nc: z.number().refine((n) => (NC as readonly number[]).includes(n), "NC"),
+  intervention: z.string().trim().max(2000).optional(),
+  responsibleId: z.uuid().nullish(),
+  nextReview: isoDate.nullish(),
+})
+
+export async function createHazard(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = hazardSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos y la valoración GTC-45 del peligro.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_hazard", {
+      p_org: user.organization.id, p_process: (p.data.processId ?? null) as unknown as string,
+      p_area: p.data.area ?? "", p_hazard: p.data.hazard, p_classification: p.data.classification,
+      p_controls: p.data.controls ?? "", p_nd: p.data.nd, p_ne: p.data.ne, p_nc: p.data.nc,
+      p_intervention: p.data.intervention ?? "", p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_next_review: (p.data.nextReview ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateHazards()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateHazard(hazardId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(hazardId)) return fail(GENERIC)
+    const p = hazardSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos y la valoración GTC-45 del peligro.")
+    const { error } = await (await createClient()).rpc("update_hazard", {
+      p_hazard: hazardId, p_process: (p.data.processId ?? null) as unknown as string,
+      p_area: p.data.area ?? "", p_hazard_text: p.data.hazard, p_classification: p.data.classification,
+      p_controls: p.data.controls ?? "", p_nd: p.data.nd, p_ne: p.data.ne, p_nc: p.data.nc,
+      p_intervention: p.data.intervention ?? "", p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_next_review: (p.data.nextReview ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateHazards()
+    return ok(undefined)
+  })
+}
+
+export async function setHazardActive(hazardId: string, active: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(hazardId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_hazard_active", { p_hazard: hazardId, p_active: active })
+    if (error) return fail(dbMessage(error))
+    revalidateHazards()
+    return ok(undefined)
+  })
+}
+
+export async function exportHazardsCsv(): Promise<string> {
+  const rows = await listHazards()
+  const CLS: Record<string, string> = { fisico: "Físico", quimico: "Químico", biologico: "Biológico", biomecanico: "Biomecánico", psicosocial: "Psicosocial", seguridad: "Condiciones de seguridad", natural: "Fenómenos naturales" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Peligro", value: (r) => r.hazard },
+    { header: "Clasificación", value: (r) => CLS[r.classification] ?? r.classification },
+    { header: "Proceso", value: (r) => r.processName },
+    { header: "Área/Cargo", value: (r) => r.area },
+    { header: "NR", value: (r) => String(r.nr) },
+    { header: "Nivel", value: (r) => `Nivel ${r.riskLevel}` },
+    { header: "Estado", value: (r) => (r.status === "inactivo" ? "Inactivo" : "Activo") },
   ])
 }

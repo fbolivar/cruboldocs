@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageCompetencies, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -80,6 +80,11 @@ import type {
   CommitmentView,
   DashboardData,
   DashboardFilters,
+  HazardDetail,
+  HazardListItem,
+  HazardsSummary,
+  Norm,
+  NormOption,
   LegalEvaluationView,
   LegalRequirementDetail,
   LegalRequirementListItem,
@@ -2252,5 +2257,115 @@ export async function getLegalRequirement(code: string): Promise<LegalRequiremen
     evaluations,
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: LEGAL_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageLegal(s.user, r.process_id ?? undefined),
+  }
+}
+
+// ---------- Multi-norma y peligros SST (v1.1-4) ----------
+
+const HAZARD_EVENT_TEXT: Record<string, string> = {
+  crear_peligro: "Registró el peligro.",
+  editar_peligro: "Editó la valoración del peligro.",
+  estado_peligro: "Cambió el estado del peligro.",
+}
+
+export async function listNorms(): Promise<Norm[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: norms }, { data: tags }] = await Promise.all([
+    s.supabase.from("norms").select("id, code, name, is_active").eq("organization_id", s.org).order("code"),
+    s.supabase.from("entity_norms").select("norm_id").eq("organization_id", s.org).eq("is_active", true),
+  ])
+  const count = new Map<string, number>()
+  for (const t of tags ?? []) count.set(t.norm_id, (count.get(t.norm_id) ?? 0) + 1)
+  return (norms ?? []).map((n) => ({ id: n.id, code: n.code, name: n.name, isActive: n.is_active, taggedCount: count.get(n.id) ?? 0 }))
+}
+
+export async function listActiveNorms(): Promise<NormOption[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase.from("norms").select("id, code, name").eq("organization_id", s.org).eq("is_active", true).order("code")
+  return (data ?? []).map((n) => ({ id: n.id, code: n.code, name: n.name }))
+}
+
+/** Normas (activas) etiquetadas a una entidad concreta. */
+export async function getEntityNorms(entityType: string, entityId: string): Promise<NormOption[]> {
+  const s = await scope()
+  if (!s || !isUuid(entityId)) return []
+  const { data } = await s.supabase
+    .from("entity_norms")
+    .select("norm:norms(id, code, name)")
+    .eq("organization_id", s.org).eq("entity_type", entityType).eq("entity_id", entityId).eq("is_active", true)
+  return (data ?? []).flatMap((r) => {
+    const n = r.norm as unknown as { id: string; code: string; name: string } | null
+    return n ? [{ id: n.id, code: n.code, name: n.name }] : []
+  })
+}
+
+/** Mapa entidad→normas para un tipo (para pintar chips en listas). */
+export async function listEntityNormsFor(entityType: string): Promise<Map<string, NormOption[]>> {
+  const s = await scope()
+  const map = new Map<string, NormOption[]>()
+  if (!s) return map
+  const { data } = await s.supabase
+    .from("entity_norms")
+    .select("entity_id, norm:norms(id, code, name)")
+    .eq("organization_id", s.org).eq("entity_type", entityType).eq("is_active", true)
+  for (const r of data ?? []) {
+    const n = r.norm as unknown as { id: string; code: string; name: string } | null
+    if (!n) continue
+    const arr = map.get(r.entity_id) ?? []
+    arr.push({ id: n.id, code: n.code, name: n.name })
+    map.set(r.entity_id, arr)
+  }
+  return map
+}
+
+export async function getHazardsSummary(): Promise<HazardsSummary> {
+  const s = await scope()
+  if (!s) return { active: 0, levelI: 0, dueSoon: 0 }
+  const soon = addDays(todayIsoDate(), 30)
+  const { data } = await s.supabase.from("hazards").select("status, risk_level, next_review_date").eq("organization_id", s.org)
+  const active = (data ?? []).filter((h) => h.status === "activo")
+  return {
+    active: active.length,
+    levelI: active.filter((h) => h.risk_level === "I").length,
+    dueSoon: active.filter((h) => h.next_review_date !== null && h.next_review_date <= soon).length,
+  }
+}
+
+export async function listHazards(): Promise<HazardListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.from("hazards").select("id, code, hazard, classification, process_id, area, nr, risk_level, status").eq("organization_id", s.org).order("nr", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((h) => ({
+    id: h.id, code: h.code, hazard: h.hazard, classification: h.classification as HazardListItem["classification"],
+    processName: h.process_id ? procMap.get(h.process_id) ?? null : null, area: h.area,
+    nr: h.nr, riskLevel: h.risk_level as HazardListItem["riskLevel"], status: h.status as HazardListItem["status"],
+  }))
+}
+
+export async function getHazard(code: string): Promise<HazardDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: h } = await s.supabase.from("hazards").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!h) return null
+  const [{ data: proc }, { data: pos }, { data: log }] = await Promise.all([
+    h.process_id ? s.supabase.from("processes").select("name").eq("id", h.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    h.responsible_position_id ? s.supabase.from("positions").select("name").eq("id", h.responsible_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Peligro").eq("entity_id", h.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: h.id, code: h.code, processId: h.process_id, processName: proc?.name ?? null, area: h.area,
+    hazard: h.hazard, classification: h.classification as HazardDetail["classification"], existingControls: h.existing_controls,
+    nd: h.nd, ne: h.ne, nc: h.nc, np: h.np, nr: h.nr, riskLevel: h.risk_level as HazardDetail["riskLevel"],
+    intervention: h.intervention, responsibleName: pos?.name ?? null, status: h.status as HazardDetail["status"],
+    nextReviewDate: h.next_review_date,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: HAZARD_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageHazards(s.user, h.process_id ?? undefined),
   }
 }

@@ -1031,6 +1031,70 @@ export interface ObjectiveCardView {
   canManage: boolean
 }
 
+// ---------- Multi-norma y peligros SST (v1.1-4) ----------
+
+export type NormEntityType = "proceso" | "documento" | "riesgo" | "no_conformidad" | "objetivo" | "requisito_legal" | "peligro"
+
+export interface Norm {
+  id: string
+  code: string
+  name: string
+  isActive: boolean
+  taggedCount: number
+}
+
+/** Norma activa para los selectores de etiquetado. */
+export interface NormOption {
+  id: string
+  code: string
+  name: string
+}
+
+export type HazardClass = "fisico" | "quimico" | "biologico" | "biomecanico" | "psicosocial" | "seguridad" | "natural"
+export type HazardStatus = "activo" | "inactivo"
+export type HazardRiskLevel = "I" | "II" | "III" | "IV"
+
+export interface HazardListItem {
+  id: string
+  code: string
+  hazard: string
+  classification: HazardClass
+  processName: string | null
+  area: string | null
+  nr: number
+  riskLevel: HazardRiskLevel
+  status: HazardStatus
+}
+
+export interface HazardsSummary {
+  active: number
+  levelI: number
+  dueSoon: number
+}
+
+export interface HazardDetail {
+  id: string
+  code: string
+  processId: string | null
+  processName: string | null
+  area: string | null
+  hazard: string
+  classification: HazardClass
+  existingControls: string | null
+  nd: number
+  ne: number
+  nc: number
+  np: number
+  nr: number
+  riskLevel: HazardRiskLevel
+  intervention: string | null
+  responsibleName: string | null
+  status: HazardStatus
+  nextReviewDate: string | null
+  timeline: NcTimelineEvent[]
+  canManage: boolean
+}
+
 // ---------- Requisitos legales (v1.1-3, ISO 14001/45001, SG-SST) ----------
 
 export type LegalSource = "ley" | "decreto" | "resolucion" | "norma_iso" | "contractual" | "otro"
