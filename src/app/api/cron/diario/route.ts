@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 
 import { deliverWebhooks } from "@/lib/api/webhooks"
+import { deliverChat } from "@/lib/chat/deliver"
 import { flushOutbox } from "@/lib/email/outbox"
 import { createAdminClient } from "@/lib/supabase/server"
 
@@ -28,5 +29,6 @@ export async function GET(request: Request) {
   }
   const mail = await flushOutbox(200)
   const hooks = await deliverWebhooks(200)
-  return NextResponse.json({ tareas: data, correos: mail, webhooks: hooks })
+  const chat = await deliverChat(200)
+  return NextResponse.json({ tareas: data, correos: mail, webhooks: hooks, chat })
 }

@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 
 import { deliverWebhooks } from "@/lib/api/webhooks"
+import { deliverChat } from "@/lib/chat/deliver"
 
 // Reintento/entrega de webhooks pendientes. Protegido con CRON_SECRET; se puede programar como cron
 // frecuente (plan que lo permita) o invocar desde un scheduler externo. El job diario también entrega.
@@ -21,5 +22,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
   const result = await deliverWebhooks(200)
-  return NextResponse.json(result)
+  const chat = await deliverChat(200)
+  return NextResponse.json({ webhooks: result, chat })
 }

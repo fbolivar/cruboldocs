@@ -853,6 +853,116 @@ export type Database = {
           },
         ]
       }
+      chat_notifiers: {
+        Row: {
+          created_at: string
+          created_by: string
+          enabled: boolean
+          events: string[]
+          id: string
+          name: string
+          organization_id: string
+          provider: string
+          removed_at: string | null
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          events?: string[]
+          id?: string
+          name: string
+          organization_id: string
+          provider: string
+          removed_at?: string | null
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          events?: string[]
+          id?: string
+          name?: string
+          organization_id?: string
+          provider?: string
+          removed_at?: string | null
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_notifiers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_outbox: {
+        Row: {
+          attempts: number
+          code: string
+          created_at: string
+          event: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          notifier_id: string
+          organization_id: string
+          sent_at: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          attempts?: number
+          code?: string
+          created_at?: string
+          event: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notifier_id: string
+          organization_id: string
+          sent_at?: string | null
+          status?: string
+          title?: string
+        }
+        Update: {
+          attempts?: number
+          code?: string
+          created_at?: string
+          event?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          notifier_id?: string
+          organization_id?: string
+          sent_at?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_outbox_notifier_id_organization_id_fkey"
+            columns: ["notifier_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "chat_notifiers"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "chat_outbox_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competencies: {
         Row: {
           created_at: string
@@ -6400,6 +6510,18 @@ export type Database = {
           id: string
         }[]
       }
+      create_chat_notifier: {
+        Args: {
+          p_events: string[]
+          p_name: string
+          p_org: string
+          p_provider: string
+          p_url: string
+        }
+        Returns: {
+          id: string
+        }[]
+      }
       create_competency: {
         Args: {
           p_description: string
@@ -6794,6 +6916,10 @@ export type Database = {
         Returns: undefined
       }
       derogate_requirement: { Args: { p_req: string }; Returns: undefined }
+      discard_chat_notifier: {
+        Args: { p_notifier: string }
+        Returns: undefined
+      }
       discard_saved_report: { Args: { p_report: string }; Returns: undefined }
       doc_or_fail: {
         Args: { p_doc: string }
@@ -6822,6 +6948,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      enqueue_chat: {
+        Args: {
+          p_code: string
+          p_event: string
+          p_org: string
+          p_title: string
+        }
+        Returns: undefined
       }
       enqueue_webhook: {
         Args: { p_event: string; p_org: string; p_payload: Json }
@@ -7982,6 +8117,16 @@ export type Database = {
           p_requested_by: string
           p_title: string
           p_type: string
+        }
+        Returns: undefined
+      }
+      update_chat_notifier: {
+        Args: {
+          p_enabled: boolean
+          p_events: string[]
+          p_name: string
+          p_notifier: string
+          p_url: string
         }
         Returns: undefined
       }

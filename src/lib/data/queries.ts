@@ -10,6 +10,7 @@ import { cache } from "react"
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
 import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
 import { sanitizeConfig } from "@/lib/bi/compute"
+import { maskChatUrl } from "@/lib/chat/providers"
 import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageFlows, canManageForms, canManageReports, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
@@ -30,6 +31,7 @@ import type {
   AuditSummary,
   FindingSeverity,
   FindingType,
+  ChatNotifierView,
   SavedReportView,
   ApprovalFlowView,
   ApprovalFlowOption,
@@ -3840,4 +3842,24 @@ export async function getSavedReport(id: string, user: CurrentUser): Promise<Sav
   if (!s || !isUuid(id)) return null
   const { data } = await s.supabase.from("saved_reports").select("id, name, description, dataset, scope, config, created_by").eq("organization_id", s.org).eq("id", id).maybeSingle()
   return data ? toSavedReportView(data, user) : null
+}
+
+// ---------- Notificaciones Slack/Teams (v1.4-7) ----------
+
+export async function listChatNotifiers(): Promise<ChatNotifierView[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase.from("chat_notifiers").select("id, provider, name, url, events, enabled").eq("organization_id", s.org).is("removed_at", null).order("created_at", { ascending: false })
+  return (data ?? []).map((n) => ({
+    id: n.id, provider: n.provider as ChatNotifierView["provider"], name: n.name,
+    maskedUrl: maskChatUrl(n.url), events: n.events ?? [], enabled: n.enabled,
+  }))
+}
+
+/** URL real de un canal (solo para la acción de prueba; RLS limita a Admin). */
+export async function getChatNotifierTarget(id: string): Promise<{ provider: "slack" | "teams"; url: string } | null> {
+  const s = await scope()
+  if (!s || !isUuid(id)) return null
+  const { data } = await s.supabase.from("chat_notifiers").select("provider, url").eq("organization_id", s.org).eq("id", id).is("removed_at", null).maybeSingle()
+  return data ? { provider: data.provider as "slack" | "teams", url: data.url } : null
 }

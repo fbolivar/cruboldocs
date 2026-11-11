@@ -16,9 +16,11 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
+import { deliverChat } from "@/lib/chat/deliver"
+import { CHAT_EVENTS, isAllowedChatUrl, sendChat } from "@/lib/chat/providers"
 import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
 import { runConfig, sanitizeConfig, type ReportResult } from "@/lib/bi/compute"
-import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, loadDataset, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getChatNotifierTarget, getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, loadDataset, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import { generateApiToken } from "@/lib/api/keys"
 import {
@@ -1278,6 +1280,7 @@ export async function reportNonconformity(input: unknown): Promise<Result<{ code
     })
     if (error) return fail(dbMessage(error))
     revalidateNc()
+    after(() => deliverChat().catch((e) => console.error("chat", e)))
     return ok({ code: data?.[0]?.code ?? "" })
   })
 }
@@ -2132,6 +2135,7 @@ export async function createPqrs(input: unknown): Promise<Result<{ code: string 
     })
     if (error) return fail(dbMessage(error))
     revalidatePqrs()
+    after(() => deliverChat().catch((e) => console.error("chat", e)))
     return ok({ code: data?.[0]?.code ?? "" })
   })
 }
@@ -3943,6 +3947,7 @@ export async function createNcOutput(input: unknown): Promise<Result<{ code: str
     })
     if (error) return fail(dbMessage(error))
     revalidateNcOutputs()
+    after(() => deliverChat().catch((e) => console.error("chat", e)))
     return ok({ code: data?.[0]?.code ?? "" })
   })
 }
@@ -4393,6 +4398,7 @@ export async function createApprovalRequest(input: unknown): Promise<Result<{ co
     })
     if (error) return fail(dbMessage(error))
     revalidateApprovals()
+    after(() => deliverChat().catch((e) => console.error("chat", e)))
     return ok({ code: data?.[0]?.code ?? "" })
   })
 }
@@ -4506,4 +4512,71 @@ export async function exportReportCsv(dataset: string, config: unknown): Promise
   const clean = sanitizeConfig(key, (config ?? {}) as Partial<ReportConfig>)
   const result = runConfig(key, await loadDataset(key), clean)
   return toCsv(result.rows, result.columns.map((c) => ({ header: c.label, value: (r: ReportRow) => { const v = r[c.field]; return v === null || v === undefined ? "" : String(v) } })))
+}
+
+// ---------- Notificaciones Slack/Teams (v1.4-7) ----------
+
+function revalidateNotifiers() {
+  revalidatePath("/app/admin")
+}
+
+const PROVIDERS = ["slack", "teams"] as const
+
+const notifierSchema = z.object({
+  provider: z.enum(PROVIDERS),
+  url: z.string().trim().max(500),
+  name: z.string().trim().min(2).max(80),
+  events: z.array(z.enum(CHAT_EVENTS)).min(1).max(CHAT_EVENTS.length),
+})
+
+export async function createChatNotifier(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = notifierSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el proveedor, la URL y los eventos.")
+    if (!isAllowedChatUrl(p.data.url)) return fail("La URL debe ser de Slack (hooks.slack.com) o Teams (…webhook.office.com) y usar https.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_chat_notifier", {
+      p_org: user.organization.id, p_provider: p.data.provider, p_url: p.data.url, p_name: p.data.name, p_events: p.data.events,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNotifiers()
+    return ok({ id: data?.[0]?.id ?? "" })
+  })
+}
+
+export async function updateChatNotifier(input: { id: string; url: string; name: string; events: string[]; enabled: boolean }): Promise<Result> {
+  return guard(async () => {
+    const p = notifierSchema.omit({ provider: true }).extend({ id: z.uuid(), enabled: z.boolean() }).safeParse(input)
+    if (!p.success) return fail("Revisa los datos del canal.")
+    if (!isAllowedChatUrl(p.data.url)) return fail("La URL debe ser de Slack o Teams y usar https.")
+    const { error } = await (await createClient()).rpc("update_chat_notifier", {
+      p_notifier: p.data.id, p_url: p.data.url, p_name: p.data.name, p_events: p.data.events, p_enabled: p.data.enabled,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNotifiers()
+    return ok(undefined)
+  })
+}
+
+export async function discardChatNotifier(id: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(id)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("discard_chat_notifier", { p_notifier: id })
+    if (error) return fail(dbMessage(error))
+    revalidateNotifiers()
+    return ok(undefined)
+  })
+}
+
+/** Envía un mensaje de prueba al canal (verifica la URL sin esperar un evento). */
+export async function testChatNotifier(id: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(id)) return fail(GENERIC)
+    const target = await getChatNotifierTarget(id)
+    if (!target) return fail("Canal no encontrado.")
+    const r = await sendChat(target.provider, target.url, "✅ CrubolDocs: prueba de notificación. Si ves esto, el canal quedó configurado.")
+    if (!r.ok) return fail(`No pudimos publicar: ${r.error ?? "revisa la URL"}.`)
+    return ok(undefined)
+  })
 }

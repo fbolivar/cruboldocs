@@ -920,6 +920,18 @@ export interface SupplierSelfAssessmentView {
   submittedAt: string
 }
 
+// ---------- Notificaciones Slack/Teams (v1.4-7) ----------
+
+export interface ChatNotifierView {
+  id: string
+  provider: "slack" | "teams"
+  name: string
+  /** URL enmascarada (el secreto no se expone). */
+  maskedUrl: string
+  events: string[]
+  enabled: boolean
+}
+
 // ---------- BI / Constructor de informes (v1.4-6) ----------
 
 export interface SavedReportView {
