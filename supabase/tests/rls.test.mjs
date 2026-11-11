@@ -1829,5 +1829,25 @@ await svc(`update public.organizations set ai_agent_enabled = false where id = '
 await throws(() => as(db, U.sofia, `select public.ai_content_consume('${A}', 3, '2099-02')`),
   "Sin opt-in del agente, la IA no consume (054)", "no está habilitada")
 
+// ========== 055 · Causa raíz estructurada (rca_analyses) ==========
+const rcNc = (await as(db, U.juan, `select id, code from public.report_nonconformity('${A}', 'queja_pqrs', '${P.sigA}', 'NC para RCA', 'Descripción de prueba para el análisis de causa.', 'mayor', current_date, null)`)).rows[0]
+await as(db, U.juan, `select public.save_rca_analysis('${rcNc.id}', '5porques', '{"problem":"Falla","steps":["a","b"]}'::jsonb, 'Causa raíz identificada')`)
+ok((await svc(`select method, conclusion from public.rca_analyses where nonconformity_id='${rcNc.id}'`)).rows[0].method === "5porques", "Guarda el análisis 5 Porqués (055)")
+// Uno por NC: cambiar de método sobrescribe.
+await as(db, U.juan, `select public.save_rca_analysis('${rcNc.id}', 'ishikawa', '{"categories":{"metodo":["c1"]}}'::jsonb, 'Otra conclusión')`)
+ok((await svc(`select count(*)::int n from public.rca_analyses where nonconformity_id='${rcNc.id}'`)).rows[0].n === 1, "Uno por NC: cambiar de método sobrescribe (055)")
+ok((await svc(`select method from public.rca_analyses where nonconformity_id='${rcNc.id}'`)).rows[0].method === "ishikawa", "El método se actualiza (055)")
+// Validación y autorización.
+await throws(() => as(db, U.juan, `select public.save_rca_analysis('${rcNc.id}', '8d', '{}'::jsonb, null)`),
+  "Método no válido rechazado (055)", "Método no válido")
+await throws(() => as(db, U.sofia, `select public.save_rca_analysis('${rcNc.id}', '5porques', '{}'::jsonb, null)`),
+  "Sofía (consulta) no guarda análisis (055)", "no puede gestionar")
+await throws(() => as(db, U.beto, `select public.save_rca_analysis('${rcNc.id}', '5porques', '{}'::jsonb, null)`),
+  "Beto (org B) no toca la NC de A (055)", "no encontrada")
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.rca_analyses where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve análisis de A (055)")
+await throws(() => as(db, U.sofia, `insert into public.rca_analyses (organization_id, nonconformity_id, method) values ('${A}', '${rcNc.id}', '5porques')`),
+  "Nadie inserta análisis por REST (055)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
