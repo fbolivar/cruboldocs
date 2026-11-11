@@ -18,6 +18,7 @@ export function user(over: Partial<CurrentUser> = {}, roles: PositionRole[] = []
     isExternal: false,
     validUntil: null,
     roles,
+    locale: "es",
     ...over,
   }
 }
@@ -73,6 +74,10 @@ export function doc(versions: DocumentVersion[], over: Partial<DocumentDetail> =
     distributionCount: 1,
     versions,
     changeRequests: [],
+    localizedTitle: "Control de documentos",
+    titleFallback: false,
+    titleEn: "",
+    canTranslate: false,
     ...over,
   }
 }

@@ -1652,5 +1652,37 @@ ok((await as(db, U.juan, `select status from public.supplier_self_assessments wh
 ok((await as(db, U.beto, `select count(*)::int n from public.supplier_self_assessments where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve autoevaluaciones de A (049)")
 await throws(() => anon(`select count(*) from public.supplier_self_assessments`), "anon no lee autoevaluaciones por REST (049)", "permission denied")
 
+// ========== 050 · Multi-idioma (idioma por usuario + traducción de contenido) ==========
+// Idioma del usuario
+await as(db, U.juan, `select public.set_user_locale('en')`)
+ok((await svc(`select locale from public.profiles where id = '${U.juan}'`)).rows[0].locale === "en", "El usuario cambia su idioma (050)")
+await throws(() => as(db, U.juan, `select public.set_user_locale('fr')`), "Idioma no válido rechazado (050)", "no válido")
+await as(db, U.juan, `select public.set_user_locale('es')`)
+
+// Traducción de contenido: DOC es un documento de A (proceso sigA). Laura es elaborador del proceso; Juan líder SIG.
+await as(db, U.laura, `select public.set_content_translation('documento', '${DOC}', 'en', 'title', 'Document control')`)
+ok((await as(db, U.juan, `select value from public.content_translations where entity_type='documento' and entity_id='${DOC}' and locale='en' and field='title'`)).rows[0].value === "Document control", "Se guarda la traducción EN del título (050)")
+// Sofía (consulta) no traduce
+await throws(() => as(db, U.sofia, `select public.set_content_translation('documento', '${DOC}', 'en', 'title', 'Intrusa')`),
+  "Sofía (consulta) no traduce documentos (050)", "No puedes traducir")
+// Beto (org B) no traduce un documento de A
+await throws(() => as(db, U.beto, `select public.set_content_translation('documento', '${DOC}', 'en', 'title', 'Intruso')`),
+  "Beto (org B) no traduce un documento de A (050)", "sin acceso")
+// Campo / entidad fuera de la lista blanca
+await throws(() => as(db, U.laura, `select public.set_content_translation('documento', '${DOC}', 'en', 'body', 'x')`),
+  "Campo no traducible rechazado (050)", "no traducible")
+await throws(() => as(db, U.laura, `select public.set_content_translation('otra', '${DOC}', 'en', 'title', 'x')`),
+  "Entidad no traducible rechazada (050)", "no traducible")
+// Idioma inválido en la traducción
+await throws(() => as(db, U.laura, `select public.set_content_translation('documento', '${DOC}', 'fr', 'title', 'x')`),
+  "Idioma inválido en la traducción rechazado (050)", "no válido")
+// Vaciar = sin traducción (baja lógica, sin hard delete)
+await as(db, U.laura, `select public.set_content_translation('documento', '${DOC}', 'en', 'title', '')`)
+ok((await as(db, U.juan, `select value from public.content_translations where entity_type='documento' and entity_id='${DOC}' and locale='en' and field='title'`)).rows[0].value === "", "Vaciar el campo deja la traducción en blanco (050)")
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.content_translations where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve traducciones de A (050)")
+await throws(() => as(db, U.sofia, `insert into public.content_translations (organization_id, entity_type, entity_id, locale, field, value) values ('${A}', 'documento', '${DOC}', 'en', 'title', 'x')`),
+  "Nadie inserta traducciones por REST (050)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
