@@ -1434,5 +1434,45 @@ ok((await as(db, U.juan, `select public.storage_can_read_form_photo('${A}/${foto
 ok((await as(db, U.beto, `select public.storage_can_read_form_photo('${A}/${fotoTpl.id}/a.jpg') ok`)).rows[0].ok === false, "Otra organización no lee las fotos de A (044)")
 ok((await as(db, U.juan, `select public.storage_can_read_form_photo('${A}/solo-dos') ok`)).rows[0].ok === false, "Una ruta mal formada no es legible (044)")
 
+
+// ========== 045 · Salida no conforme (ISO 8.7) ==========
+const snc = (await as(db, U.juan, `select id, code from public.create_nc_output('${A}', 'Lote L-22 fuera de tolerancia', '${P.sigA}', current_date, 'Lote L-22, 120 u.')`)).rows[0]
+ok(snc.code === "SNC-" + YEAR + "-001", "Numeración SNC-AAAA-001 (045)")
+ok((await as(db, U.juan, `select status from public.nonconforming_outputs where id = '${snc.id}'`)).rows[0].status === "abierto", "La salida nace abierta (045)")
+// No se cierra sin disposición
+await throws(() => as(db, U.juan, `select public.close_output('${snc.id}')`),
+  "No se cierra sin disposición (045)", "Aplica una disposición")
+// Disposición inválida rechazada
+await throws(() => as(db, U.juan, `select public.set_output_disposition('${snc.id}', 'inventada', null, false, null)`),
+  "Disposición inválida rechazada (045)", "no válida")
+// Aplicar disposición → tratada
+await as(db, U.juan, `select public.set_output_disposition('${snc.id}', 'reproceso', 'Se reprocesa el lote', true, '${POS.lider}')`)
+ok((await as(db, U.juan, `select status, disposition, customer_informed from public.nonconforming_outputs where id = '${snc.id}'`)).rows[0].status === "tratado", "Aplicar disposición pasa a tratada (045)")
+// Generar NC desde la salida (8.7 → 10.2)
+const sncNc = (await as(db, U.juan, `select * from public.generate_nc_from_snc('${snc.id}')`)).rows[0]
+ok(sncNc.code && sncNc.code.startsWith("NC-"), "Generar NC desde la salida crea un NC- (045)")
+ok((await as(db, U.juan, `select nonconformity_id from public.nonconforming_outputs where id = '${snc.id}'`)).rows[0].nonconformity_id === sncNc.id, "La salida queda enlazada a la NC (045)")
+ok((await as(db, U.juan, `select source from public.nonconformities where id = '${sncNc.id}'`)).rows[0].source === "producto_servicio", "La NC generada tiene fuente producto_servicio (045)")
+// Idempotente
+await throws(() => as(db, U.juan, `select public.generate_nc_from_snc('${snc.id}')`),
+  "Una salida no genera dos NC (045)", "ya generó una no conformidad")
+// Cerrar
+await as(db, U.juan, `select public.close_output('${snc.id}')`)
+ok((await as(db, U.juan, `select status from public.nonconforming_outputs where id = '${snc.id}'`)).rows[0].status === "cerrado", "Cerrar con disposición pasa a cerrada (045)")
+// Cerrada ya no es editable
+await throws(() => as(db, U.juan, `select public.update_nc_output('${snc.id}', 'x', null, current_date, null)`),
+  "Una salida cerrada no es editable (045)", "ya no es editable")
+// Consulta no gestiona
+await throws(() => as(db, U.sofia, `select public.create_nc_output('${A}', 'x', null, current_date, null)`),
+  "Sofía (consulta) no registra salidas (045)", "No puedes registrar")
+// Aislamiento
+ok((await as(db, U.beto, `select count(*)::int n from public.nonconforming_outputs where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve salidas de A (045)")
+await throws(() => as(db, U.beto, `select public.create_nc_output('${A}', 'x', null, current_date, null)`),
+  "Beto (org B) no registra salidas en A (045)", "No puedes registrar")
+await throws(() => as(db, U.juan, `insert into public.nonconforming_outputs (organization_id, code, description) values ('${A}', 'X', 'x')`),
+  "Nadie inserta salidas por REST (045)", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.snc_counters (organization_id, year, last_seq) values ('${A}', 2026, 9)`),
+  "snc_counters es deny-all (045)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
