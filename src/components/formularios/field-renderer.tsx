@@ -6,6 +6,7 @@ import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { saveSubmissionDraft, submitNewSubmission, submitSubmission } from "@/lib/data/actions"
+import { PhotoField } from "@/components/formularios/photo-field"
 import { enqueueSubmission } from "@/lib/pwa/queue"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -19,13 +20,14 @@ const dateInput = "h-11 rounded-md border border-borde-fuerte bg-superficie px-3
 
 /** Renderiza un campo según su tipo. Compartido por «Diligenciar» y la vista de una respuesta. */
 export function FieldRenderer({
-  field, value, onChange, readOnly = false, error,
+  field, value, onChange, readOnly = false, error, templateId,
 }: {
   field: FormFieldView
   value: FieldValue
   onChange?: (v: FieldValue) => void
   readOnly?: boolean
   error?: string
+  templateId?: string
 }) {
   const id = `f-${field.id}`
   if (field.type === "seccion") {
@@ -40,6 +42,17 @@ export function FieldRenderer({
   const describedBy = error ? `${id}-err` : field.help ? `${id}-help` : undefined
 
   function control() {
+    if (field.type === "imagen") {
+      return (
+        <PhotoField
+          field={field}
+          value={Array.isArray(value) ? (value as string[]) : []}
+          onChange={onChange ? (v) => onChange(v) : undefined}
+          readOnly={readOnly}
+          templateId={templateId}
+        />
+      )
+    }
     const common = { id, "aria-required": field.required, "aria-describedby": describedBy, "aria-invalid": !!error }
     if (readOnly) {
       return <p className="whitespace-pre-wrap text-body">{displayValue(field, value)}</p>
@@ -213,7 +226,7 @@ export function SubmissionForm({
   return (
     <Card className="flex flex-col gap-5 p-4 md:p-6">
       {form.fields.map((f) => (
-        <FieldRenderer key={f.id} field={f} value={values[f.id] ?? null} onChange={(v) => set(f.id, v)} error={errors[f.id]} />
+        <FieldRenderer key={f.id} field={f} value={values[f.id] ?? null} onChange={(v) => set(f.id, v)} error={errors[f.id]} templateId={form.id} />
       ))}
       <div className="flex flex-col gap-2 border-t border-borde pt-4 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={saveDraft} loading={savingDraft}>Guardar borrador</Button>

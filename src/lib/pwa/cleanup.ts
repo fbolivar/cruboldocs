@@ -1,12 +1,13 @@
 "use client"
 
-import { clearQueue } from "@/lib/pwa/queue"
+import { clearPhotos, clearQueue } from "@/lib/pwa/queue"
 
-/** Al cerrar sesión: borra la cola local y pide al service worker limpiar las cachés
- *  (privacidad en dispositivos compartidos, ADR-058). Nunca falla el cierre de sesión. */
+/** Al cerrar sesión: borra la cola local y las fotos pendientes, y pide al service worker limpiar
+ *  las cachés (privacidad en dispositivos compartidos, ADR-058/072). Nunca falla el cierre de sesión. */
 export async function clearOfflineData(): Promise<void> {
   try {
     await clearQueue()
+    await clearPhotos()
   } catch {
     /* noop */
   }

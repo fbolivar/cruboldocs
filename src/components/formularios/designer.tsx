@@ -220,13 +220,16 @@ function FieldEditorSheet({ field: f, onClose, onSaved }: { field: FormFieldView
   const hasOptions = OPTION_TYPES.includes(f.type)
   const hasRange = RANGE_TYPES.includes(f.type)
   const isSection = f.type === "seccion"
+  const isImage = f.type === "imagen"
 
   function submit() {
     if (label.trim().length < 1) { toast.error("La etiqueta es obligatoria."); return }
     if (hasOptions && options.filter((o) => o.trim()).length < 1) { toast.error("Agrega al menos una opción."); return }
     const config = hasRange
       ? { ...(min !== "" ? { min: Number(min) } : {}), ...(max !== "" ? { max: Number(max) } : {}) }
-      : null
+      : isImage
+        ? { max: Math.min(Math.max(Number(max) || 3, 1), 10) }
+        : null
     start(async () => {
       const r = await updateField(f.id, {
         label, help: help.trim() || undefined, required: isSection ? false : required,
@@ -256,6 +259,11 @@ function FieldEditorSheet({ field: f, onClose, onSaved }: { field: FormFieldView
             </label>
           )}
           {hasOptions && <OptionsEditor options={options} onChange={setOptions} />}
+          {isImage && (
+            <div className={field}><Label htmlFor="fe-photomax">Máx. de fotos (1–10, def. 3)</Label>
+              <Input id="fe-photomax" type="number" min={1} max={10} value={max} onChange={(e) => setMax(e.target.value)} placeholder="3" className="w-28" />
+            </div>
+          )}
           {hasRange && (
             <div className="grid grid-cols-2 gap-3">
               <div className={field}><Label htmlFor="fe-min">Mínimo{f.type === "puntaje" ? " (def. 0)" : ""}</Label>

@@ -163,6 +163,14 @@ export default function TratamientoDeDatosPage() {
             <strong className="font-semibold">eliminan al cerrar sesión</strong>; en dispositivos compartidos, cierra la
             sesión al terminar.
           </p>
+          <p>
+            <strong className="font-semibold">Fotos en formularios:</strong> algunos formularios permiten adjuntar
+            fotografías (por ejemplo, inspecciones). Las imágenes se guardan en{" "}
+            <strong className="font-semibold">almacenamiento privado</strong> de la organización y solo son visibles para
+            sus miembros; sin conexión quedan en tu dispositivo y se suben al reconectar. Una fotografía puede contener
+            datos personales (por ejemplo, rostros): el Cliente es responsable del contenido que captura y de contar con
+            la autorización necesaria. No aplicamos reconocimiento facial ni inteligencia artificial sobre las imágenes.
+          </p>
         </Section>
 
         <Section title="8. Vigencia">

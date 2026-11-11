@@ -17,7 +17,8 @@ export interface QueuedSubmission {
 
 const DB_NAME = "cruboldocs-offline"
 const STORE = "submissions"
-const DB_VERSION = 1
+const PHOTOS = "photos"
+const DB_VERSION = 2
 
 function hasIdb(): boolean {
   return typeof window !== "undefined" && "indexedDB" in window
@@ -29,21 +30,49 @@ function openDb(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" })
+      if (!db.objectStoreNames.contains(PHOTOS)) db.createObjectStore(PHOTOS, { keyPath: "id" })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
   })
 }
 
-async function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest): Promise<T> {
+async function txOn<T>(store: string, mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest): Promise<T> {
   const db = await openDb()
   return new Promise<T>((resolve, reject) => {
-    const t = db.transaction(STORE, mode)
-    const req = fn(t.objectStore(STORE))
+    const t = db.transaction(store, mode)
+    const req = fn(t.objectStore(store))
     req.onsuccess = () => resolve(req.result as T)
     req.onerror = () => reject(req.error)
     t.oncomplete = () => db.close()
   })
+}
+
+const tx = <T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest) => txOn<T>(STORE, mode, fn)
+
+interface StoredPhoto { id: string; blob: Blob; ext: string }
+
+/** Guarda una foto (blob ya comprimido) para subirla al sincronizar. */
+export async function putPhoto(id: string, blob: Blob, ext: string): Promise<void> {
+  if (!hasIdb()) throw new Error("Sin almacenamiento local disponible.")
+  await txOn(PHOTOS, "readwrite", (s) => s.put({ id, blob, ext }))
+}
+
+export async function getPhoto(id: string): Promise<StoredPhoto | undefined> {
+  if (!hasIdb()) return undefined
+  try { return await txOn<StoredPhoto | undefined>(PHOTOS, "readonly", (s) => s.get(id)) } catch { return undefined }
+}
+
+export async function deletePhotos(ids: string[]): Promise<void> {
+  if (!hasIdb() || ids.length === 0) return
+  for (const id of ids) {
+    try { await txOn(PHOTOS, "readwrite", (s) => s.delete(id)) } catch { /* noop */ }
+  }
+}
+
+export async function clearPhotos(): Promise<void> {
+  if (!hasIdb()) return
+  try { await txOn(PHOTOS, "readwrite", (s) => s.clear()) } catch { /* noop */ }
 }
 
 export async function enqueueSubmission(item: QueuedSubmission): Promise<void> {
