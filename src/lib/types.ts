@@ -2,6 +2,8 @@
 // forma que consumirá la UI; el backend (Supabase) debe devolver exactamente esto.
 // Fechas: cadenas ISO 8601 (serializables entre servidor y cliente).
 
+import type { ReportConfig } from "@/lib/bi/datasets"
+
 export type Role =
   | "lider_sig"
   | "lider_proceso"
@@ -916,6 +918,21 @@ export interface SupplierSelfAssessmentView {
   comment: string | null
   status: "recibida" | "revisada"
   submittedAt: string
+}
+
+// ---------- BI / Constructor de informes (v1.4-6) ----------
+
+export interface SavedReportView {
+  id: string
+  name: string
+  description: string | null
+  dataset: string
+  scope: "privada" | "compartida"
+  config: ReportConfig
+  /** Lo creó el usuario actual. */
+  isOwn: boolean
+  /** Puede editar/eliminar (autor o Líder SIG). */
+  canEdit: boolean
 }
 
 // ---------- BPM-lite: Solicitudes y aprobaciones (v1.4-5) ----------

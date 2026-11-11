@@ -8,7 +8,9 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageFlows, canManageForms, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
+import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
+import { sanitizeConfig } from "@/lib/bi/compute"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageFlows, canManageForms, canManageReports, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
@@ -28,6 +30,7 @@ import type {
   AuditSummary,
   FindingSeverity,
   FindingType,
+  SavedReportView,
   ApprovalFlowView,
   ApprovalFlowOption,
   SolicitudSummary,
@@ -3762,4 +3765,79 @@ export async function getApprovalRequest(code: string, user: CurrentUser): Promi
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: SOL_EVENT_TEXT[x.action] ?? x.action })),
     canDecide, canCancel,
   }
+}
+
+// ---------- BI / Constructor de informes (v1.4-6) ----------
+
+/** Carga un dataset con el cliente del usuario (RLS por organización). Volumen bajo por org. */
+export async function loadDataset(key: DatasetKey): Promise<ReportRow[]> {
+  const s = await scope()
+  if (!s) return []
+  const procs = async () => new Map((await s.supabase.from("processes").select("id, name").eq("organization_id", s.org)).data?.map((p) => [p.id, p.name]) ?? [])
+
+  if (key === "nc") {
+    const [{ data }, pm] = await Promise.all([
+      s.supabase.from("nonconformities").select("code, status, severity, source, process_id, detected_at").eq("organization_id", s.org),
+      procs(),
+    ])
+    return (data ?? []).map((r) => ({ code: r.code, status: r.status, severity: r.severity, source: r.source, process: r.process_id ? pm.get(r.process_id) ?? null : null, detected_at: r.detected_at }))
+  }
+  if (key === "hallazgos") {
+    const [{ data }, pm] = await Promise.all([
+      s.supabase.from("audit_findings").select("type, severity, process_id, nonconformity_id, created_at").eq("organization_id", s.org),
+      procs(),
+    ])
+    return (data ?? []).map((r) => ({ type: r.type, severity: r.severity, process: r.process_id ? pm.get(r.process_id) ?? null : null, generated_nc: r.nonconformity_id ? "Sí" : "No", created_at: r.created_at?.slice(0, 10) ?? null }))
+  }
+  if (key === "mediciones") {
+    const [{ data }, { data: inds }] = await Promise.all([
+      s.supabase.from("indicator_measurements").select("indicator_id, period, value, compliance").eq("organization_id", s.org),
+      s.supabase.from("indicators").select("id, name").eq("organization_id", s.org),
+    ])
+    const im = new Map((inds ?? []).map((i) => [i.id, i.name]))
+    return (data ?? []).map((r) => ({ indicator: im.get(r.indicator_id) ?? null, period: r.period, value: r.value === null ? null : Number(r.value), compliance: r.compliance }))
+  }
+  if (key === "pqrs") {
+    const [{ data }, pm] = await Promise.all([
+      s.supabase.from("pqrs_cases").select("code, type, channel, status, process_id, received_date, due_date").eq("organization_id", s.org),
+      procs(),
+    ])
+    return (data ?? []).map((r) => ({ code: r.code, type: r.type, channel: r.channel, status: r.status, process: r.process_id ? pm.get(r.process_id) ?? null : null, received_date: r.received_date, due_date: r.due_date }))
+  }
+  if (key === "proveedores") {
+    const { data } = await s.supabase.from("suppliers").select("code, name, kind, criticality, status").eq("organization_id", s.org)
+    return (data ?? []).map((r) => ({ code: r.code, name: r.name, kind: r.kind, criticality: r.criticality, status: r.status }))
+  }
+  // solicitudes
+  const [{ data }, { data: flows }] = await Promise.all([
+    s.supabase.from("approval_requests").select("code, flow_id, status, created_at").eq("organization_id", s.org),
+    s.supabase.from("approval_flows").select("id, name").eq("organization_id", s.org),
+  ])
+  const fm = new Map((flows ?? []).map((f) => [f.id, f.name]))
+  return (data ?? []).map((r) => ({ code: r.code, flow: fm.get(r.flow_id) ?? null, status: r.status, created_at: r.created_at?.slice(0, 10) ?? null }))
+}
+
+function toSavedReportView(r: { id: string; name: string; description: string | null; dataset: string; scope: string; config: unknown; created_by: string }, user: CurrentUser): SavedReportView {
+  const isOwn = r.created_by === user.id
+  const key = (DATASET_KEYS as string[]).includes(r.dataset) ? (r.dataset as DatasetKey) : "nc"
+  return {
+    id: r.id, name: r.name, description: r.description, dataset: r.dataset,
+    scope: r.scope as SavedReportView["scope"],
+    config: sanitizeConfig(key, (r.config ?? {}) as Partial<ReportConfig>),
+    isOwn, canEdit: isOwn || canManageReports(user),
+  }
+}
+
+export async function listSavedReports(user: CurrentUser): Promise<SavedReportView[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase.from("saved_reports").select("id, name, description, dataset, scope, config, created_by").eq("organization_id", s.org).order("name")
+  return (data ?? []).map((r) => toSavedReportView(r, user))
+}
+
+export async function getSavedReport(id: string, user: CurrentUser): Promise<SavedReportView | null> {
+  const s = await scope()
+  if (!s || !isUuid(id)) return null
+  const { data } = await s.supabase.from("saved_reports").select("id, name, description, dataset, scope, config, created_by").eq("organization_id", s.org).eq("id", id).maybeSingle()
+  return data ? toSavedReportView(data, user) : null
 }

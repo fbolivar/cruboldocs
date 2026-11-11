@@ -16,7 +16,9 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
+import { runConfig, sanitizeConfig, type ReportResult } from "@/lib/bi/compute"
+import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, loadDataset, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import { generateApiToken } from "@/lib/api/keys"
 import {
@@ -4429,4 +4431,79 @@ export async function exportSolicitudesCsv(): Promise<string> {
     { header: "Estado", value: (r) => r.status },
     { header: "Paso", value: (r) => `${r.currentStep}/${r.totalSteps}` },
   ])
+}
+
+// ---------- BI / Constructor de informes (v1.4-6) ----------
+
+function revalidateReports() {
+  revalidatePath("/app/informes", "layout")
+}
+
+const SCOPES = ["privada", "compartida"] as const
+
+/** Corre un informe: carga el dataset (RLS) y aplica el config validado contra el catálogo. */
+export async function runReport(dataset: string, config: unknown): Promise<Result<ReportResult>> {
+  return guard(async () => {
+    if (!(DATASET_KEYS as string[]).includes(dataset)) return fail("Fuente no válida.")
+    const key = dataset as DatasetKey
+    const clean = sanitizeConfig(key, (config ?? {}) as Partial<ReportConfig>)
+    const rows = await loadDataset(key)
+    return ok(runConfig(key, rows, clean))
+  })
+}
+
+const saveReportSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  dataset: z.enum(DATASET_KEYS as [DatasetKey, ...DatasetKey[]]),
+  scope: z.enum(SCOPES),
+})
+
+export async function createSavedReport(input: { name: string; dataset: string; scope: string; config: unknown }): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = saveReportSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el nombre y la fuente del informe.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const clean = sanitizeConfig(p.data.dataset, (input.config ?? {}) as Partial<ReportConfig>)
+    const { data, error } = await (await createClient()).rpc("create_saved_report", {
+      p_org: user.organization.id, p_name: p.data.name, p_dataset: p.data.dataset,
+      p_config: clean as unknown as Json, p_scope: p.data.scope,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateReports()
+    return ok({ id: data?.[0]?.id ?? "" })
+  })
+}
+
+export async function updateSavedReport(input: { id: string; name: string; dataset: string; scope: string; config: unknown }): Promise<Result> {
+  return guard(async () => {
+    const p = saveReportSchema.safeParse(input)
+    if (!p.success || !isUuid(input.id)) return fail("Revisa los datos del informe.")
+    const clean = sanitizeConfig(p.data.dataset, (input.config ?? {}) as Partial<ReportConfig>)
+    const { error } = await (await createClient()).rpc("update_saved_report", {
+      p_report: input.id, p_name: p.data.name, p_dataset: p.data.dataset,
+      p_config: clean as unknown as Json, p_scope: p.data.scope,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateReports()
+    return ok(undefined)
+  })
+}
+
+export async function discardSavedReport(id: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(id)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("discard_saved_report", { p_report: id })
+    if (error) return fail(dbMessage(error))
+    revalidateReports()
+    return ok(undefined)
+  })
+}
+
+export async function exportReportCsv(dataset: string, config: unknown): Promise<string> {
+  if (!(DATASET_KEYS as string[]).includes(dataset)) return ""
+  const key = dataset as DatasetKey
+  const clean = sanitizeConfig(key, (config ?? {}) as Partial<ReportConfig>)
+  const result = runConfig(key, await loadDataset(key), clean)
+  return toCsv(result.rows, result.columns.map((c) => ({ header: c.label, value: (r: ReportRow) => { const v = r[c.field]; return v === null || v === undefined ? "" : String(v) } })))
 }

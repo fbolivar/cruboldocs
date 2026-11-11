@@ -313,6 +313,16 @@ export function canManageFlows(user: CurrentUser): boolean {
   return user.isOrgAdmin || hasRole(user, "lider_sig")
 }
 
+/** Informes (BI, v1.4-6): cualquier miembro activo ve/crea; compartir es del Líder SIG. */
+export function canSeeReports(user: CurrentUser): boolean {
+  return !!user.organization.id
+}
+
+/** Comparte/gestiona informes compartidos: Admin de organización o Líder SIG (igual que can_manage_reports). */
+export function canManageReports(user: CurrentUser): boolean {
+  return user.isOrgAdmin || hasRole(user, "lider_sig")
+}
+
 /** Pestañas visibles de /app/admin según rol (spec-admin). */
 export function adminTabsFor(user: CurrentUser): AdminTab[] {
   // El Superadmin solo administra organizaciones; el resto, solo si además es miembro con ese rol.

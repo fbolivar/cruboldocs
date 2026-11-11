@@ -4750,6 +4750,56 @@ export type Database = {
           },
         ]
       }
+      saved_reports: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string
+          dataset: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          created_by?: string
+          dataset: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          scope?: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string
+          dataset?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_reports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signatures: {
         Row: {
           action: string
@@ -6098,6 +6148,7 @@ export type Database = {
         Args: { org: string; process: string }
         Returns: boolean
       }
+      can_manage_reports: { Args: { org: string }; Returns: boolean }
       can_manage_reviews: { Args: { org: string }; Returns: boolean }
       can_manage_risk: {
         Args: { org: string; process: string }
@@ -6636,6 +6687,18 @@ export type Database = {
           id: string
         }[]
       }
+      create_saved_report: {
+        Args: {
+          p_config: Json
+          p_dataset: string
+          p_name: string
+          p_org: string
+          p_scope: string
+        }
+        Returns: {
+          id: string
+        }[]
+      }
       create_supplier: {
         Args: {
           p_category: string
@@ -6731,6 +6794,7 @@ export type Database = {
         Returns: undefined
       }
       derogate_requirement: { Args: { p_req: string }; Returns: undefined }
+      discard_saved_report: { Args: { p_report: string }; Returns: undefined }
       doc_or_fail: {
         Args: { p_doc: string }
         Returns: {
@@ -8124,6 +8188,16 @@ export type Database = {
           p_attendees: string
           p_inputs: Json
           p_review: string
+          p_scope: string
+        }
+        Returns: undefined
+      }
+      update_saved_report: {
+        Args: {
+          p_config: Json
+          p_dataset: string
+          p_name: string
+          p_report: string
           p_scope: string
         }
         Returns: undefined
