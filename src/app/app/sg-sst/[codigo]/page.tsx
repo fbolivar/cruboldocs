@@ -1,4 +1,4 @@
-import { ChevronLeftIcon } from "lucide-react"
+import { ChevronLeftIcon, PrinterIcon } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -10,6 +10,7 @@ import {
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { Page } from "@/components/shell/page"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser, getSstEvaluation, listPositions } from "@/lib/data/queries"
 import { canSeeSst } from "@/lib/domain/access"
@@ -44,6 +45,7 @@ export default async function SstEvaluationPage({ params }: { params: Promise<{ 
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {e.status === "cerrada" ? <Badge tone="neutro">Cerrada</Badge> : <Badge tone="advertencia">Borrador</Badge>}
+              <Button asChild variant="outline" size="sm"><Link href={`/app/sg-sst/${e.code}/imprimir`}><PrinterIcon /> Imprimir</Link></Button>
               <ExportSstCsvButton code={e.code} />
               {e.canManage && e.status === "borrador" && <CloseEvaluationButton evaluationId={e.id} />}
             </div>

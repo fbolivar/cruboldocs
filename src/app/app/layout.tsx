@@ -23,17 +23,23 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     <BreadcrumbProvider>
       <div className="flex min-h-dvh">
-        <AppSidebar items={items} organizationName={user.organization.name} taskBadge={taskBadge} initialCollapsed={collapsed} />
+        <div className="contents print:hidden">
+          <AppSidebar items={items} organizationName={user.organization.name} taskBadge={taskBadge} initialCollapsed={collapsed} />
+        </div>
         <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar user={user} items={items} />
-          <MobileTopbar user={user} items={items} />
-          <main id="contenido" className="flex-1 pb-20 md:pb-0">
+          <div className="contents print:hidden">
+            <Topbar user={user} items={items} />
+            <MobileTopbar user={user} items={items} />
+          </div>
+          <main id="contenido" className="flex-1 pb-20 md:pb-0 print:pb-0">
             {children}
           </main>
         </div>
       </div>
-      <MobileTabBar items={items} taskBadge={taskBadge} />
-      <PwaShell />
+      <div className="contents print:hidden">
+        <MobileTabBar items={items} taskBadge={taskBadge} />
+        <PwaShell />
+      </div>
     </BreadcrumbProvider>
   )
 }

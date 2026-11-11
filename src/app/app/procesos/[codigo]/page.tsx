@@ -1,4 +1,4 @@
-import { ChevronLeftIcon } from "lucide-react"
+import { ChevronLeftIcon, PrinterIcon } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -7,6 +7,7 @@ import { CharacterizationView } from "@/components/procesos/characterize"
 import { PROCESS_TYPE_LABELS } from "@/components/procesos/labels"
 import { Page } from "@/components/shell/page"
 import { Chip } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { getCurrentUser, getProcessDetail } from "@/lib/data/queries"
 import { canSeeProcessMap } from "@/lib/domain/access"
 
@@ -38,9 +39,12 @@ export default async function ProcesoPage({ params }: { params: Promise<{ codigo
 
       <div className="flex flex-col gap-4 md:gap-6">
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-mono text-small text-texto-sec">{p.code}</p>
-            <h1 className="mt-0.5">{p.name}</h1>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-mono text-small text-texto-sec">{p.code}</p>
+              <h1 className="mt-0.5">{p.name}</h1>
+            </div>
+            <Button asChild variant="outline" size="sm"><Link href={`/app/procesos/${p.code}/imprimir`}><PrinterIcon /> Imprimir</Link></Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Chip>{PROCESS_TYPE_LABELS[p.type]}</Chip>

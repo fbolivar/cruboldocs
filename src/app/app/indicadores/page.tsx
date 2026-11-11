@@ -1,10 +1,12 @@
-import { LockIcon } from "lucide-react"
+import { LockIcon, PrinterIcon } from "lucide-react"
+import Link from "next/link"
 import type { Metadata } from "next"
 
 import { IndicatorBoard } from "@/components/indicadores/indicator-board"
 import { IndicatorSummaryBar } from "@/components/indicadores/indicator-summary"
 import { NewIndicatorSheet } from "@/components/indicadores/indicator-form-sheet"
 import { Page, PageHeader } from "@/components/shell/page"
+import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { getCurrentUser, getIndicatorSummary, listIndicators, listPositions, listProcesses } from "@/lib/data/queries"
 import { canManageIndicators, canSeeIndicators } from "@/lib/domain/access"
@@ -39,7 +41,12 @@ export default async function IndicatorsPage() {
     <Page wide>
       <PageHeader
         title="Indicadores de gestión"
-        actions={canManageIndicators(user) ? <NewIndicatorSheet processes={processOptions} positions={positionOptions} /> : null}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm"><Link href="/app/indicadores/imprimir"><PrinterIcon /> Imprimir</Link></Button>
+            {canManageIndicators(user) && <NewIndicatorSheet processes={processOptions} positions={positionOptions} />}
+          </div>
+        }
       />
       <div className="flex flex-col gap-4 md:gap-6">
         <IndicatorSummaryBar summary={summary} />

@@ -1,4 +1,4 @@
-import { ChevronLeftIcon } from "lucide-react"
+import { ChevronLeftIcon, PrinterIcon } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -11,6 +11,7 @@ import { RefreshSnapshotButton, ReviewInputsForm } from "@/components/revisiones
 import { ReviewOutputList } from "@/components/revisiones/review-outputs"
 import { SnapshotCard } from "@/components/revisiones/snapshot-card"
 import { Page } from "@/components/shell/page"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser, getReview, listPositions } from "@/lib/data/queries"
 import { canSeeReviews } from "@/lib/domain/access"
@@ -44,7 +45,10 @@ export default async function ReviewPage({ params }: { params: Promise<{ codigo:
               <p className="font-mono text-small text-texto-sec">{review.code}</p>
               <h1 className="mt-0.5">{review.title}</h1>
             </div>
-            {review.canManage && editable && <CancelReviewButton reviewId={review.id} />}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline" size="sm"><Link href={`/app/revisiones/${review.code}/imprimir`}><PrinterIcon /> Imprimir</Link></Button>
+              {review.canManage && editable && <CancelReviewButton reviewId={review.id} />}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <ReviewStatusBadge status={review.status} />
