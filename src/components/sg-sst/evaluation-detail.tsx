@@ -131,14 +131,21 @@ export function SstStandards({ items, phases, readOnly }: { items: SstItemView[]
               {ph && <span className="text-small tabular-nums text-texto-sec">{ph.obtained.toFixed(2)} / {ph.possible.toFixed(2)}</span>}
             </summary>
             <div className="border-t border-borde px-3 pb-2">
-              {comps.map(({ component, items: cItems }) => (
-                <div key={component}>
-                  <p className="mt-2 text-caption font-medium uppercase tracking-wide text-texto-sec">{SST_COMPONENT_LABELS[component]}</p>
-                  <div className="divide-y divide-borde">
-                    {cItems.map((i) => <StandardRow key={i.itemId} item={i} readOnly={readOnly} />)}
+              {comps.map(({ component, items: cItems }) => {
+                const applicable = cItems.filter((i) => i.applicable)
+                const autoCount = cItems.length - applicable.length
+                return (
+                  <div key={component}>
+                    <p className="mt-2 text-caption font-medium uppercase tracking-wide text-texto-sec">{SST_COMPONENT_LABELS[component]}</p>
+                    <div className="divide-y divide-borde">
+                      {applicable.map((i) => <StandardRow key={i.itemId} item={i} readOnly={readOnly} />)}
+                    </div>
+                    {autoCount > 0 && (
+                      <p className="py-2 text-caption text-texto-sec">{autoCount} estándar{autoCount > 1 ? "es" : ""} no aplica{autoCount > 1 ? "n" : ""} a tu nivel (calificado{autoCount > 1 ? "s" : ""} al máximo, Res. 0312).</p>
+                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </details>
         )

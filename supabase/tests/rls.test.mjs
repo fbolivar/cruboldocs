@@ -1148,10 +1148,10 @@ await throws(() => as(db, U.juan, `insert into public.form_counters (organizatio
   "form_counters es deny-all (033)", "row-level security")
 
 // ========== 035 · SG-SST (Estándares Mínimos, Res. 0312) ==========
-// Catálogo sembrado: los 3 niveles suman 100
-const sums = (await svc(`select coalesce(sum(weight_7),0) s7, coalesce(sum(weight_21),0) s21, coalesce(sum(weight_60),0) s60, count(*)::int n from public.sst_standards`)).rows[0]
-ok(Number(sums.n) === 60 && Number(sums.s7) === 100 && Number(sums.s21) === 100 && Number(sums.s60) === 100,
-  "Catálogo: 60 estándares; niveles 7/21/60 suman 100 (035)")
+// Catálogo sembrado: 60 estándares, peso oficial weight_60 suma 100; aplicabilidad oficial 7 y 21
+const sums = (await svc(`select coalesce(sum(weight_60),0) s60, count(*)::int n, count(*) filter (where applies_7)::int a7, count(*) filter (where applies_21)::int a21 from public.sst_standards`)).rows[0]
+ok(Number(sums.n) === 60 && Number(sums.s60) === 100 && Number(sums.a7) === 7 && Number(sums.a21) === 21,
+  "Catálogo: 60 estándares; weight_60 suma 100; aplican 7 y 21 por nivel (036)")
 
 // Derivación de nivel por tamaño y riesgo
 const ev60 = (await as(db, U.juan, `select id, code from public.create_evaluation('${A}', 2026, 60, 3)`)).rows[0]
@@ -1160,9 +1160,17 @@ ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${
 ok((await as(db, U.juan, `select count(*)::int n from public.sst_evaluation_items where evaluation_id = '${ev60.id}'`)).rows[0].n === 60, "Se crean 60 ítems para el nivel 60 (035)")
 const ev7 = (await as(db, U.juan, `select id from public.create_evaluation('${A}', 2026, 5, 2)`)).rows[0]
 ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${ev7.id}'`)).rows[0].tier === 7, "5 trab. riesgo II → nivel 7 (035)")
-ok((await as(db, U.juan, `select count(*)::int n from public.sst_evaluation_items where evaluation_id = '${ev7.id}'`)).rows[0].n === 7, "Se crean 7 ítems para el nivel 7 (035)")
+ok((await as(db, U.juan, `select count(*)::int n from public.sst_evaluation_items where evaluation_id = '${ev7.id}'`)).rows[0].n === 60, "El nivel 7 crea los 60 ítems (metodología oficial) (036)")
+ok((await as(db, U.juan, `select count(*)::int n from public.sst_evaluation_items where evaluation_id = '${ev7.id}' and status = 'pendiente'`)).rows[0].n === 7, "7 estándares aplican al nivel 7; el resto se autocalifica (036)")
+// Autocrédito: el puntaje inicial del nivel 7 = 100 - peso de los 7 aplicables (12.50) = 87.50
+ok((await as(db, U.juan, `select score from public.sst_evaluations where id = '${ev7.id}'`)).rows[0].score === "87.50", "Nivel 7: los no aplicables se califican al máximo → puntaje inicial 87.50 (036)")
 const ev21 = (await as(db, U.juan, `select id from public.create_evaluation('${A}', 2026, 30, 2)`)).rows[0]
 ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${ev21.id}'`)).rows[0].tier === 21, "30 trab. riesgo II → nivel 21 (035)")
+ok((await as(db, U.juan, `select count(*)::int n from public.sst_evaluation_items where evaluation_id = '${ev21.id}' and status = 'pendiente'`)).rows[0].n === 21, "21 estándares aplican al nivel 21 (036)")
+// Un estándar que no aplica al nivel no se puede diligenciar
+const ev7na = (await as(db, U.juan, `select i.id from public.sst_evaluation_items i join public.sst_standards s on s.id = i.standard_id where i.evaluation_id = '${ev7.id}' and s.code = '6.1.1'`)).rows[0].id
+await throws(() => as(db, U.juan, `select public.set_item_status('${ev7na}', 'no_cumple', null)`),
+  "Un estándar que no aplica al nivel no se diligencia (036)", "no aplica a tu nivel")
 const ev60b = (await as(db, U.juan, `select id from public.create_evaluation('${A}', 2026, 5, 4)`)).rows[0]
 ok((await as(db, U.juan, `select tier from public.sst_evaluations where id = '${ev60b.id}'`)).rows[0].tier === 60, "Riesgo IV fuerza nivel 60 aunque sea micro (035)")
 

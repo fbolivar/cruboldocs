@@ -3213,6 +3213,7 @@ export async function exportSstCsv(code: string): Promise<string> {
     { header: "Estándar", value: (i) => i.name },
     { header: "Ciclo", value: (i) => SST_CYCLE_LABEL[i.cycle] ?? i.cycle },
     { header: "Peso", value: (i) => String(i.weight) },
+    { header: "Aplica al nivel", value: (i) => (i.applicable ? "Sí" : "No") },
     { header: "Estado", value: (i) => SST_ITEM_LABEL[i.status] ?? i.status },
     { header: "Justificación", value: (i) => i.justification ?? "" },
   ])

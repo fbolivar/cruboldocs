@@ -1446,6 +1446,8 @@ export interface SstItemView {
   weight: number
   status: SstItemStatus
   justification: string | null
+  /** El estándar aplica al nivel; si es false, está autocalificado al máximo (Res. 0312). */
+  applicable: boolean
 }
 
 export interface SstPhaseTotal {

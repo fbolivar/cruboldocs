@@ -181,7 +181,7 @@ Usa una organización de prueba creada por el Superadmin y los alias `fbolivarb+
 85. [ ] **Nueva autoevaluación** (`/app/sg-sst` → "Nueva autoevaluación": período, nº de trabajadores, clase de riesgo): el Sheet muestra en vivo el **nivel aplicable** (7/21/60); al crear aparece `SGSST-AAAA-001` y abre la ficha con los estándares de ese nivel. Verificar que **5 trab./riesgo II → 7**, **30/II → 21**, **60/III → 60** y **riesgo IV → 60**.
 86. [ ] **Diligenciar y puntaje**: marcar estándares **Cumple / No cumple / No aplica** (con justificación obligatoria en No aplica); el **puntaje y la valoración** (semáforo) se **recalculan** al marcar (server-side). El puntaje por fase PHVA se actualiza. **Cerrar** exige todos respondidos y deja la ficha en solo lectura. **Exportar CSV** descarga un renglón por estándar.
 87. [ ] **Plan de mejoramiento**: por cada estándar **No cumple**, "+ Acción" (descripción, responsable, plazo); cambiar su estado; el enlace a **Peligros/GTC-45** aparece en el componente de peligros.
-88. [ ] **Permisos/menú**: un cargo sin rol SIG **no** ve "SG-SST"; una **consulta** ve pero no crea; respeta la RLS por organización. (Nota interna: los pesos de los niveles 7/21 son provisionales hasta cargar el Anexo oficial; el nivel 60 es exacto.)
+88. [ ] **Permisos/menú**: un cargo sin rol SIG **no** ve "SG-SST"; una **consulta** ve pero no crea; respeta la RLS por organización. (Metodología oficial: una sola tabla de valores; en micro/pequeña empresa los estándares que no aplican se autocalifican al máximo y el puntaje arranca alto — nivel 7 ≈ 87.5, nivel 21 ≈ 62.25 — y sube al marcar Cumple los aplicables.)
 
 ## 3. Regresión
 

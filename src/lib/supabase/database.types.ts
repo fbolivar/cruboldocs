@@ -3829,6 +3829,8 @@ export type Database = {
       }
       sst_standards: {
         Row: {
+          applies_21: boolean
+          applies_7: boolean
           code: string
           component: string
           cycle: string
@@ -3841,6 +3843,8 @@ export type Database = {
           weight_7: number | null
         }
         Insert: {
+          applies_21?: boolean
+          applies_7?: boolean
           code: string
           component: string
           cycle: string
@@ -3853,6 +3857,8 @@ export type Database = {
           weight_7?: number | null
         }
         Update: {
+          applies_21?: boolean
+          applies_7?: boolean
           code?: string
           component?: string
           cycle?: string
