@@ -295,10 +295,21 @@ export type AdminTab =
   | "recertificacion"
   | "auditoria"
   | "api"
+  | "flujos"
   | "organizaciones"
 
 /** Administra las claves de API: Admin de organización o Líder SIG (igual que can_manage_org). */
 export function canManageApiKeys(user: CurrentUser): boolean {
+  return user.isOrgAdmin || hasRole(user, "lider_sig")
+}
+
+/** Solicitudes (BPM-lite): cualquier miembro activo ve y radica; el stepper filtra la acción por cargo. */
+export function canSeeApprovals(user: CurrentUser): boolean {
+  return !!user.organization.id
+}
+
+/** Gestiona plantillas de flujo (BPM-lite): Admin de organización o Líder SIG (igual que can_manage_flows). */
+export function canManageFlows(user: CurrentUser): boolean {
   return user.isOrgAdmin || hasRole(user, "lider_sig")
 }
 
@@ -307,7 +318,7 @@ export function adminTabsFor(user: CurrentUser): AdminTab[] {
   // El Superadmin solo administra organizaciones; el resto, solo si además es miembro con ese rol.
   const platform: AdminTab[] = user.isPlatformAdmin ? ["organizaciones"] : []
   if (user.isOrgAdmin || hasRole(user, "lider_sig")) {
-    return [...platform, "usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria", "api"]
+    return [...platform, "usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria", "api", "flujos"]
   }
   if (hasRole(user, "auditor")) return [...platform, "auditoria"]
   return platform

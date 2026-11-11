@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import { generateApiToken } from "@/lib/api/keys"
 import {
@@ -4312,4 +4312,121 @@ export async function setContentTranslation(input: {
     revalidatePath("/app/documentos", "layout")
     return ok(undefined)
   })
+}
+
+// ---------- BPM-lite: Solicitudes y aprobaciones (v1.4-5) ----------
+
+function revalidateApprovals() {
+  revalidatePath("/app/solicitudes", "layout")
+  revalidatePath("/app/admin")
+  revalidatePath("/app")
+}
+
+const flowSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(2000).optional(),
+})
+
+export async function createApprovalFlow(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = flowSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el nombre del flujo.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_approval_flow", {
+      p_org: user.organization.id, p_name: p.data.name, p_description: p.data.description ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateApprovals()
+    return ok({ id: data?.[0]?.id ?? "" })
+  })
+}
+
+export async function updateApprovalFlow(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const schema = flowSchema.extend({ flowId: z.uuid(), isActive: z.boolean() })
+    const p = schema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del flujo.")
+    const { error } = await (await createClient()).rpc("update_approval_flow", {
+      p_flow: p.data.flowId, p_name: p.data.name, p_description: p.data.description ?? "", p_active: p.data.isActive,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateApprovals()
+    return ok(undefined)
+  })
+}
+
+const stepsSchema = z.object({
+  flowId: z.uuid(),
+  steps: z.array(z.object({ name: z.string().trim().min(1).max(120), position: z.uuid() })).min(1).max(20),
+})
+
+export async function setFlowSteps(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = stepsSchema.safeParse(input)
+    if (!p.success) return fail("Cada paso necesita un nombre y un cargo.")
+    const { error } = await (await createClient()).rpc("set_flow_steps", {
+      p_flow: p.data.flowId, p_steps: p.data.steps as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateApprovals()
+    return ok(undefined)
+  })
+}
+
+const requestSchema = z.object({
+  flowId: z.uuid(),
+  title: z.string().trim().min(3).max(200),
+  description: z.string().trim().max(4000).optional(),
+})
+
+export async function createApprovalRequest(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = requestSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el flujo y el título.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_approval_request", {
+      p_org: user.organization.id, p_flow: p.data.flowId, p_title: p.data.title, p_description: p.data.description ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateApprovals()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function decideApprovalStep(input: { requestId: string; approve: boolean; comment?: string }): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(input.requestId)) return fail(GENERIC)
+    const comment = (input.comment ?? "").trim().slice(0, 2000)
+    const { error } = await (await createClient()).rpc("decide_approval_step", {
+      p_request: input.requestId, p_approve: !!input.approve, p_comment: comment,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateApprovals()
+    return ok(undefined)
+  })
+}
+
+export async function cancelApprovalRequest(requestId: string, reason?: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(requestId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("cancel_approval_request", {
+      p_request: requestId, p_reason: (reason ?? "").trim().slice(0, 500),
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateApprovals()
+    return ok(undefined)
+  })
+}
+
+export async function exportSolicitudesCsv(): Promise<string> {
+  const rows = await listApprovalRequests(await getCurrentUser())
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Título", value: (r) => r.title },
+    { header: "Flujo", value: (r) => r.flowName },
+    { header: "Estado", value: (r) => r.status },
+    { header: "Paso", value: (r) => `${r.currentStep}/${r.totalSteps}` },
+  ])
 }

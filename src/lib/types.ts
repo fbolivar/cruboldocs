@@ -918,6 +918,82 @@ export interface SupplierSelfAssessmentView {
   submittedAt: string
 }
 
+// ---------- BPM-lite: Solicitudes y aprobaciones (v1.4-5) ----------
+
+export type SolicitudStatus = "pendiente" | "aprobada" | "rechazada" | "anulada"
+export type StepDecision = "pendiente" | "aprobada" | "rechazada"
+
+/** Paso de una plantilla de flujo (configuración en Admin). */
+export interface FlowStepView {
+  name: string
+  positionId: string
+  positionName: string
+}
+
+/** Plantilla de flujo para el gestor de Admin. */
+export interface ApprovalFlowView {
+  id: string
+  name: string
+  description: string | null
+  isActive: boolean
+  steps: FlowStepView[]
+}
+
+/** Opción de flujo activo para radicar una solicitud. */
+export interface ApprovalFlowOption {
+  id: string
+  name: string
+  stepCount: number
+}
+
+export interface SolicitudSummary {
+  pending: number
+  pendingForMe: number
+  closed: number
+}
+
+export interface SolicitudListItem {
+  id: string
+  code: string
+  title: string
+  flowName: string
+  status: SolicitudStatus
+  currentStep: number
+  totalSteps: number
+  currentApproverName: string | null
+  pendingForMe: boolean
+  createdAt: string
+}
+
+export interface SolicitudStepView {
+  stepNo: number
+  name: string
+  approverPositionName: string
+  decision: StepDecision
+  decidedByName: string | null
+  decidedAt: string | null
+  comment: string | null
+  /** Paso actual en curso. */
+  current: boolean
+}
+
+export interface SolicitudDetail {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  flowName: string
+  status: SolicitudStatus
+  requesterName: string
+  createdAt: string
+  steps: SolicitudStepView[]
+  timeline: NcTimelineEvent[]
+  /** El usuario es el cargo del paso actual y la solicitud está pendiente. */
+  canDecide: boolean
+  /** El usuario es el solicitante o Líder SIG y la solicitud está pendiente. */
+  canCancel: boolean
+}
+
 // ---------- Portal externo (v1.4-3) ----------
 
 /** Estado del buzón público de PQRS de la organización (control en /app/pqrs). */

@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageFlows, canManageForms, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
@@ -28,6 +28,12 @@ import type {
   AuditSummary,
   FindingSeverity,
   FindingType,
+  ApprovalFlowView,
+  ApprovalFlowOption,
+  SolicitudSummary,
+  SolicitudListItem,
+  SolicitudDetail,
+  SolicitudStepView,
   ChangeRequest,
   Control,
   CurrentUser,
@@ -3629,5 +3635,131 @@ export async function getKnowledgeArticle(code: string): Promise<KnowledgeDetail
     sourceNcCode: nc?.code ?? null, sourceAuditCode: aud?.code ?? null, status: a.status as KnowledgeStatus,
     canManage: canManageKnowledge(s.user, a.process_id ?? undefined),
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: KN_EVENT_TEXT[x.action] ?? x.action })),
+  }
+}
+
+// ---------- BPM-lite: Solicitudes y aprobaciones (v1.4-5) ----------
+
+const SOL_EVENT_TEXT: Record<string, string> = {
+  crear_solicitud: "Radicó la solicitud.",
+  aprobar_paso_solicitud: "Aprobó un paso.",
+  rechazar_solicitud: "Rechazó la solicitud.",
+  anular_solicitud: "Anuló la solicitud.",
+}
+
+type FlowStepRaw = { name?: unknown; position?: unknown }
+
+/** Plantillas de flujo con sus pasos resueltos (gestor de Admin). */
+export async function listApprovalFlows(): Promise<ApprovalFlowView[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: flows }, { data: positions }] = await Promise.all([
+    s.supabase.from("approval_flows").select("id, name, description, steps, is_active").eq("organization_id", s.org).order("created_at", { ascending: false }),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+  ])
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  return (flows ?? []).map((f) => ({
+    id: f.id, name: f.name, description: f.description, isActive: f.is_active,
+    steps: (Array.isArray(f.steps) ? (f.steps as FlowStepRaw[]) : []).map((st) => ({
+      name: String(st?.name ?? ""), positionId: String(st?.position ?? ""),
+      positionName: posName.get(String(st?.position ?? "")) ?? "(cargo eliminado)",
+    })),
+  }))
+}
+
+/** Flujos activos (con al menos un paso) para radicar una solicitud. */
+export async function listActiveFlowOptions(): Promise<ApprovalFlowOption[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase.from("approval_flows").select("id, name, steps").eq("organization_id", s.org).eq("is_active", true).order("name")
+  return (data ?? [])
+    .map((f) => ({ id: f.id, name: f.name, stepCount: Array.isArray(f.steps) ? f.steps.length : 0 }))
+    .filter((f) => f.stepCount > 0)
+}
+
+type ReqRow = { id: string; code: string; title: string; flow_id: string; status: string; current_step: number; created_at: string }
+type StepRow = { request_id: string; step_no: number; approver_position_id: string; decision: string }
+
+async function loadApprovalContext(s: NonNullable<Awaited<ReturnType<typeof scope>>>) {
+  const [{ data: reqs }, { data: flows }, { data: steps }, { data: positions }] = await Promise.all([
+    s.supabase.from("approval_requests").select("id, code, title, flow_id, status, current_step, created_at").eq("organization_id", s.org).order("created_at", { ascending: false }),
+    s.supabase.from("approval_flows").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("approval_request_steps").select("request_id, step_no, approver_position_id, decision").eq("organization_id", s.org),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+  ])
+  const flowName = new Map((flows ?? []).map((f) => [f.id, f.name]))
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const stepsByReq = new Map<string, StepRow[]>()
+  for (const st of (steps ?? []) as StepRow[]) {
+    const arr = stepsByReq.get(st.request_id) ?? []
+    arr.push(st)
+    stepsByReq.set(st.request_id, arr)
+  }
+  return { reqs: (reqs ?? []) as ReqRow[], flowName, posName, stepsByReq }
+}
+
+function toListItem(r: ReqRow, ctx: Awaited<ReturnType<typeof loadApprovalContext>>, myPosition: string | null): SolicitudListItem {
+  const steps = (ctx.stepsByReq.get(r.id) ?? []).sort((a, b) => a.step_no - b.step_no)
+  const current = steps.find((st) => st.step_no === r.current_step) ?? null
+  const pendingForMe = r.status === "pendiente" && !!current && !!myPosition && current.approver_position_id === myPosition
+  return {
+    id: r.id, code: r.code, title: r.title, flowName: ctx.flowName.get(r.flow_id) ?? "",
+    status: r.status as SolicitudListItem["status"], currentStep: r.current_step, totalSteps: steps.length,
+    currentApproverName: current ? ctx.posName.get(current.approver_position_id) ?? null : null,
+    pendingForMe, createdAt: r.created_at,
+  }
+}
+
+export async function listApprovalRequests(user: CurrentUser): Promise<SolicitudListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const ctx = await loadApprovalContext(s)
+  const items = ctx.reqs.map((r) => toListItem(r, ctx, user.positionId))
+  // Pendientes de mi aprobación primero, luego pendientes, luego cerradas (por fecha desc dentro de cada grupo).
+  const rank = (i: SolicitudListItem) => (i.pendingForMe ? 0 : i.status === "pendiente" ? 1 : 2)
+  return items.sort((a, b) => rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt))
+}
+
+export async function getApprovalSummary(user: CurrentUser): Promise<SolicitudSummary> {
+  const s = await scope()
+  if (!s) return { pending: 0, pendingForMe: 0, closed: 0 }
+  const ctx = await loadApprovalContext(s)
+  const items = ctx.reqs.map((r) => toListItem(r, ctx, user.positionId))
+  return {
+    pending: items.filter((i) => i.status === "pendiente").length,
+    pendingForMe: items.filter((i) => i.pendingForMe).length,
+    closed: items.filter((i) => i.status === "aprobada" || i.status === "rechazada").length,
+  }
+}
+
+export async function getApprovalRequest(code: string, user: CurrentUser): Promise<SolicitudDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: r } = await s.supabase.from("approval_requests").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!r) return null
+  const [{ data: steps }, { data: positions }, { data: flow }, { data: log }] = await Promise.all([
+    s.supabase.from("approval_request_steps").select("*").eq("request_id", r.id).order("step_no"),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("approval_flows").select("name").eq("id", r.flow_id).maybeSingle(),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Solicitud").eq("entity_id", r.id).order("at", { ascending: false }),
+  ])
+  const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const person = await peopleOf(s.org, [r.requested_by, ...(steps ?? []).map((x) => x.decided_by), ...(log ?? []).map((x) => x.actor_id)])
+  const stepViews: SolicitudStepView[] = (steps ?? []).map((st) => ({
+    stepNo: st.step_no, name: st.name, approverPositionName: posName.get(st.approver_position_id) ?? "(cargo eliminado)",
+    decision: st.decision as SolicitudStepView["decision"],
+    decidedByName: st.decided_by ? person(st.decided_by).fullName : null, decidedAt: st.decided_at, comment: st.comment,
+    current: r.status === "pendiente" && st.step_no === r.current_step,
+  }))
+  const currentStep = (steps ?? []).find((st) => st.step_no === r.current_step) ?? null
+  const canDecide = r.status === "pendiente" && !!currentStep && !!user.positionId && currentStep.approver_position_id === user.positionId
+  const canCancel = r.status === "pendiente" && (r.requested_by === user.id || canManageFlows(user))
+  return {
+    id: r.id, code: r.code, title: r.title, description: r.description,
+    flowName: flow?.name ?? "", status: r.status as SolicitudDetail["status"],
+    requesterName: person(r.requested_by).fullName, createdAt: r.created_at,
+    steps: stepViews,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: SOL_EVENT_TEXT[x.action] ?? x.action })),
+    canDecide, canCancel,
   }
 }

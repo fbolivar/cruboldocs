@@ -175,6 +175,168 @@ export type Database = {
           },
         ]
       }
+      approval_flows: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          steps: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          steps?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          steps?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_flows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_request_steps: {
+        Row: {
+          approver_position_id: string
+          comment: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decision: string
+          id: string
+          name: string
+          organization_id: string
+          request_id: string
+          step_no: number
+        }
+        Insert: {
+          approver_position_id: string
+          comment?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string
+          id?: string
+          name: string
+          organization_id: string
+          request_id: string
+          step_no: number
+        }
+        Update: {
+          approver_position_id?: string
+          comment?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          request_id?: string
+          step_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_request_steps_approver_position_id_organization_i_fkey"
+            columns: ["approver_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "approval_request_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_request_steps_request_id_organization_id_fkey"
+            columns: ["request_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      approval_requests: {
+        Row: {
+          closed_at: string | null
+          code: string
+          created_at: string
+          current_step: number
+          description: string | null
+          flow_id: string
+          id: string
+          organization_id: string
+          requested_by: string
+          status: string
+          title: string
+        }
+        Insert: {
+          closed_at?: string | null
+          code: string
+          created_at?: string
+          current_step?: number
+          description?: string | null
+          flow_id: string
+          id?: string
+          organization_id: string
+          requested_by?: string
+          status?: string
+          title: string
+        }
+        Update: {
+          closed_at?: string | null
+          code?: string
+          created_at?: string
+          current_step?: number
+          description?: string | null
+          flow_id?: string
+          id?: string
+          organization_id?: string
+          requested_by?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_requests_flow_id_organization_id_fkey"
+            columns: ["flow_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "approval_flows"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "approval_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_counters: {
         Row: {
           last_seq: number
@@ -4681,6 +4843,32 @@ export type Database = {
           },
         ]
       }
+      sol_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sol_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sst_actions: {
         Row: {
           created_at: string
@@ -5863,6 +6051,7 @@ export type Database = {
         Args: { org: string; process?: string }
         Returns: boolean
       }
+      can_manage_flows: { Args: { org: string }; Returns: boolean }
       can_manage_forms: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -5949,6 +6138,10 @@ export type Database = {
       can_see_suppliers: { Args: { org: string }; Returns: boolean }
       can_see_version: { Args: { p_version: string }; Returns: boolean }
       can_view_content: { Args: { org: string }; Returns: boolean }
+      cancel_approval_request: {
+        Args: { p_reason: string; p_request: string }
+        Returns: undefined
+      }
       cancel_audit: {
         Args: { p_audit: string; p_reason: string }
         Returns: undefined
@@ -6088,6 +6281,23 @@ export type Database = {
           p_scopes: string[]
         }
         Returns: string
+      }
+      create_approval_flow: {
+        Args: { p_description: string; p_name: string; p_org: string }
+        Returns: {
+          id: string
+        }[]
+      }
+      create_approval_request: {
+        Args: {
+          p_description: string
+          p_flow: string
+          p_org: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+        }[]
       }
       create_article_from_audit: {
         Args: { p_audit: string }
@@ -6512,6 +6722,10 @@ export type Database = {
       }
       current_actor: { Args: never; Returns: string }
       current_org: { Args: never; Returns: string }
+      decide_approval_step: {
+        Args: { p_approve: boolean; p_comment: string; p_request: string }
+        Returns: undefined
+      }
       decide_change: {
         Args: { p_approve: boolean; p_approver: string; p_change: string }
         Returns: undefined
@@ -7411,6 +7625,10 @@ export type Database = {
         Args: { p_field_ids: string[]; p_template: string }
         Returns: undefined
       }
+      set_flow_steps: {
+        Args: { p_flow: string; p_steps: Json }
+        Returns: undefined
+      }
       set_hazard_active: {
         Args: { p_active: boolean; p_hazard: string }
         Returns: undefined
@@ -7664,6 +7882,15 @@ export type Database = {
         }
       }
       unarchive_indicator: { Args: { p_indicator: string }; Returns: undefined }
+      update_approval_flow: {
+        Args: {
+          p_active: boolean
+          p_description: string
+          p_flow: string
+          p_name: string
+        }
+        Returns: undefined
+      }
       update_aspect: {
         Args: {
           p_activity: string
