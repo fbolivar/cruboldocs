@@ -1777,5 +1777,42 @@ ok((await as(db, U.beto, `select count(*)::int n from public.saved_reports where
 await throws(() => as(db, U.sofia, `insert into public.saved_reports (organization_id, name, dataset) values ('${A}', 'X', 'nc')`),
   "Nadie inserta informes por REST (052)", "row-level security")
 
+// ========== 053 · Notificaciones Slack/Teams (chat_notifiers + encolado) ==========
+// Configuración solo Admin/Líder SIG.
+const notif = (await as(db, U.oscar, `select id from public.create_chat_notifier('${A}', 'slack', 'https://hooks.slack.com/services/abc', 'Canal Calidad', array['nc','pqrs'])`)).rows[0].id
+await throws(() => as(db, U.sofia, `select public.create_chat_notifier('${A}', 'slack', 'https://hooks.slack.com/x', 'Intrusa', array['nc'])`),
+  "Sofía (consulta) no configura notificaciones (053)", "No puedes configurar")
+await throws(() => as(db, U.beto, `select public.create_chat_notifier('${A}', 'slack', 'https://hooks.slack.com/x', 'Intrusa B', array['nc'])`),
+  "Beto (org B) no configura notificaciones en A (053)", "No puedes configurar")
+await throws(() => as(db, U.oscar, `select public.create_chat_notifier('${A}', 'discord', 'https://hooks.slack.com/x', 'X', array['nc'])`),
+  "Proveedor no válido rechazado (053)", "Proveedor no válido")
+await throws(() => as(db, U.oscar, `select public.create_chat_notifier('${A}', 'slack', 'https://hooks.slack.com/x', 'X', array[]::text[])`),
+  "Sin eventos rechazado (053)", "al menos un evento")
+
+// RLS: solo Admin ve los canales (la URL es un secreto).
+ok((await as(db, U.sofia, `select count(*)::int n from public.chat_notifiers where organization_id='${A}'`)).rows[0].n === 0, "La consulta no ve los canales (053)")
+ok((await as(db, U.oscar, `select count(*)::int n from public.chat_notifiers where organization_id='${A}'`)).rows[0].n === 1, "El Admin ve el canal (053)")
+
+// Un INSERT en la entidad encola el aviso para el canal suscrito.
+await as(db, U.juan, `select public.create_pqrs('${A}', 'queja', 'web', null, null, '${P.sigA}', 'Una queja para notificar al canal.', current_date, 15)`)
+ok((await svc(`select count(*)::int n from public.chat_outbox where organization_id='${A}' and event='pqrs' and notifier_id='${notif}'`)).rows[0].n === 1, "Crear una PQRS encola el aviso al canal suscrito (053)")
+// Un canal solo suscrito a otro evento no recibe nada.
+const notifSol = (await as(db, U.oscar, `select id from public.create_chat_notifier('${A}', 'teams', 'https://acme.webhook.office.com/y', 'Solo solicitudes', array['solicitud'])`)).rows[0].id
+ok((await svc(`select count(*)::int n from public.chat_outbox where notifier_id='${notifSol}'`)).rows[0].n === 0, "Un canal no suscrito al evento no lo recibe (053)")
+
+// Un canal desactivado no recibe avisos.
+await as(db, U.oscar, `select public.update_chat_notifier('${notif}', 'https://hooks.slack.com/services/abc', 'Canal Calidad', array['nc','pqrs'], false)`)
+await as(db, U.juan, `select public.create_pqrs('${A}', 'peticion', 'web', null, null, '${P.sigA}', 'Otra petición después de desactivar.', current_date, 15)`)
+ok((await svc(`select count(*)::int n from public.chat_outbox where notifier_id='${notif}'`)).rows[0].n === 1, "Un canal desactivado no recibe nuevos avisos (053)")
+
+// Eliminar (baja lógica) oculta el canal.
+await as(db, U.oscar, `select public.discard_chat_notifier('${notifSol}')`)
+ok((await as(db, U.oscar, `select count(*)::int n from public.chat_notifiers where id='${notifSol}'`)).rows[0].n === 0, "Eliminar un canal lo oculta (baja lógica) (053)")
+
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.chat_notifiers where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve canales de A (053)")
+await throws(() => as(db, U.oscar, `insert into public.chat_notifiers (organization_id, provider, url, name) values ('${A}', 'slack', 'https://x', 'X')`),
+  "Nadie inserta canales por REST (053)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
