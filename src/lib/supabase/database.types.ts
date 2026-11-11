@@ -2801,6 +2801,72 @@ export type Database = {
           },
         ]
       }
+      satisfaction_surveys: {
+        Row: {
+          closed_at: string | null
+          closes_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          method: string
+          organization_id: string
+          period: string
+          process_id: string | null
+          scale: string
+          status: string
+          title: string
+          token: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closes_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          method: string
+          organization_id: string
+          period: string
+          process_id?: string | null
+          scale?: string
+          status?: string
+          title: string
+          token: string
+        }
+        Update: {
+          closed_at?: string | null
+          closes_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          method?: string
+          organization_id?: string
+          period?: string
+          process_id?: string | null
+          scale?: string
+          status?: string
+          title?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satisfaction_surveys_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "satisfaction_surveys_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       signatures: {
         Row: {
           action: string
@@ -3043,6 +3109,77 @@ export type Database = {
             columns: ["process_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      survey_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_responses: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          ip_hash: string | null
+          organization_id: string
+          score: number
+          survey_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          organization_id: string
+          score: number
+          survey_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          organization_id?: string
+          score?: number
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_responses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_survey_id_organization_id_fkey"
+            columns: ["survey_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "satisfaction_surveys"
             referencedColumns: ["id", "organization_id"]
           },
         ]
@@ -3509,6 +3646,7 @@ export type Database = {
             }
             Returns: undefined
           }
+      close_survey: { Args: { p_survey: string }; Returns: undefined }
       complete_commitment: {
         Args: { p_commitment: string }
         Returns: undefined
@@ -3702,6 +3840,21 @@ export type Database = {
           id: string
         }[]
       }
+      create_survey: {
+        Args: {
+          p_method: string
+          p_org: string
+          p_period: string
+          p_process: string
+          p_scale: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          id: string
+          token: string
+        }[]
+      }
       create_task: {
         Args: {
           org: string
@@ -3801,6 +3954,15 @@ export type Database = {
         Args: { p_case: string }
         Returns: {
           code: string
+        }[]
+      }
+      get_survey_public: {
+        Args: { p_token: string }
+        Returns: {
+          is_open: boolean
+          method: string
+          scale: string
+          title: string
         }[]
       }
       has_role: {
@@ -4285,6 +4447,15 @@ export type Database = {
       storage_can_read_nc_evidence: {
         Args: { p_name: string }
         Returns: boolean
+      }
+      submit_survey_response: {
+        Args: {
+          p_comment: string
+          p_ip_hash: string
+          p_raw: number
+          p_token: string
+        }
+        Returns: undefined
       }
       submit_version: { Args: { p_version: string }; Returns: undefined }
       supplier_or_fail: {

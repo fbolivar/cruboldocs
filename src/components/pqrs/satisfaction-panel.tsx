@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { SATISFACTION_METHOD_LABELS, formatPeriod, satisfactionLabel } from "@/components/pqrs/labels"
 import { SatisfactionGauge } from "@/components/pqrs/satisfaction-gauge"
+import { SurveyCampaigns } from "@/components/pqrs/survey-campaigns"
 import { recordSatisfaction } from "@/lib/data/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,18 +17,27 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
-import type { SatisfactionMeasurementView, SatisfactionMethod } from "@/lib/types"
+import type { SatisfactionMeasurementView, SatisfactionMethod, SurveyCampaign } from "@/lib/types"
 
 const METHODS = Object.keys(SATISFACTION_METHOD_LABELS) as SatisfactionMethod[]
 
-export function SatisfactionPanel({ items, canManage }: { items: SatisfactionMeasurementView[]; canManage: boolean }) {
+type ProcessOption = { id: string; name: string }
+
+export function SatisfactionPanel({ items, campaigns, canManage, processes }: {
+  items: SatisfactionMeasurementView[]
+  campaigns: SurveyCampaign[]
+  canManage: boolean
+  processes: ProcessOption[]
+}) {
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2">
         <CardTitle>Satisfacción del cliente (9.1.2)</CardTitle>
         {canManage && <RecordSatisfactionSheet />}
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-5">
+        <SurveyCampaigns campaigns={campaigns} canManage={canManage} processes={processes} />
+        <div>
         {items.length === 0 ? (
           <EmptyState icon={SmileIcon} title="Aún no registras la satisfacción del cliente" description="Registra la medición del periodo (encuesta, NPS, CSAT…)." />
         ) : (
@@ -42,6 +52,7 @@ export function SatisfactionPanel({ items, canManage }: { items: SatisfactionMea
             ))}
           </ul>
         )}
+        </div>
       </CardContent>
     </Card>
   )

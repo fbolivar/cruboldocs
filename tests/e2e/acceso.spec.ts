@@ -71,6 +71,14 @@ test.describe("invitación", () => {
   })
 })
 
+test.describe("encuesta pública", () => {
+  test("un token inexistente muestra el mensaje neutro, sin pedir sesión", async ({ page }) => {
+    await page.goto("/encuesta/token-que-no-existe-0123456789abcdef0123456789abcdef")
+    await expect(page).toHaveURL(/\/encuesta\//)
+    await expect(page.getByRole("heading", { name: "Esta encuesta no está disponible" })).toBeVisible()
+  })
+})
+
 test.describe("páginas públicas", () => {
   test("política de tratamiento de datos (Ley 1581)", async ({ page }) => {
     await page.goto("/tratamiento-de-datos")

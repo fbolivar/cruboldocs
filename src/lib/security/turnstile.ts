@@ -4,7 +4,7 @@ import "server-only"
 // Auth usan la clave secreta y Auth no les exige CAPTCHA: la verificación ocurre aquí. El
 // CAPTCHA nativo de Supabase protege los llamados directos con la clave publicable.
 
-export type TurnstileAction = "login" | "recuperar" | "invitacion"
+export type TurnstileAction = "login" | "recuperar" | "invitacion" | "encuesta"
 
 export const CAPTCHA_FAILED = "No pudimos verificar que no eres un robot. Vuelve a intentarlo."
 

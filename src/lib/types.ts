@@ -1031,6 +1031,35 @@ export interface ObjectiveCardView {
   canManage: boolean
 }
 
+// ---------- Encuesta de satisfacción enviable (v1.1-2, ISO 9.1.2) ----------
+
+export type SurveyScale = "0_100" | "1_5" | "nps_0_10"
+export type SurveyMethod = "encuesta" | "nps" | "csat"
+export type SurveyStatus = "abierta" | "cerrada"
+
+export interface SurveyCampaign {
+  id: string
+  code: string
+  title: string
+  method: SurveyMethod
+  scale: SurveyScale
+  period: string
+  processName: string | null
+  status: SurveyStatus
+  responseCount: number
+  avgScore: number | null
+  /** Token para armar el link público (solo se entrega a quien gestiona). */
+  token: string
+}
+
+/** Lectura pública mínima de una campaña por token. */
+export interface PublicSurvey {
+  title: string
+  method: SurveyMethod
+  scale: SurveyScale
+  isOpen: boolean
+}
+
 // ---------- Tablero gerencial (v1.1-1, solo lectura) ----------
 
 export interface DashboardFilters {

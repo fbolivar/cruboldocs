@@ -909,5 +909,50 @@ await throws(() => as(db, U.sofia, `insert into public.objective_indicators (org
 await throws(() => as(db, U.sofia, `insert into public.meeting_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "meeting_counters es deny-all (028)", "row-level security")
 
+// ========== 029 · Encuesta de satisfacción enviable (ISO 9.1.2) ==========
+const anon = async (sql, p = []) => {
+  await db.exec("set role anon; select set_config('request.jwt.claim.sub', '', true);")
+  try { return await db.query(sql, p) } finally { await db.exec("reset role;") }
+}
+
+const sv = (await as(db, U.juan, `select id, code, token from public.create_survey('${A}', 'Satisfacción nov', 'csat', '1_5', current_date, '${P.sigA}')`)).rows[0]
+ok(sv.code === "ENC-" + YEAR + "-001", "Numeración ENC-AAAA-001 (029)")
+ok(typeof sv.token === "string" && sv.token.length >= 32, "La campaña genera un token aleatorio (029)")
+await throws(() => as(db, U.sofia, `select public.create_survey('${A}', 'Intrusa', 'csat', '0_100', current_date, null)`),
+  "Sofía (consulta) no crea encuestas (029)", "No puedes crear")
+await throws(() => as(db, U.beto, `select public.create_survey('${A}', 'Intrusa B', 'csat', '0_100', current_date, null)`),
+  "Beto (org B) no crea encuestas en A (029)", "No puedes crear")
+
+// Lectura pública por token (anon) y envío público
+const pub = (await anon(`select title, is_open from public.get_survey_public('${sv.token}')`)).rows[0]
+ok(pub && pub.is_open === true, "get_survey_public devuelve la campaña abierta por token (029)")
+ok((await anon(`select count(*)::int n from public.get_survey_public('token-inexistente')`)).rows[0].n === 0, "Token inexistente no revela nada (029)")
+await anon(`select public.submit_survey_response('${sv.token}', 5, 'Excelente', null)`)   // escala 1_5 → 100
+await anon(`select public.submit_survey_response('${sv.token}', 3, null, null)`)          // 1_5 → 50
+ok((await svc(`select count(*)::int n from public.survey_responses where survey_id = '${sv.id}'`)).rows[0].n === 2, "anon registra respuestas por el RPC (029)")
+ok(Number((await svc(`select score from public.survey_responses where survey_id = '${sv.id}' order by score limit 1`)).rows[0].score) === 50, "Normaliza la escala 1–5 a 0–100 (3→50) (029)")
+await throws(() => anon(`select public.submit_survey_response('${sv.token}', 9, null, null)`),
+  "Puntaje fuera de rango en escala 1–5 rechazado (029)", "fuera de rango")
+
+// El público NO puede leer respuestas ni campañas por REST, ni insertar directo
+await throws(() => anon(`select count(*)::int n from public.survey_responses`), "anon no lee respuestas por REST (029)", "permission denied")
+await throws(() => anon(`select count(*)::int n from public.satisfaction_surveys`), "anon no lee campañas por REST (029)", "permission denied")
+await throws(() => anon(`insert into public.survey_responses (organization_id, survey_id, score) values ('${A}', '${sv.id}', 10)`),
+  "anon no inserta respuestas por REST (029)", "permission denied")
+
+// Aislamiento + cierre → medición
+ok((await as(db, U.beto, `select count(*)::int n from public.satisfaction_surveys where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve campañas de A (029)")
+await throws(() => as(db, U.beto, `select public.close_survey('${sv.id}')`), "Beto (org B) no cierra campañas de A (029)", "no encontrada")
+await as(db, U.juan, `select public.close_survey('${sv.id}')`)
+ok((await as(db, U.juan, `select status from public.satisfaction_surveys where id = '${sv.id}'`)).rows[0].status === "cerrada", "Cerrar deja la campaña cerrada (029)")
+const meas = (await as(db, U.juan, `select score, responses from public.satisfaction_measurements where organization_id = '${A}' and method = 'csat' order by created_at desc limit 1`)).rows[0]
+ok(meas && Number(meas.score) === 75 && meas.responses === 2, "El cierre escribe la medición (promedio 75 de 2 respuestas) (029)")
+await throws(() => anon(`select public.submit_survey_response('${sv.token}', 5, null, null)`),
+  "Una campaña cerrada no acepta respuestas (029)", "no está disponible")
+const sv2 = (await as(db, U.juan, `select id from public.create_survey('${A}', 'Sin respuestas', 'csat', '0_100', current_date, null)`)).rows[0]
+await throws(() => as(db, U.juan, `select public.close_survey('${sv2.id}')`), "No se cierra una campaña sin respuestas (029)", "no tiene respuestas")
+await throws(() => as(db, U.sofia, `insert into public.satisfaction_surveys (organization_id, code, title, method, period, token) values ('${A}', 'X', 'Intrusa', 'csat', current_date, 'tok')`),
+  "Nadie inserta campañas por REST (029)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

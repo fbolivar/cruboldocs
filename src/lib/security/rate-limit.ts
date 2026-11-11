@@ -24,6 +24,9 @@ const RULES = {
   "contrasena:usuario": { limit: 5, window: "15 m" },
   // Crubol-Agent: ráfaga por usuario además del tope mensual por organización (control de costo).
   "agente:usuario": { limit: 20, window: "10 m" },
+  // Encuesta pública: anti-flooding por IP y por (token, IP). Generoso (muchos clientes responden).
+  "encuesta:ip": { limit: 30, window: "10 m" },
+  "encuesta:token_ip": { limit: 10, window: "1 h" },
 } satisfies Record<string, Rule>
 
 export type LimitKey = keyof typeof RULES

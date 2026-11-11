@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listMinutes, listObjectives, listPqrs, listSuppliers, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -2485,5 +2485,79 @@ export async function exportDashboardCsv(
   return toCsv(rows, [
     { header: "Concepto", value: (r) => r.k },
     { header: "Valor", value: (r) => r.v },
+  ])
+}
+
+// ---------- Encuesta de satisfacción enviable (v1.1-2) ----------
+
+function revalidateSurveys() {
+  revalidatePath("/app/pqrs", "layout")
+  revalidatePath("/app")
+}
+
+const surveySchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  method: z.enum(["encuesta", "nps", "csat"]),
+  scale: z.enum(["0_100", "1_5", "nps_0_10"]),
+  period: isoDate,
+  processId: z.uuid().nullish(),
+})
+
+export async function createSurvey(input: unknown): Promise<Result<{ code: string; token: string }>> {
+  return guard(async () => {
+    const p = surveySchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la encuesta.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_survey", {
+      p_org: user.organization.id, p_title: p.data.title, p_method: p.data.method,
+      p_scale: p.data.scale, p_period: p.data.period, p_process: (p.data.processId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSurveys()
+    return ok({ code: data?.[0]?.code ?? "", token: data?.[0]?.token ?? "" })
+  })
+}
+
+export async function closeSurvey(surveyId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(surveyId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("close_survey", { p_survey: surveyId })
+    if (error) return fail(dbMessage(error))
+    revalidateSurveys()
+    return ok(undefined)
+  })
+}
+
+/** Envío público de una respuesta (sin sesión): CAPTCHA + rate-limit por IP + token, luego RPC anónimo. */
+export async function submitSurveyResponse(input: {
+  token: string
+  raw: number
+  comment?: string
+  captchaToken: string
+}): Promise<Result> {
+  return guard(async () => {
+    const token = String(input.token ?? "")
+    if (token.length < 16 || token.length > 128) return fail("Esta encuesta no está disponible.")
+    if (typeof input.raw !== "number" || !Number.isFinite(input.raw)) return fail("Indica tu puntaje.")
+    const comment = (input.comment ?? "").trim().slice(0, 1000)
+    const ip = await clientIp()
+    if (!(await verifyTurnstile(input.captchaToken, "encuesta", ip))) return fail(CAPTCHA_FAILED)
+    if (!(await withinLimits([["encuesta:ip", ip], ["encuesta:token_ip", `${token}|${ipKey(ip) ?? "x"}`]]))) return fail(TOO_MANY)
+    const ipHash = ip ? sha256Hex(`${ip}|${token}`) : null
+    const { error } = await (await createClient()).rpc("submit_survey_response", {
+      p_token: token, p_raw: input.raw, p_comment: comment || "", p_ip_hash: ipHash ?? "",
+    })
+    if (error) return fail(dbMessage(error, "Esta encuesta no está disponible."))
+    return ok(undefined)
+  })
+}
+
+export async function exportSurveyCsv(surveyId: string): Promise<string> {
+  const rows = await listSurveyResponses(surveyId)
+  return toCsv(rows, [
+    { header: "Fecha", value: (r) => formatDate(r.createdAt) },
+    { header: "Puntaje (0-100)", value: (r) => String(r.score) },
+    { header: "Comentario", value: (r) => r.comment },
   ])
 }

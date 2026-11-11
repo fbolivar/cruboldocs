@@ -7,7 +7,7 @@ import { SatisfactionPanel } from "@/components/pqrs/satisfaction-panel"
 import { PqrsSummaryBar } from "@/components/pqrs/summary"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser, getPqrsSummary, listPqrs, listProcesses, listSatisfaction } from "@/lib/data/queries"
+import { getCurrentUser, getPqrsSummary, listPqrs, listProcesses, listSatisfaction, listSurveys } from "@/lib/data/queries"
 import { canManagePqrs, canSeePqrs } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "PQRS" }
@@ -27,7 +27,7 @@ export default async function PqrsPage() {
     )
   }
 
-  const [summary, items, satisfaction, processes] = await Promise.all([getPqrsSummary(), listPqrs(), listSatisfaction(), listProcesses()])
+  const [summary, items, satisfaction, surveys, processes] = await Promise.all([getPqrsSummary(), listPqrs(), listSatisfaction(), listSurveys(), listProcesses()])
   const canManage = canManagePqrs(user)
   const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
 
@@ -45,7 +45,7 @@ export default async function PqrsPage() {
       <div className="flex flex-col gap-4 md:gap-6">
         <PqrsSummaryBar summary={summary} />
         <PqrsBoard items={items} />
-        <SatisfactionPanel items={satisfaction} canManage={canManage} />
+        <SatisfactionPanel items={satisfaction} campaigns={surveys} canManage={canManage} processes={processOptions} />
       </div>
     </Page>
   )

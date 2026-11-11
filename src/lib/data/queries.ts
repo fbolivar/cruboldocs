@@ -85,6 +85,8 @@ import type {
   MinutesSummary,
   ObjectiveCardView,
   Perspective,
+  PublicSurvey,
+  SurveyCampaign,
   ObjectiveIndicatorRef,
   Organization,
   Paginated,
@@ -2125,4 +2127,51 @@ export async function getDashboard(filters: DashboardFilters): Promise<Dashboard
     nc: { open: ncAll.filter((n) => NC_OPEN.has(n.status)).length, overdueActions, byStatus, bySeverity },
     audits, indicators, objectives, pqrs, satisfaction, documents,
   }
+}
+
+// ---------- Encuesta de satisfacción enviable (v1.1-2) ----------
+
+export async function listSurveys(): Promise<SurveyCampaign[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: surveys }, { data: resp }, { data: procs }] = await Promise.all([
+    s.supabase.from("satisfaction_surveys").select("id, code, title, method, scale, period, process_id, status, token").eq("organization_id", s.org).order("period", { ascending: false }).order("code", { ascending: false }),
+    s.supabase.from("survey_responses").select("survey_id, score").eq("organization_id", s.org),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const agg = new Map<string, { n: number; sum: number }>()
+  for (const r of resp ?? []) {
+    const e = agg.get(r.survey_id) ?? { n: 0, sum: 0 }
+    e.n += 1; e.sum += Number(r.score)
+    agg.set(r.survey_id, e)
+  }
+  return (surveys ?? []).map((v) => {
+    const a = agg.get(v.id)
+    return {
+      id: v.id, code: v.code, title: v.title, method: v.method as SurveyCampaign["method"],
+      scale: v.scale as SurveyCampaign["scale"], period: v.period,
+      processName: v.process_id ? procMap.get(v.process_id) ?? null : null,
+      status: v.status as SurveyCampaign["status"],
+      responseCount: a?.n ?? 0, avgScore: a && a.n ? Math.round((a.sum / a.n) * 100) / 100 : null,
+      token: v.token,
+    }
+  })
+}
+
+/** Lectura pública por token (cliente anónimo en la página pública). null si no existe. */
+export async function getPublicSurvey(token: string): Promise<PublicSurvey | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc("get_survey_public", { p_token: token })
+  const row = data?.[0]
+  if (!row) return null
+  return { title: row.title, method: row.method as PublicSurvey["method"], scale: row.scale as PublicSurvey["scale"], isOpen: row.is_open }
+}
+
+/** Respuestas de una campaña (para exportar; RLS limita a roles SIG de la org). */
+export async function listSurveyResponses(surveyId: string): Promise<{ score: number; comment: string | null; createdAt: string }[]> {
+  const s = await scope()
+  if (!s || !isUuid(surveyId)) return []
+  const { data } = await s.supabase.from("survey_responses").select("score, comment, created_at").eq("organization_id", s.org).eq("survey_id", surveyId).order("created_at", { ascending: false })
+  return (data ?? []).map((r) => ({ score: Number(r.score), comment: r.comment, createdAt: r.created_at }))
 }
