@@ -88,6 +88,13 @@ export function canManagePqrs(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Tablero gerencial: Líder SIG, auditor y la dirección (gerente/aprobador). Otros roles del SIG
+ *  lo ven acotado por su RLS; la dirección entra aquí aunque no gestione el SGC. */
+export function canSeeDashboard(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "auditor") || hasRole(user, "aprobador")
+    || hasRole(user, "lider_proceso") || hasRole(user, "responsable_control") || hasRole(user, "consulta")
+}
+
 /** Pantalla Actas de reunión: mismos roles del SIG que los demás módulos. */
 export function canSeeMinutes(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))

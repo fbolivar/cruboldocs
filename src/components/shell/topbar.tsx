@@ -28,7 +28,7 @@ function useTrail(items: NavItem[]) {
 export function Topbar({ user, items }: TopbarProps) {
   const { section, detail } = useTrail(items)
   return (
-    <header className="sticky top-0 z-30 hidden h-14 items-center gap-4 border-b border-borde bg-superficie px-8 md:flex">
+    <header className="sticky top-0 z-30 hidden h-14 items-center gap-4 border-b border-borde bg-superficie px-8 md:flex print:!hidden">
       <nav aria-label="Ruta de navegación" className="text-small text-texto-sec">
         <ol className="flex items-center gap-1.5">
           {detail && section ? (
@@ -67,7 +67,7 @@ export function Topbar({ user, items }: TopbarProps) {
 export function MobileTopbar({ user, items }: TopbarProps) {
   const { section, detail } = useTrail(items)
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-borde bg-superficie px-4 md:hidden">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-borde bg-superficie px-4 md:hidden print:!hidden">
       {detail && section ? (
         <Link href={section.href} className="-ml-2 flex h-11 flex-1 items-center gap-1 font-display font-semibold">
           <ChevronLeftIcon className="size-5" aria-hidden="true" />

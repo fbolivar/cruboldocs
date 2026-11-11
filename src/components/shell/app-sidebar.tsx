@@ -36,7 +36,7 @@ export function AppSidebar({ items, organizationName, taskBadge, initialCollapse
     <aside
       aria-label="Navegación principal"
       className={cn(
-        "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-borde bg-superficie px-3 py-4 transition-[width] duration-200 ease-out md:flex",
+        "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-borde bg-superficie px-3 py-4 transition-[width] duration-200 ease-out md:flex print:!hidden",
         collapsed ? "w-16" : "w-60"
       )}
     >

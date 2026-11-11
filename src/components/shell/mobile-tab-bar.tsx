@@ -24,7 +24,7 @@ export function MobileTabBar({ items, taskBadge }: { items: NavItem[]; taskBadge
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-borde bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-borde bg-superficie pb-[env(safe-area-inset-bottom)] md:hidden print:!hidden"
       style={{ gridTemplateColumns: `repeat(${primary.length + (secondary.length ? 1 : 0)}, minmax(0, 1fr))` }}
     >
       {primary.map((item) => {

@@ -78,10 +78,13 @@ import type {
   NcStatus,
   NcSummary,
   CommitmentView,
+  DashboardData,
+  DashboardFilters,
   MinuteDetail,
   MinuteListItem,
   MinutesSummary,
   ObjectiveCardView,
+  Perspective,
   ObjectiveIndicatorRef,
   Organization,
   Paginated,
@@ -1990,4 +1993,136 @@ export async function listObjectiveIndicators(): Promise<ObjectiveIndicatorRef[]
   if (!s) return []
   const { data } = await s.supabase.from("indicators").select("id, name").eq("organization_id", s.org).eq("status", "activo").order("name")
   return (data ?? []).map((i) => ({ id: i.id, name: i.name }))
+}
+
+// ---------- Tablero gerencial (v1.1-1, solo lectura; reutiliza las tablas con RLS) ----------
+
+const NC_STATUS_LABEL: Record<string, string> = {
+  abierta: "Abierta", analisis_causa: "Análisis de causa", plan_accion: "Plan de acción",
+  en_ejecucion: "En ejecución", verificacion: "Verificación", cerrada: "Cerrada", anulada: "Anulada",
+}
+const NC_SEVERITY_LABEL: Record<string, string> = { observacion: "Observación", menor: "Menor", mayor: "Mayor" }
+const PERSPECTIVE_ORDER_Q: Perspective[] = ["financiera", "cliente", "procesos", "aprendizaje"]
+const NC_OPEN = new Set(["abierta", "analisis_causa", "plan_accion", "en_ejecucion", "verificacion"])
+
+/** Datos consolidados del tablero gerencial. Lectura con el cliente del usuario → RLS por organización.
+ *  Filtro de proceso: NC, indicadores, objetivos, PQRS y documentos. Año: auditorías cerradas y
+ *  tendencia de satisfacción; los contadores de estado son "a hoy" (punto en el tiempo). */
+export async function getDashboard(filters: DashboardFilters): Promise<DashboardData> {
+  const year = filters.year
+  const empty: DashboardData = {
+    year, hasAnyData: false, processes: [],
+    nc: { open: 0, overdueActions: 0, byStatus: [], bySeverity: [] },
+    audits: { plannedOrInProgress: 0, closedThisYear: 0 },
+    indicators: { active: 0, compliancePct: null, cumple: 0, atRisk: 0, notMeeting: 0, withoutMeasurement: 0 },
+    objectives: { active: 0, fulfilled: 0, byPerspective: PERSPECTIVE_ORDER_Q.map((p) => ({ perspective: p, avgProgress: null, count: 0 })) },
+    pqrs: { open: 0, overdue: 0 },
+    satisfaction: { lastScore: null, lastPeriod: null, trend: [] },
+    documents: { dueSoon: 0 },
+  }
+  const s = await scope()
+  if (!s) return empty
+  const org = s.org
+  const proc = filters.processId
+  const today = todayIsoDate()
+  const in30 = addDays(today, 30)
+  const period = currentMonthIso()
+  const byProc = <T extends { process_id: string | null }>(rows: T[]) => (proc ? rows.filter((r) => r.process_id === proc) : rows)
+
+  const [ncQ, actQ, audQ, indQ, measQ, objRows, pqrsQ, satQ, docsCount, procsQ] = await Promise.all([
+    s.supabase.from("nonconformities").select("id, status, severity, process_id").eq("organization_id", org),
+    s.supabase.from("nc_actions").select("nonconformity_id, status, due_date").eq("organization_id", org),
+    s.supabase.from("audits").select("status, planned_date").eq("organization_id", org),
+    s.supabase.from("indicators").select("id, status, process_id").eq("organization_id", org),
+    s.supabase.from("indicator_measurements").select("indicator_id, compliance").eq("organization_id", org).eq("period", period),
+    s.supabase.rpc("objectives_with_progress", { p_org: org }),
+    s.supabase.from("pqrs_cases").select("status, due_date, process_id").eq("organization_id", org),
+    s.supabase.from("satisfaction_measurements").select("period, score").eq("organization_id", org).order("period", { ascending: true }),
+    s.supabase.from("documents").select("id", { count: "exact", head: true }).eq("organization_id", org).eq("status", "vigente").lte("next_review_date", in30),
+    s.supabase.from("processes").select("id, name").eq("organization_id", org).order("name"),
+  ])
+
+  // No conformidades
+  const ncAll = byProc(ncQ.data ?? [])
+  const ncIds = new Set(ncAll.map((n) => n.id))
+  const ncByStatus = new Map<string, number>()
+  const ncBySev = new Map<string, number>()
+  for (const n of ncAll) {
+    ncByStatus.set(n.status, (ncByStatus.get(n.status) ?? 0) + 1)
+    if (NC_OPEN.has(n.status)) ncBySev.set(n.severity, (ncBySev.get(n.severity) ?? 0) + 1)
+  }
+  const overdueActions = (actQ.data ?? []).filter(
+    (a) => ncIds.has(a.nonconformity_id) && (a.status === "pendiente" || a.status === "en_curso") && a.due_date < today,
+  ).length
+  const byStatus = Object.keys(NC_STATUS_LABEL)
+    .filter((k) => (ncByStatus.get(k) ?? 0) > 0)
+    .map((k) => ({ label: NC_STATUS_LABEL[k], value: ncByStatus.get(k) ?? 0, tone: k === "cerrada" ? ("exito" as const) : undefined }))
+  const bySeverity = Object.keys(NC_SEVERITY_LABEL)
+    .map((k) => ({ label: NC_SEVERITY_LABEL[k], value: ncBySev.get(k) ?? 0, tone: k === "mayor" ? ("error" as const) : undefined }))
+    .filter((r) => r.value > 0)
+
+  // Auditorías (año = planned_date; sin filtro de proceso en el MVP)
+  const audits = {
+    plannedOrInProgress: (audQ.data ?? []).filter((a) => a.status === "planificada" || a.status === "en_ejecucion").length,
+    closedThisYear: (audQ.data ?? []).filter((a) => a.status === "cerrada" && a.planned_date.slice(0, 4) === String(year)).length,
+  }
+
+  // Indicadores (cumplimiento de la última medición del mes)
+  const indActive = byProc(indQ.data ?? []).filter((i) => i.status === "activo")
+  const activeIds = new Set(indActive.map((i) => i.id))
+  const compByInd = new Map((measQ.data ?? []).filter((m) => activeIds.has(m.indicator_id)).map((m) => [m.indicator_id, m.compliance]))
+  let cumple = 0, atRisk = 0, notMeeting = 0
+  for (const id of activeIds) {
+    const c = compByInd.get(id)
+    if (c === "cumple") cumple++
+    else if (c === "en_riesgo") atRisk++
+    else if (c === "no_cumple") notMeeting++
+  }
+  const measured = compByInd.size
+  const indicators = {
+    active: indActive.length,
+    compliancePct: measured ? Math.round((cumple / measured) * 100) : null,
+    cumple, atRisk, notMeeting, withoutMeasurement: indActive.length - measured,
+  }
+
+  // Objetivos (avance derivado por el RPC; filtro de proceso en TS)
+  type ObjRow = { perspective: string; process_id: string | null; status: string; progress_pct: number | null }
+  const objAll = ((objRows.data ?? []) as ObjRow[]).filter((o) => (proc ? o.process_id === proc : true))
+  const byPerspective = PERSPECTIVE_ORDER_Q.map((p) => {
+    const inP = objAll.filter((o) => o.perspective === p)
+    const withPct = inP.filter((o) => o.progress_pct !== null && o.progress_pct !== undefined)
+    const avg = withPct.length ? Math.round(withPct.reduce((n, o) => n + Number(o.progress_pct), 0) / withPct.length) : null
+    return { perspective: p, avgProgress: avg, count: inP.length }
+  })
+  const objectives = {
+    active: objAll.filter((o) => o.status === "activo").length,
+    fulfilled: objAll.filter((o) => o.status === "cumplido").length,
+    byPerspective,
+  }
+
+  // PQRS (abiertas / vencidas a hoy)
+  const pqrsAll = byProc(pqrsQ.data ?? [])
+  const pqrsOpen = pqrsAll.filter((q) => q.status === "recibida" || q.status === "en_gestion" || q.status === "resuelta")
+  const pqrs = { open: pqrsOpen.length, overdue: pqrsOpen.filter((q) => q.due_date < today).length }
+
+  // Satisfacción (tendencia del año; si el año no tiene, usa las últimas del histórico)
+  const satRows = (satQ.data ?? []).map((m) => ({ period: m.period as string, score: Number(m.score) }))
+  const satYear = satRows.filter((m) => m.period.slice(0, 4) === String(year))
+  const trendSrc = satYear.length ? satYear : satRows
+  const trend = trendSrc.slice(-6)
+  const last = satRows[satRows.length - 1] ?? null
+  const satisfaction = { lastScore: last ? last.score : null, lastPeriod: last ? last.period : null, trend }
+
+  const documents = { dueSoon: docsCount.count ?? 0 }
+
+  const hasAnyData =
+    ncAll.length > 0 || (audQ.data ?? []).length > 0 || indActive.length > 0 || objAll.length > 0 ||
+    pqrsAll.length > 0 || satRows.length > 0 || (documents.dueSoon > 0)
+
+  return {
+    year, hasAnyData,
+    processes: (procsQ.data ?? []).map((p) => ({ id: p.id, name: p.name })),
+    nc: { open: ncAll.filter((n) => NC_OPEN.has(n.status)).length, overdueActions, byStatus, bySeverity },
+    audits, indicators, objectives, pqrs, satisfaction, documents,
+  }
 }

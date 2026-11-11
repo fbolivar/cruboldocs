@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, isUuid, listAllDocuments, listAllRisks, listAuditLog, listMinutes, listObjectives, listPqrs, listSuppliers, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listMinutes, listObjectives, listPqrs, listSuppliers, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -2424,5 +2424,66 @@ export async function exportObjectivesCsv(): Promise<string> {
     { header: "Estado", value: (r) => STATUS[r.status] ?? r.status },
     { header: "Indicadores", value: (r) => String(r.indicatorCount) },
     { header: "Avance %", value: (r) => (r.progressPct === null ? "Sin datos" : String(r.progressPct)) },
+  ])
+}
+
+// ---------- Tablero gerencial (v1.1-1): exportación CSV por panel ----------
+
+export type DashboardCsvPanel = "no-conformidades" | "indicadores" | "objetivos" | "pqrs"
+
+const PERSP_LABEL: Record<string, string> = {
+  financiera: "Financiera", cliente: "Cliente", procesos: "Procesos internos", aprendizaje: "Aprendizaje y crecimiento",
+}
+
+export async function exportDashboardCsv(
+  panel: DashboardCsvPanel,
+  filters: { processId: string | null; year: number },
+): Promise<string> {
+  const year = Number.isInteger(filters.year) ? filters.year : new Date().getFullYear()
+  const processId = typeof filters.processId === "string" && isUuid(filters.processId) ? filters.processId : null
+  const d = await getDashboard({ processId, year })
+
+  if (panel === "no-conformidades") {
+    const rows = [
+      ...d.nc.byStatus.map((r) => ({ grupo: "Estado", etiqueta: r.label, valor: r.value })),
+      ...d.nc.bySeverity.map((r) => ({ grupo: "Severidad", etiqueta: r.label, valor: r.value })),
+    ]
+    return toCsv(rows, [
+      { header: "Grupo", value: (r) => r.grupo },
+      { header: "Etiqueta", value: (r) => r.etiqueta },
+      { header: "Cantidad", value: (r) => String(r.valor) },
+    ])
+  }
+  if (panel === "indicadores") {
+    const i = d.indicators
+    const rows = [
+      { k: "Activos", v: i.active },
+      { k: "Cumple", v: i.cumple },
+      { k: "En riesgo", v: i.atRisk },
+      { k: "No cumple", v: i.notMeeting },
+      { k: "Sin medición", v: i.withoutMeasurement },
+      { k: "% cumplimiento", v: i.compliancePct ?? 0 },
+    ]
+    return toCsv(rows, [
+      { header: "Indicador", value: (r) => r.k },
+      { header: "Valor", value: (r) => String(r.v) },
+    ])
+  }
+  if (panel === "objetivos") {
+    return toCsv(d.objectives.byPerspective, [
+      { header: "Perspectiva", value: (r) => PERSP_LABEL[r.perspective] ?? r.perspective },
+      { header: "Objetivos", value: (r) => String(r.count) },
+      { header: "Avance %", value: (r) => (r.avgProgress === null ? "Sin datos" : String(r.avgProgress)) },
+    ])
+  }
+  // pqrs + satisfacción
+  const rows = [
+    { k: "PQRS abiertas", v: String(d.pqrs.open) },
+    { k: "PQRS vencidas", v: String(d.pqrs.overdue) },
+    ...d.satisfaction.trend.map((t) => ({ k: `Satisfacción ${t.period}`, v: String(t.score) })),
+  ]
+  return toCsv(rows, [
+    { header: "Concepto", value: (r) => r.k },
+    { header: "Valor", value: (r) => r.v },
   ])
 }

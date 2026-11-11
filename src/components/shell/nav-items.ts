@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeIndicators, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeAudits, canSeeCompetencies, canSeeDashboard, canSeeIndicators, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "admin"
+export type NavIcon = "inicio" | "tablero" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "admin"
 
 export interface NavItem {
   href: string
@@ -15,8 +15,9 @@ export interface NavItem {
 export function navItemsFor(user: CurrentUser): NavItem[] {
   const items: NavItem[] = [
     { href: "/app", label: "Inicio", icon: "inicio" },
-    { href: "/app/documentos", label: "Documentos", icon: "documentos" },
   ]
+  if (canSeeDashboard(user)) items.push({ href: "/app/tablero", label: "Tablero", icon: "tablero" })
+  items.push({ href: "/app/documentos", label: "Documentos", icon: "documentos" })
   if (canSeeRisks(user)) items.push({ href: "/app/riesgos", label: "Riesgos", icon: "riesgos" })
   if (canSeeNonconformities(user)) items.push({ href: "/app/no-conformidades", label: "No conformidades", icon: "noconf" })
   if (canSeeAudits(user)) items.push({ href: "/app/auditorias", label: "Auditorías", icon: "auditorias" })

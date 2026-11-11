@@ -1031,6 +1031,64 @@ export interface ObjectiveCardView {
   canManage: boolean
 }
 
+// ---------- Tablero gerencial (v1.1-1, solo lectura) ----------
+
+export interface DashboardFilters {
+  /** Proceso (id) o null = todos. */
+  processId: string | null
+  /** Año del periodo (p. ej. 2026). */
+  year: number
+}
+
+export interface DashboardProcessRef {
+  id: string
+  name: string
+}
+
+/** Barra con etiqueta y valor (HBar). */
+export interface LabeledCount {
+  label: string
+  value: number
+  /** tono opcional para realce semántico (p. ej. vencida). */
+  tone?: "exito" | "advertencia" | "error" | "info" | "neutro"
+}
+
+export interface DashboardData {
+  /** Año y proceso aplicados; y si hay algún dato en la organización. */
+  year: number
+  hasAnyData: boolean
+  processes: DashboardProcessRef[]
+  nc: {
+    open: number
+    overdueActions: number
+    byStatus: LabeledCount[]
+    bySeverity: LabeledCount[]
+  }
+  audits: { plannedOrInProgress: number; closedThisYear: number }
+  indicators: {
+    active: number
+    compliancePct: number | null
+    cumple: number
+    atRisk: number
+    notMeeting: number
+    withoutMeasurement: number
+  }
+  objectives: {
+    active: number
+    fulfilled: number
+    /** avance por perspectiva BSC (pct null = sin datos). */
+    byPerspective: { perspective: Perspective; avgProgress: number | null; count: number }[]
+  }
+  pqrs: { open: number; overdue: number }
+  satisfaction: {
+    lastScore: number | null
+    lastPeriod: string | null
+    /** últimos periodos (orden ascendente) para la tendencia. */
+    trend: { period: string; score: number }[]
+  }
+  documents: { dueSoon: number }
+}
+
 export type InvitationStatus = "valida" | "vencida" | "usada"
 
 export interface Invitation {
