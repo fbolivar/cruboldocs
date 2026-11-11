@@ -4277,3 +4277,39 @@ export async function submitSupplierSelfAssessment(input: {
     return ok(undefined)
   })
 }
+
+// ---------- Multi-idioma (v1.4-4) ----------
+
+const LOCALES = ["es", "en"] as const
+
+/** Cambia el idioma de interfaz del usuario. */
+export async function setUserLocale(locale: string): Promise<Result> {
+  return guard(async () => {
+    if (!LOCALES.includes(locale as (typeof LOCALES)[number])) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_user_locale", { p_locale: locale })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app", "layout")
+    return ok(undefined)
+  })
+}
+
+/** Guarda la traducción de un campo de una entidad (vacío = sin traducción). v1: documentos. */
+export async function setContentTranslation(input: {
+  entityType: string
+  entityId: string
+  locale: string
+  field: string
+  value: string
+}): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(input.entityId)) return fail(GENERIC)
+    if (!LOCALES.includes(input.locale as (typeof LOCALES)[number])) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_content_translation", {
+      p_entity_type: input.entityType, p_entity_id: input.entityId, p_locale: input.locale,
+      p_field: input.field, p_value: (input.value ?? "").slice(0, 4000),
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app/documentos", "layout")
+    return ok(undefined)
+  })
+}

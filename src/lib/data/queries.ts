@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
@@ -223,7 +223,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
   if (!uid) redirect("/login")
 
   const [{ data: profile }, { data: memberships }, { data: isPlatformAccount }, { data: orgs }] = await Promise.all([
-    supabase.from("profiles").select("id, full_name, active_org").eq("id", uid).maybeSingle(),
+    supabase.from("profiles").select("id, full_name, active_org, locale").eq("id", uid).maybeSingle(),
     supabase
       .from("memberships")
       .select("organization_id, position_id, is_org_admin, is_external, valid_from, valid_until, status")
@@ -271,6 +271,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
     isExternal: m?.is_external ?? false,
     validUntil: m?.valid_until ?? null,
     roles,
+    locale: (profile.locale as CurrentUser["locale"]) ?? "es",
   }
 })
 
@@ -1151,6 +1152,9 @@ export async function getDocument(id: string, user: CurrentUser): Promise<Docume
   const { data: d } = await s.supabase.from("documents").select("*").eq("id", id).maybeSingle()
   if (!d) return null
   const showIp = canSeeSignatureIp(user)
+  const { data: translations } = await s.supabase.from("content_translations")
+    .select("locale, field, value").eq("organization_id", s.org).eq("entity_type", "documento").eq("entity_id", id)
+  const titleEn = (translations ?? []).find((t) => t.locale === "en" && t.field === "title")?.value?.trim() || ""
 
   const [{ data: versions }, { data: distribution }, { data: requests }, { data: positions }, { data: type }] =
     await Promise.all([
@@ -1260,6 +1264,10 @@ export async function getDocument(id: string, user: CurrentUser): Promise<Docume
     distributionCount: distIds.length,
     versions: docVersions,
     changeRequests,
+    localizedTitle: user.locale === "en" && titleEn ? titleEn : summary.title,
+    titleFallback: user.locale === "en" && !titleEn,
+    titleEn,
+    canTranslate: canTranslateDocument(user, d.process_id),
   }
 }
 

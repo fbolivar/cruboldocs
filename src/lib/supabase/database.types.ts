@@ -819,6 +819,50 @@ export type Database = {
           },
         ]
       }
+      content_translations: {
+        Row: {
+          entity_id: string
+          entity_type: string
+          field: string
+          id: string
+          locale: string
+          organization_id: string
+          updated_at: string
+          updated_by: string
+          value: string
+        }
+        Insert: {
+          entity_id: string
+          entity_type: string
+          field: string
+          id?: string
+          locale: string
+          organization_id: string
+          updated_at?: string
+          updated_by?: string
+          value: string
+        }
+        Update: {
+          entity_id?: string
+          entity_type?: string
+          field?: string
+          id?: string
+          locale?: string
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_translations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       context_issues: {
         Row: {
           created_at: string
@@ -3994,6 +4038,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          locale: string
           updated_at: string
         }
         Insert: {
@@ -4002,6 +4047,7 @@ export type Database = {
           email: string
           full_name?: string
           id: string
+          locale?: string
           updated_at?: string
         }
         Update: {
@@ -4010,6 +4056,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          locale?: string
           updated_at?: string
         }
         Relationships: [
@@ -6005,6 +6052,10 @@ export type Database = {
         Returns: Json
       }
       confirm_read: { Args: { p_version: string }; Returns: undefined }
+      content_translation_authorize: {
+        Args: { p_entity_id: string; p_entity_type: string }
+        Returns: string
+      }
       course_or_fail: {
         Args: { p_course: string }
         Returns: {
@@ -7325,6 +7376,16 @@ export type Database = {
         Args: { p_active: boolean; p_aspect: string }
         Returns: undefined
       }
+      set_content_translation: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_field: string
+          p_locale: string
+          p_value: string
+        }
+        Returns: undefined
+      }
       set_course_archived: {
         Args: { p_archived: boolean; p_course: string }
         Returns: undefined
@@ -7414,6 +7475,7 @@ export type Database = {
         Args: { p_archived: boolean; p_template: string }
         Returns: undefined
       }
+      set_user_locale: { Args: { p_locale: string }; Returns: undefined }
       set_version_files: {
         Args: {
           p_actor: string

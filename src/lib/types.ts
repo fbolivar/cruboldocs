@@ -45,7 +45,12 @@ export interface CurrentUser {
   isExternal: boolean
   validUntil: string | null
   roles: PositionRole[]
+  /** Idioma preferido de la interfaz (v1.4-4). */
+  locale: Locale
 }
+
+/** Idiomas soportados por la interfaz. */
+export type Locale = "es" | "en"
 
 export type OrganizationStatus = "activa" | "suspendida"
 
@@ -200,6 +205,14 @@ export interface DocumentDetail extends DocumentSummary {
   /** Ordenadas de la más reciente a la más antigua. */
   versions: DocumentVersion[]
   changeRequests: ChangeRequest[]
+  /** Multi-idioma (v1.4-4): título mostrado según el idioma del usuario y datos para editarlo. */
+  localizedTitle: string
+  /** true si se muestra el título original por falta de traducción (solo con idioma ≠ original). */
+  titleFallback: boolean
+  /** Traducción al inglés del título (vacío si no hay); para el editor de traducciones. */
+  titleEn: string
+  /** Puede gestionar traducciones (elaborador/líder SIG/líder del proceso). */
+  canTranslate: boolean
 }
 
 // ---------- Bandeja ----------

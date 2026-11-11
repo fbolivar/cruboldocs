@@ -3,6 +3,11 @@ import type { CurrentUser, Role } from "@/lib/types"
 
 const RISK_ROLES: Role[] = ["lider_sig", "lider_proceso", "responsable_control", "auditor", "consulta"]
 
+/** Puede traducir el contenido de un documento (v1.4-4): elaborador, Líder SIG o Líder del proceso. */
+export function canTranslateDocument(user: CurrentUser, processId?: string | null): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId ?? undefined) || hasRole(user, "elaborador", processId ?? undefined)
+}
+
 /** Pantalla Riesgos: líderes, responsable de control, auditor y consulta (spec-shell). */
 export function canSeeRisks(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))
