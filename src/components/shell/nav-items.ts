@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "documentos" | "contexto" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "admin"
+export type NavIcon = "inicio" | "tablero" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "admin"
 
 export interface NavItem {
   href: string
@@ -19,6 +19,7 @@ export function navItemsFor(user: CurrentUser): NavItem[] {
   if (canSeeDashboard(user)) items.push({ href: "/app/tablero", label: "Tablero", icon: "tablero" })
   items.push({ href: "/app/documentos", label: "Documentos", icon: "documentos" })
   if (canSeeContext(user)) items.push({ href: "/app/contexto", label: "Contexto", icon: "contexto" })
+  if (canSeeProcessMap(user)) items.push({ href: "/app/procesos", label: "Procesos", icon: "procesos" })
   if (canSeeRisks(user)) items.push({ href: "/app/riesgos", label: "Riesgos", icon: "riesgos" })
   if (canSeeNonconformities(user)) items.push({ href: "/app/no-conformidades", label: "No conformidades", icon: "noconf" })
   if (canSeeAudits(user)) items.push({ href: "/app/auditorias", label: "Auditorías", icon: "auditorias" })
