@@ -1814,5 +1814,20 @@ ok((await as(db, U.beto, `select count(*)::int n from public.chat_notifiers wher
 await throws(() => as(db, U.oscar, `insert into public.chat_notifiers (organization_id, provider, url, name) values ('${A}', 'slack', 'https://x', 'X')`),
   "Nadie inserta canales por REST (053)", "row-level security")
 
+// ========== 054 · IA aplicada (consumo de cupo compartido) ==========
+await svc(`update public.organizations set ai_agent_enabled = true where id = '${A}'`)
+const AIPER = '2099-01'
+ok(Number((await as(db, U.sofia, `select public.ai_content_consume('${A}', 3, '${AIPER}')`)).rows[0].ai_content_consume) === 2, "Un miembro consume IA de contenido y le quedan 2 (054)")
+await throws(() => as(db, U.beto, `select public.ai_content_consume('${A}', 3, '${AIPER}')`),
+  "Beto (org B) no consume la IA de A (054)", "Sin acceso")
+await as(db, U.sofia, `select public.ai_content_consume('${A}', 3, '${AIPER}')`)
+await as(db, U.laura, `select public.ai_content_consume('${A}', 3, '${AIPER}')`)
+await throws(() => as(db, U.juan, `select public.ai_content_consume('${A}', 3, '${AIPER}')`),
+  "Cupo de IA agotado para el período (054)", "Límite de IA")
+ok(Number((await svc(`select used from public.ai_agent_usage where organization_id='${A}' and period='${AIPER}'`)).rows[0].used) === 3, "La IA de contenido comparte el contador mensual del agente (054)")
+await svc(`update public.organizations set ai_agent_enabled = false where id = '${A}'`)
+await throws(() => as(db, U.sofia, `select public.ai_content_consume('${A}', 3, '2099-02')`),
+  "Sin opt-in del agente, la IA no consume (054)", "no está habilitada")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
