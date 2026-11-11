@@ -6,6 +6,7 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { addNcAction, completeNcAction } from "@/lib/data/actions"
+import { AiDraftNote, SuggestWithAi } from "@/components/ia/suggest-with-ai"
 import { NcActionStatusBadge } from "@/components/no-conformidades/badges"
 import { NcEvidenceSheet } from "@/components/no-conformidades/nc-evidence-sheet"
 import { ACTION_TYPE_LABELS } from "@/components/no-conformidades/labels"
@@ -26,14 +27,18 @@ type Pos = { id: string; name: string }
 
 export function NcActionsPanel({
   ncId,
+  ncCode,
   actions,
   canManage,
   positions,
+  aiEnabled = false,
 }: {
   ncId: string
+  ncCode: string
   actions: NcActionView[]
   canManage: boolean
   positions: Pos[]
+  aiEnabled?: boolean
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -56,7 +61,7 @@ export function NcActionsPanel({
           icon={ListChecksIcon}
           title="Aún no hay acciones"
           description={canManage ? "Agrega la primera acción del plan." : "Un líder definirá el plan de acción."}
-          action={canManage ? <AddActionSheet ncId={ncId} positions={positions} /> : undefined}
+          action={canManage ? <AddActionSheet ncId={ncId} ncCode={ncCode} positions={positions} aiEnabled={aiEnabled} /> : undefined}
         />
       ) : (
         <>
@@ -116,7 +121,7 @@ export function NcActionsPanel({
           </ul>
           {canManage && (
             <div>
-              <AddActionSheet ncId={ncId} positions={positions} />
+              <AddActionSheet ncId={ncId} ncCode={ncCode} positions={positions} aiEnabled={aiEnabled} />
             </div>
           )}
         </>
@@ -125,7 +130,7 @@ export function NcActionsPanel({
   )
 }
 
-function AddActionSheet({ ncId, positions }: { ncId: string; positions: Pos[] }) {
+function AddActionSheet({ ncId, ncCode, positions, aiEnabled = false }: { ncId: string; ncCode: string; positions: Pos[]; aiEnabled?: boolean }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [open, setOpen] = useState(false)
@@ -178,6 +183,12 @@ function AddActionSheet({ ncId, positions }: { ncId: string; positions: Pos[] })
           <div className={field}>
             <Label htmlFor="nc-act-desc">Descripción</Label>
             <Textarea id="nc-act-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Qué se hará" />
+            {aiEnabled && (
+              <>
+                <SuggestWithAi task="nc_acciones" code={ncCode} onText={setDescription} label="Sugerir acciones con IA" />
+                <AiDraftNote />
+              </>
+            )}
           </div>
           <div className={field}>
             <Label>Responsable (cargo)</Label>

@@ -8,7 +8,8 @@ import { CommitmentsSection, MinuteHeaderActions } from "@/components/actas/minu
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCurrentUser, getMinute, listPositions, listProcesses } from "@/lib/data/queries"
+import { AiSummaryDialog } from "@/components/ia/ai-summary-dialog"
+import { getCurrentUser, getMinute, isAgentEnabled, listPositions, listProcesses } from "@/lib/data/queries"
 import { canSeeMinutes } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
@@ -23,6 +24,7 @@ export default async function ActaDetailPage({ params }: { params: Promise<{ cod
   if (!minute) notFound()
 
   const [processes, positions] = minute.canManage ? await Promise.all([listProcesses(), listPositions()]) : [[], []]
+  const agentEnabled = minute.canManage ? await isAgentEnabled() : false
   const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
   const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
 
@@ -39,7 +41,10 @@ export default async function ActaDetailPage({ params }: { params: Promise<{ cod
               <p className="font-mono text-small text-texto-sec">{minute.code}</p>
               <h1 className="mt-0.5">{minute.title}</h1>
             </div>
-            <MinuteHeaderActions minute={minute} processes={processOptions} />
+            <div className="flex flex-wrap items-center gap-2">
+              {agentEnabled && <AiSummaryDialog task="acta_resumen" code={minute.code} />}
+              <MinuteHeaderActions minute={minute} processes={processOptions} />
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <MeetingTypeChip type={minute.meetingType} />

@@ -10,7 +10,8 @@ import { ProcessMap } from "@/components/documentos/process-map"
 import type { RegisterCatalogs } from "@/components/documentos/use-register-form"
 import { Page, PageHeader } from "@/components/shell/page"
 import { Card } from "@/components/ui/card"
-import { getCurrentUser, listAllDocuments, listDocumentTypes, listPositions, listProcesses } from "@/lib/data/queries"
+import { AiDocumentDraftDialog } from "@/components/ia/ai-document-draft"
+import { getCurrentUser, isAgentEnabled, listAllDocuments, listDocumentTypes, listPositions, listProcesses } from "@/lib/data/queries"
 import { canRegisterDocuments } from "@/lib/domain/documents"
 import type { SearchParams } from "@/lib/url"
 
@@ -26,11 +27,12 @@ export default async function DocumentosPage({ searchParams }: PageProps<"/app/d
   const user = await getCurrentUser()
   const canRegister = canRegisterDocuments(user)
 
-  const [processes, types, positions, allDocs] = await Promise.all([
+  const [processes, types, positions, allDocs, agentEnabled] = await Promise.all([
     orNull(listProcesses()),
     orNull(listDocumentTypes()),
     canRegister ? orNull(listPositions()) : null,
     canRegister ? orNull(listAllDocuments({})) : null,
+    canRegister ? isAgentEnabled() : Promise.resolve(false),
   ])
 
   const catalogs: RegisterCatalogs | null = canRegister
@@ -45,7 +47,7 @@ export default async function DocumentosPage({ searchParams }: PageProps<"/app/d
 
   return (
     <Page wide>
-      <PageHeader title="Documentos" actions={<DocumentsHeaderActions catalogs={catalogs} />} />
+      <PageHeader title="Documentos" actions={<div className="flex gap-2">{canRegister && agentEnabled && <AiDocumentDraftDialog />}<DocumentsHeaderActions catalogs={catalogs} /></div>} />
 
       {processes ? (
         processes.length > 0 && <ProcessMap processes={processes} />

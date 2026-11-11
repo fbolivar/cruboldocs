@@ -85,7 +85,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
             )}
           </CardHeader>
           <CardContent>
-            <NcCause ncId={nc.id} cause={nc.rootCause} canManage={nc.canManage} />
+            <NcCause ncId={nc.id} ncCode={nc.code} cause={nc.rootCause} canManage={nc.canManage} aiEnabled={agentEnabled} />
           </CardContent>
         </Card>
 
@@ -98,7 +98,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
             )}
           </CardHeader>
           <CardContent>
-            <NcActionsPanel ncId={nc.id} actions={nc.actions} canManage={nc.canManage} positions={positionOptions} />
+            <NcActionsPanel ncId={nc.id} ncCode={nc.code} actions={nc.actions} canManage={nc.canManage} positions={positionOptions} aiEnabled={agentEnabled} />
           </CardContent>
         </Card>
 

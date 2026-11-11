@@ -5,13 +5,14 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { setNcCause } from "@/lib/data/actions"
+import { AiDraftNote, SuggestWithAi } from "@/components/ia/suggest-with-ai"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Textarea } from "@/components/ui/textarea"
 import { SearchIcon } from "lucide-react"
 
 /** Análisis de causa raíz (texto libre). Editable por el gestor. */
-export function NcCause({ ncId, cause, canManage }: { ncId: string; cause: string | null; canManage: boolean }) {
+export function NcCause({ ncId, ncCode, cause, canManage, aiEnabled = false }: { ncId: string; ncCode: string; cause: string | null; canManage: boolean; aiEnabled?: boolean }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [editing, setEditing] = useState(false)
@@ -38,6 +39,12 @@ export function NcCause({ ncId, cause, canManage }: { ncId: string; cause: strin
     return (
       <div className="flex flex-col gap-2">
         <Textarea rows={4} value={value} onChange={(e) => setValue(e.target.value)} placeholder="¿Por qué ocurrió? (causa raíz)" />
+        {aiEnabled && (
+          <div className="flex flex-col gap-1">
+            <SuggestWithAi task="nc_causa" code={ncCode} onText={setValue} label="Sugerir causa con IA" />
+            <AiDraftNote />
+          </div>
+        )}
         <div className="flex gap-2">
           <Button size="sm" onClick={save} loading={pending}>Guardar causa</Button>
           <Button size="sm" variant="outline" onClick={() => { setEditing(false); setValue(cause ?? "") }}>Cancelar</Button>

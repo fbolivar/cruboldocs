@@ -12,7 +12,8 @@ import { FindingList } from "@/components/auditorias/finding-list"
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getAudit, getCurrentUser, listProcesses } from "@/lib/data/queries"
+import { AiSummaryDialog } from "@/components/ia/ai-summary-dialog"
+import { getAudit, getCurrentUser, isAgentEnabled, listProcesses } from "@/lib/data/queries"
 import { canSeeAudits } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
@@ -23,7 +24,7 @@ export default async function AuditPage({ params }: { params: Promise<{ codigo: 
   const user = await getCurrentUser()
   if (!canSeeAudits(user)) notFound()
 
-  const [audit, processes] = await Promise.all([getAudit(decodeURIComponent(codigo)), listProcesses()])
+  const [audit, processes, agentEnabled] = await Promise.all([getAudit(decodeURIComponent(codigo)), listProcesses(), isAgentEnabled()])
   if (!audit) notFound()
   const processOptions = processes.map((p) => ({ id: p.id, code: p.code }))
   const open = audit.status !== "cerrada" && audit.status !== "cancelada"
@@ -42,6 +43,7 @@ export default async function AuditPage({ params }: { params: Promise<{ codigo: 
               <h1 className="mt-0.5">{audit.title}</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {audit.canManage && agentEnabled && <AiSummaryDialog task="auditoria_resumen" code={audit.code} />}
               {audit.canManage && <RegisterLessonButton auditId={audit.id} />}
               {audit.canManage && open && <AuditCancelButton auditId={audit.id} />}
             </div>
