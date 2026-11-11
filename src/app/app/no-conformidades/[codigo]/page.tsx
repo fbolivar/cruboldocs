@@ -1,4 +1,5 @@
 import { ChevronLeftIcon } from "lucide-react"
+import { RegisterLessonButton } from "@/components/conocimiento/register-lesson-button"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -46,7 +47,10 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
               <p className="font-mono text-small text-texto-sec">{nc.code}</p>
               <h1 className="mt-0.5">{nc.title}</h1>
             </div>
-            {nc.canManage && nc.status !== "cerrada" && nc.status !== "anulada" && <NcCancelButton ncId={nc.id} />}
+            <div className="flex flex-wrap items-center gap-2">
+              {nc.canManage && <RegisterLessonButton ncId={nc.id} />}
+              {nc.canManage && nc.status !== "cerrada" && nc.status !== "anulada" && <NcCancelButton ncId={nc.id} />}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <NcStatusBadge status={nc.status} reopened={nc.reopenedCount > 0} />

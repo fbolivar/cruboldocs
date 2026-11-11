@@ -1,4 +1,5 @@
 import { ChevronLeftIcon } from "lucide-react"
+import { RegisterLessonButton } from "@/components/conocimiento/register-lesson-button"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -40,7 +41,10 @@ export default async function AuditPage({ params }: { params: Promise<{ codigo: 
               <p className="font-mono text-small text-texto-sec">{audit.code}</p>
               <h1 className="mt-0.5">{audit.title}</h1>
             </div>
-            {audit.canManage && open && <AuditCancelButton auditId={audit.id} />}
+            <div className="flex flex-wrap items-center gap-2">
+              {audit.canManage && <RegisterLessonButton auditId={audit.id} />}
+              {audit.canManage && open && <AuditCancelButton auditId={audit.id} />}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <AuditStatusBadge status={audit.status} />
