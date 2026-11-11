@@ -1,6 +1,6 @@
 "use client"
 
-import { Building2Icon, LogOutIcon } from "lucide-react"
+import { Building2Icon, LanguagesIcon, LogOutIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useTransition } from "react"
 import { toast } from "sonner"
@@ -19,9 +19,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { logout, setActiveOrganization } from "@/lib/data/actions"
+import { logout, setActiveOrganization, setUserLocale } from "@/lib/data/actions"
 import { clearOfflineData } from "@/lib/pwa/cleanup"
-import type { CurrentUser } from "@/lib/types"
+import { getDictionary } from "@/lib/i18n"
+import { useDict } from "@/lib/i18n/provider"
+import type { CurrentUser, Locale } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 function initials(name: string): string {
@@ -47,12 +49,21 @@ export function Avatar({ name, className }: { name: string; className?: string }
 /** Menú de cuenta. Con varias organizaciones (o Superadmin) permite cambiar la activa. */
 export function UserMenu({ user }: { user: CurrentUser }) {
   const router = useRouter()
+  const dict = useDict()
   const [, startTransition] = useTransition()
   const switchOrg = (id: string) =>
     startTransition(async () => {
       const res = await setActiveOrganization(id)
       if (!res.ok) return void toast.error(res.error)
       router.push("/app")
+      router.refresh()
+    })
+  const switchLocale = (locale: string) =>
+    startTransition(async () => {
+      if (locale === user.locale) return
+      const res = await setUserLocale(locale)
+      if (!res.ok) return void toast.error(res.error)
+      toast.success(getDictionary(locale as Locale).settings.languageUpdated)
       router.refresh()
     })
 
@@ -88,6 +99,23 @@ export function UserMenu({ user }: { user: CurrentUser }) {
             </DropdownMenuGroup>
           </>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <LanguagesIcon aria-hidden="true" /> {dict.settings.language}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-56">
+              <DropdownMenuRadioGroup value={user.locale} onValueChange={switchLocale}>
+                {(["es", "en"] as Locale[]).map((l) => (
+                  <DropdownMenuRadioItem key={l} value={l}>
+                    {l === "es" ? dict.settings.spanish : dict.settings.english}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => startTransition(async () => { await clearOfflineData(); await logout() })}>
           <LogOutIcon aria-hidden="true" /> Cerrar sesión

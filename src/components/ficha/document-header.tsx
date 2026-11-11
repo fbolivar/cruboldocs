@@ -2,6 +2,7 @@ import { ArrowRightIcon, TriangleAlertIcon } from "lucide-react"
 import Link from "next/link"
 
 import { DocumentStatusBadge } from "@/components/documentos/status-badge"
+import { UntranslatedChip } from "@/components/i18n/untranslated-chip"
 import { Badge, Chip } from "@/components/ui/badge"
 import type { DocumentDetail, DocumentVersion } from "@/lib/types"
 
@@ -24,7 +25,10 @@ export function DocumentHeader({ doc, version, currentHref }: DocumentHeaderProp
           {doc.reviewOverdue && <Badge tone="error">Revisión vencida</Badge>}
           <Chip className="font-mono">v{version.versionNo}</Chip>
         </div>
-        <h1>{doc.title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1>{doc.localizedTitle}</h1>
+          {doc.titleFallback && <UntranslatedChip />}
+        </div>
       </div>
       {superseded && (
         <div

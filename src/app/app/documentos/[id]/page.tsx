@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 
 import { FichaView } from "@/components/ficha/ficha-view"
 import type { DialogActionId } from "@/components/ficha/use-ficha-actions"
+import { DocumentTranslations } from "@/components/i18n/document-translations"
 import { Page } from "@/components/shell/page"
 import { NormCell } from "@/components/multinorma/norm-cell"
 import { getCurrentUser, getDocument, getEntityNorms, getMyTasks, listActiveNorms } from "@/lib/data/queries"
@@ -75,6 +76,11 @@ export default async function DocumentoPage({ params, searchParams }: PageProps<
   return (
     <Page>
       <FichaView key={doc.id} initialDoc={doc} user={user} versionNo={versionNo} taskDetail={taskDetail} autoOpen={autoOpen} />
+      {doc.canTranslate && (
+        <div className="mt-4">
+          <DocumentTranslations entityId={doc.id} original={doc.title} titleEn={doc.titleEn} />
+        </div>
+      )}
       {norms.length > 0 && (
         <div className="mt-4 flex items-center gap-2 text-small text-texto-sec">
           <span>Normas:</span>

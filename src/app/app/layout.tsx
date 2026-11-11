@@ -9,6 +9,8 @@ import { TaskCountBadge } from "@/components/shell/task-count-badge"
 import { MobileTopbar, Topbar } from "@/components/shell/topbar"
 import { PwaShell } from "@/components/pwa/pwa-shell"
 import { getCurrentUser } from "@/lib/data/queries"
+import { getDictionary } from "@/lib/i18n"
+import { LocaleProvider } from "@/lib/i18n/provider"
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -16,11 +18,13 @@ export const metadata: Metadata = {
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
   const user = await getCurrentUser()
-  const items = navItemsFor(user)
+  const dict = getDictionary(user.locale)
+  const items = navItemsFor(user, dict.nav)
   const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === "1"
   const taskBadge = <TaskCountBadge user={user} />
 
   return (
+    <LocaleProvider locale={user.locale}>
     <BreadcrumbProvider>
       <div className="flex min-h-dvh">
         <div className="contents print:hidden">
@@ -41,5 +45,6 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
         <PwaShell />
       </div>
     </BreadcrumbProvider>
+    </LocaleProvider>
   )
 }
