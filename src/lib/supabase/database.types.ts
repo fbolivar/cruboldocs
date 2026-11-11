@@ -356,6 +356,187 @@ export type Database = {
           },
         ]
       }
+      calibration_events: {
+        Row: {
+          certificate_ref: string | null
+          created_at: string
+          created_by: string
+          date: string
+          equipment_id: string
+          id: string
+          kind: string
+          next_due_date: string | null
+          note: string | null
+          organization_id: string
+          provider: string | null
+          result: string
+          standard_used: string | null
+        }
+        Insert: {
+          certificate_ref?: string | null
+          created_at?: string
+          created_by?: string
+          date: string
+          equipment_id: string
+          id?: string
+          kind?: string
+          next_due_date?: string | null
+          note?: string | null
+          organization_id: string
+          provider?: string | null
+          result: string
+          standard_used?: string | null
+        }
+        Update: {
+          certificate_ref?: string | null
+          created_at?: string
+          created_by?: string
+          date?: string
+          equipment_id?: string
+          id?: string
+          kind?: string
+          next_due_date?: string | null
+          note?: string | null
+          organization_id?: string
+          provider?: string | null
+          result?: string
+          standard_used?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calibration_events_equipment_id_organization_id_fkey"
+            columns: ["equipment_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "measurement_equipment"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "calibration_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      change_control: {
+        Row: {
+          approver_position_id: string | null
+          change_type: string
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          decision_date: string | null
+          description: string | null
+          id: string
+          impact_assessment: string | null
+          implementation_notes: string | null
+          organization_id: string
+          process_id: string | null
+          request_date: string
+          requested_by_position_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approver_position_id?: string | null
+          change_type: string
+          closed_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string
+          decision_date?: string | null
+          description?: string | null
+          id?: string
+          impact_assessment?: string | null
+          implementation_notes?: string | null
+          organization_id: string
+          process_id?: string | null
+          request_date?: string
+          requested_by_position_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approver_position_id?: string | null
+          change_type?: string
+          closed_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          decision_date?: string | null
+          description?: string | null
+          id?: string
+          impact_assessment?: string | null
+          implementation_notes?: string | null
+          organization_id?: string
+          process_id?: string | null
+          request_date?: string
+          requested_by_position_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_control_approver_position_id_organization_id_fkey"
+            columns: ["approver_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "change_control_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "change_control_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "change_control_requested_by_position_id_organization_id_fkey"
+            columns: ["requested_by_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      change_control_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "change_control_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       change_requests: {
         Row: {
           created_at: string
@@ -2039,6 +2220,88 @@ export type Database = {
           },
         ]
       }
+      measurement_equipment: {
+        Row: {
+          calibration_frequency: string
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          last_calibration_date: string | null
+          location: string | null
+          measurement_range: string | null
+          name: string
+          next_due_date: string | null
+          organization_id: string
+          process_id: string | null
+          responsible_position_id: string | null
+          status: string
+          type: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          calibration_frequency: string
+          code: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          last_calibration_date?: string | null
+          location?: string | null
+          measurement_range?: string | null
+          name: string
+          next_due_date?: string | null
+          organization_id: string
+          process_id?: string | null
+          responsible_position_id?: string | null
+          status?: string
+          type?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calibration_frequency?: string
+          code?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          last_calibration_date?: string | null
+          location?: string | null
+          measurement_range?: string | null
+          name?: string
+          next_due_date?: string | null
+          organization_id?: string
+          process_id?: string | null
+          responsible_position_id?: string | null
+          status?: string
+          type?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "measurement_equipment_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "measurement_equipment_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "measurement_equipment_responsible_position_id_organization_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       meeting_commitments: {
         Row: {
           created_at: string
@@ -2259,6 +2522,32 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      metrology_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metrology_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -4495,6 +4784,10 @@ export type Database = {
         Returns: undefined
       }
       archive_indicator: { Args: { p_indicator: string }; Returns: undefined }
+      assess_change: {
+        Args: { p_change: string; p_impact: string }
+        Returns: undefined
+      }
       assess_competency: {
         Args: {
           p_assessed: number
@@ -4548,6 +4841,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_audits: { Args: { org: string }; Returns: boolean }
+      can_manage_changes: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_competencies: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -4558,6 +4855,10 @@ export type Database = {
       }
       can_manage_indicators: { Args: { org: string }; Returns: boolean }
       can_manage_legal: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
+      can_manage_metrology: {
         Args: { org: string; process?: string }
         Returns: boolean
       }
@@ -4597,11 +4898,13 @@ export type Database = {
         Returns: boolean
       }
       can_see_audits: { Args: { org: string }; Returns: boolean }
+      can_see_changes: { Args: { org: string }; Returns: boolean }
       can_see_competencies: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_forms: { Args: { org: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
       can_see_legal: { Args: { org: string }; Returns: boolean }
+      can_see_metrology: { Args: { org: string }; Returns: boolean }
       can_see_minutes: { Args: { org: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
       can_see_objectives: { Args: { org: string }; Returns: boolean }
@@ -4633,6 +4936,35 @@ export type Database = {
       cancel_review: {
         Args: { p_reason: string; p_review: string }
         Returns: undefined
+      }
+      change_or_fail: {
+        Args: { p_change: string }
+        Returns: {
+          approver_position_id: string | null
+          change_type: string
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          decision_date: string | null
+          description: string | null
+          id: string
+          impact_assessment: string | null
+          implementation_notes: string | null
+          organization_id: string
+          process_id: string | null
+          request_date: string
+          requested_by_position_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "change_control"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       close_audit: {
         Args: { p_audit: string; p_conclusions: string }
@@ -4708,6 +5040,20 @@ export type Database = {
           id: string
         }[]
       }
+      create_change: {
+        Args: {
+          p_description: string
+          p_org: string
+          p_process: string
+          p_requested_by: string
+          p_title: string
+          p_type: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       create_competency: {
         Args: {
           p_description: string
@@ -4734,6 +5080,23 @@ export type Database = {
           p_type: string
         }
         Returns: string
+      }
+      create_equipment: {
+        Args: {
+          p_frequency: string
+          p_location: string
+          p_name: string
+          p_org: string
+          p_process: string
+          p_range: string
+          p_responsible: string
+          p_type: string
+          p_unit: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
       }
       create_evaluation: {
         Args: {
@@ -4990,6 +5353,10 @@ export type Database = {
       }
       current_actor: { Args: never; Returns: string }
       current_org: { Args: never; Returns: string }
+      decide_change: {
+        Args: { p_approve: boolean; p_approver: string; p_change: string }
+        Returns: undefined
+      }
       derogate_requirement: { Args: { p_req: string }; Returns: undefined }
       doc_or_fail: {
         Args: { p_doc: string }
@@ -5055,6 +5422,34 @@ export type Database = {
       env_significance: {
         Args: { p_condition: string; p_legal: string; p_score: number }
         Returns: string
+      }
+      equipment_or_fail: {
+        Args: { p_equipment: string }
+        Returns: {
+          calibration_frequency: string
+          code: string
+          created_at: string
+          created_by: string
+          id: string
+          last_calibration_date: string | null
+          location: string | null
+          measurement_range: string | null
+          name: string
+          next_due_date: string | null
+          organization_id: string
+          process_id: string | null
+          responsible_position_id: string | null
+          status: string
+          type: string | null
+          unit: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "measurement_equipment"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       evaluate_requirement: {
         Args: {
@@ -5184,6 +5579,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      implement_change: {
+        Args: { p_change: string; p_notes: string }
+        Returns: undefined
+      }
       indicator_compliance: {
         Args: {
           p_direction: string
@@ -5294,6 +5693,10 @@ export type Database = {
           full_name: string
           user_id: string
         }[]
+      }
+      metrology_next_due: {
+        Args: { p_date: string; p_freq: string }
+        Returns: string
       }
       minute_or_fail: {
         Args: { p_minute: string }
@@ -5512,6 +5915,19 @@ export type Database = {
         Args: { p_review: string }
         Returns: undefined
       }
+      register_calibration: {
+        Args: {
+          p_certificate: string
+          p_date: string
+          p_equipment: string
+          p_kind: string
+          p_note: string
+          p_provider: string
+          p_result: string
+          p_standard: string
+        }
+        Returns: string
+      }
       register_evidence: {
         Args: {
           p_actor: string
@@ -5641,6 +6057,10 @@ export type Database = {
           p_norm_ids: string[]
           p_org: string
         }
+        Returns: undefined
+      }
+      set_equipment_service: {
+        Args: { p_equipment: string; p_in_service: boolean }
         Returns: undefined
       }
       set_field_order: {
@@ -5868,12 +6288,37 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_change: {
+        Args: {
+          p_change: string
+          p_description: string
+          p_process: string
+          p_requested_by: string
+          p_title: string
+          p_type: string
+        }
+        Returns: undefined
+      }
       update_competency: {
         Args: {
           p_competency: string
           p_description: string
           p_kind: string
           p_name: string
+        }
+        Returns: undefined
+      }
+      update_equipment: {
+        Args: {
+          p_equipment: string
+          p_frequency: string
+          p_location: string
+          p_name: string
+          p_process: string
+          p_range: string
+          p_responsible: string
+          p_type: string
+          p_unit: string
         }
         Returns: undefined
       }

@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canFillForms, canManageAudits, canManageCompetencies, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -148,6 +148,19 @@ import type {
   SstItemStatus,
   SstComponent,
   SstActionStatus,
+  MetrologySummary,
+  EquipmentListItem,
+  EquipmentDetail,
+  CalibrationKind,
+  CalibrationResult,
+  MetrologyFrequency,
+  EquipmentStatus,
+  EffectiveEquipmentStatus,
+  ChangesSummary,
+  ChangeListItem,
+  ChangeDetail,
+  ChangeType,
+  ChangeStatus,
 } from "@/lib/types"
 
 export const PAGE_SIZE = 25
@@ -2864,5 +2877,133 @@ export async function getSstEvaluation(code: string): Promise<SstEvaluationDetai
     canManage: canManageSst(s.user),
     items: views, phases, actions: actionViews,
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: SST_EVENT_TEXT[x.action] ?? x.action })),
+  }
+}
+
+// ---------- Metrología (7.1.5) (v1.2-3) ----------
+
+const METROLOGY_EVENT_TEXT: Record<string, string> = {
+  crear_equipo: "Registró el equipo.",
+  editar_equipo: "Editó los datos del equipo.",
+  estado_equipo: "Cambió el estado del equipo.",
+  registrar_calibracion: "Registró una calibración.",
+}
+
+function effectiveEquipmentStatus(status: string, nextDue: string | null, today: string): EffectiveEquipmentStatus {
+  if (status === "fuera_de_servicio") return "fuera_de_servicio"
+  if (nextDue !== null && nextDue < today) return "vencido"
+  return "vigente"
+}
+
+export async function getMetrologySummary(): Promise<MetrologySummary> {
+  const s = await scope()
+  if (!s) return { active: 0, overdue: 0, dueSoon: 0 }
+  const today = todayIsoDate()
+  const soon = addDays(today, 30)
+  const { data } = await s.supabase.from("measurement_equipment").select("status, next_due_date").eq("organization_id", s.org)
+  const active = (data ?? []).filter((e) => e.status === "vigente")
+  return {
+    active: active.length,
+    overdue: active.filter((e) => e.next_due_date !== null && e.next_due_date < today).length,
+    dueSoon: active.filter((e) => e.next_due_date !== null && e.next_due_date >= today && e.next_due_date <= soon).length,
+  }
+}
+
+export async function listEquipment(): Promise<EquipmentListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const today = todayIsoDate()
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.from("measurement_equipment").select("id, code, name, process_id, measurement_range, next_due_date, status").eq("organization_id", s.org).order("code", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((e) => ({
+    id: e.id, code: e.code, name: e.name,
+    processName: e.process_id ? procMap.get(e.process_id) ?? null : null,
+    measurementRange: e.measurement_range, nextDueDate: e.next_due_date,
+    status: effectiveEquipmentStatus(e.status, e.next_due_date, today),
+  }))
+}
+
+export async function getEquipment(code: string): Promise<EquipmentDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: e } = await s.supabase.from("measurement_equipment").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!e) return null
+  const [{ data: cals }, { data: proc }, { data: pos }, { data: log }] = await Promise.all([
+    s.supabase.from("calibration_events").select("id, date, kind, result, standard_used, certificate_ref, provider, next_due_date, note").eq("organization_id", s.org).eq("equipment_id", e.id).order("date", { ascending: false }),
+    e.process_id ? s.supabase.from("processes").select("name").eq("id", e.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    e.responsible_position_id ? s.supabase.from("positions").select("name").eq("id", e.responsible_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Metrologia").eq("entity_id", e.id).order("at", { ascending: false }),
+  ])
+  const today = todayIsoDate()
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: e.id, code: e.code, name: e.name, type: e.type, processId: e.process_id, processName: proc?.name ?? null,
+    location: e.location, measurementRange: e.measurement_range, unit: e.unit, frequency: e.calibration_frequency as MetrologyFrequency,
+    lastCalibrationDate: e.last_calibration_date, nextDueDate: e.next_due_date, responsibleName: pos?.name ?? null,
+    status: e.status as EquipmentStatus, effectiveStatus: effectiveEquipmentStatus(e.status, e.next_due_date, today),
+    canManage: canManageMetrology(s.user, e.process_id ?? undefined),
+    calibrations: (cals ?? []).map((c) => ({
+      id: c.id, date: c.date, kind: c.kind as CalibrationKind, result: c.result as CalibrationResult,
+      standardUsed: c.standard_used, certificateRef: c.certificate_ref, provider: c.provider, nextDueDate: c.next_due_date, note: c.note,
+    })),
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: METROLOGY_EVENT_TEXT[x.action] ?? x.action })),
+  }
+}
+
+// ---------- Gestión del cambio (6.3) (v1.2-3) ----------
+
+const CHANGE_EVENT_TEXT: Record<string, string> = {
+  crear_cambio: "Creó la solicitud.",
+  editar_cambio: "Editó la solicitud.",
+  evaluar_cambio: "Registró el análisis de impacto.",
+  decidir_cambio: "Decidió la solicitud.",
+  implementar_cambio: "Marcó el cambio como implementado.",
+}
+
+export async function getChangesSummary(): Promise<ChangesSummary> {
+  const s = await scope()
+  if (!s) return { proposed: 0, inEvaluation: 0, approved: 0, implemented: 0 }
+  const { data } = await s.supabase.from("change_control").select("status").eq("organization_id", s.org)
+  const c = (st: string) => (data ?? []).filter((x) => x.status === st).length
+  return { proposed: c("propuesto"), inEvaluation: c("en_evaluacion"), approved: c("aprobado"), implemented: c("implementado") }
+}
+
+export async function listChanges(): Promise<ChangeListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.from("change_control").select("id, code, title, change_type, process_id, request_date, status").eq("organization_id", s.org).order("code", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((c) => ({
+    id: c.id, code: c.code, title: c.title, changeType: c.change_type as ChangeType,
+    processName: c.process_id ? procMap.get(c.process_id) ?? null : null,
+    requestDate: c.request_date, status: c.status as ChangeStatus,
+  }))
+}
+
+export async function getChange(code: string): Promise<ChangeDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: c } = await s.supabase.from("change_control").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!c) return null
+  const [{ data: proc }, { data: reqPos }, { data: appPos }, { data: log }] = await Promise.all([
+    c.process_id ? s.supabase.from("processes").select("name").eq("id", c.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    c.requested_by_position_id ? s.supabase.from("positions").select("name").eq("id", c.requested_by_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    c.approver_position_id ? s.supabase.from("positions").select("name").eq("id", c.approver_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Cambio").eq("entity_id", c.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: c.id, code: c.code, title: c.title, description: c.description, changeType: c.change_type as ChangeType,
+    processId: c.process_id, processName: proc?.name ?? null, requestDate: c.request_date, requestedByName: reqPos?.name ?? null,
+    impactAssessment: c.impact_assessment, status: c.status as ChangeStatus, approverName: appPos?.name ?? null,
+    decisionDate: c.decision_date, implementationNotes: c.implementation_notes,
+    canManage: canManageChanges(s.user, c.process_id ?? undefined), canApprove: canApproveChange(s.user),
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: CHANGE_EVENT_TEXT[x.action] ?? x.action })),
   }
 }

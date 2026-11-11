@@ -1226,5 +1226,49 @@ await svc(`update public.organizations set ai_agent_enabled = false where id = '
 await throws(() => as(db, U.juan, `select public.ai_agent_consume_record('${A}', 200, '2026-11')`),
   "Con el agente apagado no se consume (034)", "no está habilitado")
 
+// ========== 037 · Metrología (7.1.5) ==========
+const eq = (await as(db, U.juan, `select id, code from public.create_equipment('${A}', 'Balanza analítica', 'instrumento', '${P.sigA}', 'Lab', '0-200 g', 'g', 'anual', null)`)).rows[0]
+ok(eq.code === "MET-" + YEAR + "-001", "Numeración MET-AAAA-001 (037)")
+await as(db, U.juan, `select public.register_calibration('${eq.id}', '2026-01-01', 'calibracion', 'conforme', 'masa E2', 'LAB-114', 'Metrocal', null)`)
+const eqrow = (await as(db, U.juan, `select last_calibration_date::text ld, next_due_date::text nd from public.measurement_equipment where id = '${eq.id}'`)).rows[0]
+ok(eqrow.ld === "2026-01-01" && eqrow.nd === "2027-01-01", "Registrar calibración deriva la próxima fecha (anual → +1 año) (037)")
+ok((await as(db, U.juan, `select count(*)::int n from public.calibration_events where equipment_id = '${eq.id}'`)).rows[0].n === 1, "Se guarda el evento de calibración (037)")
+await as(db, U.juan, `select public.set_equipment_service('${eq.id}', false)`)
+ok((await as(db, U.juan, `select status from public.measurement_equipment where id = '${eq.id}'`)).rows[0].status === "fuera_de_servicio", "Dar de baja un equipo (037)")
+await throws(() => as(db, U.sofia, `select public.create_equipment('${A}', 'x', null, null, null, null, null, 'anual', null)`),
+  "Sofía (consulta) no registra equipos (037)", "No puedes registrar")
+await throws(() => as(db, U.beto, `select public.create_equipment('${A}', 'x', null, null, null, null, null, 'anual', null)`),
+  "Beto (org B) no registra equipos en A (037)", "No puedes registrar")
+ok((await as(db, U.beto, `select count(*)::int n from public.measurement_equipment where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve equipos de A (037)")
+await throws(() => as(db, U.juan, `insert into public.measurement_equipment (organization_id, code, name, calibration_frequency) values ('${A}', 'X', 'x', 'anual')`),
+  "Nadie inserta equipos por REST (037)", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.metrology_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "metrology_counters es deny-all (037)", "row-level security")
+
+// ========== 038 · Gestión del cambio (6.3) ==========
+const cmb = (await as(db, U.juan, `select id, code from public.create_change('${A}', 'Cambio de proveedor', 'proceso', '${P.sigA}', 'Descripción', null)`)).rows[0]
+ok(cmb.code === "CMB-" + YEAR + "-001", "Numeración CMB-AAAA-001 (038)")
+ok((await as(db, U.juan, `select status from public.change_control where id = '${cmb.id}'`)).rows[0].status === "propuesto", "La solicitud nace en propuesto (038)")
+// No se decide sin estar en evaluación
+await throws(() => as(db, U.juan, `select public.decide_change('${cmb.id}', true, null)`),
+  "No se decide un cambio sin evaluar (038)", "en evaluación")
+// Evaluar exige impacto; luego pasa a en_evaluacion
+await throws(() => as(db, U.juan, `select public.assess_change('${cmb.id}', '')`),
+  "Evaluar exige análisis de impacto (038)", "análisis de impacto")
+await as(db, U.juan, `select public.assess_change('${cmb.id}', 'Riesgos: bajos; Recursos: ninguno; Responsabilidades: Compras')`)
+ok((await as(db, U.juan, `select status from public.change_control where id = '${cmb.id}'`)).rows[0].status === "en_evaluacion", "Con impacto pasa a en evaluación (038)")
+// Solo el Líder SIG decide
+await throws(() => as(db, U.diana, `select public.decide_change('${cmb.id}', true, null)`),
+  "Responsable de control no aprueba cambios (038)", "Solo el Líder SIG")
+await as(db, U.juan, `select public.decide_change('${cmb.id}', true, null)`)
+ok((await as(db, U.juan, `select status from public.change_control where id = '${cmb.id}'`)).rows[0].status === "aprobado", "Líder SIG aprueba el cambio (038)")
+await as(db, U.juan, `select public.implement_change('${cmb.id}', 'Hecho')`)
+ok((await as(db, U.juan, `select status from public.change_control where id = '${cmb.id}'`)).rows[0].status === "implementado", "Un cambio aprobado se implementa (038)")
+await throws(() => as(db, U.sofia, `select public.create_change('${A}', 'x', 'otro', null, null, null)`),
+  "Sofía (consulta) no crea solicitudes (038)", "No puedes crear")
+ok((await as(db, U.beto, `select count(*)::int n from public.change_control where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve cambios de A (038)")
+await throws(() => as(db, U.juan, `insert into public.change_control (organization_id, code, title, change_type) values ('${A}', 'X', 'x', 'otro')`),
+  "Nadie inserta cambios por REST (038)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

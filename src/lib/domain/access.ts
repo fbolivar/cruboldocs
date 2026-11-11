@@ -181,6 +181,31 @@ export function canManageSst(user: CurrentUser): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso")
 }
 
+/** Pantalla Metrología (equipos 7.1.5): mismos roles del SIG que los demás módulos. */
+export function canSeeMetrology(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Registra equipos y calibraciones: Líder SIG o Líder del proceso del equipo. */
+export function canManageMetrology(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
+/** Pantalla Gestión del cambio (6.3): mismos roles del SIG que los demás módulos. */
+export function canSeeChanges(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/evalúa/implementa solicitudes de cambio: Líder SIG o Líder del proceso. */
+export function canManageChanges(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
+/** Aprueba o rechaza un cambio: solo Líder SIG. */
+export function canApproveChange(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig")
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)

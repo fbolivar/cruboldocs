@@ -1484,6 +1484,105 @@ export interface SstEvaluationDetail {
   timeline: NcTimelineEvent[]
 }
 
+// ---------- Metrología (7.1.5) (v1.2-3) ----------
+
+export type MetrologyFrequency = "mensual" | "bimestral" | "trimestral" | "semestral" | "anual" | "bienal"
+export type EquipmentStatus = "vigente" | "fuera_de_servicio"
+export type EffectiveEquipmentStatus = "vigente" | "vencido" | "fuera_de_servicio"
+export type CalibrationKind = "calibracion" | "verificacion"
+export type CalibrationResult = "conforme" | "no_conforme" | "ajustado"
+
+export interface MetrologySummary {
+  active: number
+  overdue: number
+  dueSoon: number
+}
+
+export interface EquipmentListItem {
+  id: string
+  code: string
+  name: string
+  processName: string | null
+  measurementRange: string | null
+  nextDueDate: string | null
+  status: EffectiveEquipmentStatus
+}
+
+export interface CalibrationView {
+  id: string
+  date: string
+  kind: CalibrationKind
+  result: CalibrationResult
+  standardUsed: string | null
+  certificateRef: string | null
+  provider: string | null
+  nextDueDate: string | null
+  note: string | null
+}
+
+export interface EquipmentDetail {
+  id: string
+  code: string
+  name: string
+  type: string | null
+  processId: string | null
+  processName: string | null
+  location: string | null
+  measurementRange: string | null
+  unit: string | null
+  frequency: MetrologyFrequency
+  lastCalibrationDate: string | null
+  nextDueDate: string | null
+  responsibleName: string | null
+  status: EquipmentStatus
+  effectiveStatus: EffectiveEquipmentStatus
+  canManage: boolean
+  calibrations: CalibrationView[]
+  timeline: NcTimelineEvent[]
+}
+
+// ---------- Gestión del cambio (6.3) (v1.2-3) ----------
+
+export type ChangeType = "proceso" | "documento" | "infraestructura" | "tecnologico" | "organizacional" | "otro"
+export type ChangeStatus = "propuesto" | "en_evaluacion" | "aprobado" | "rechazado" | "implementado"
+
+export interface ChangesSummary {
+  proposed: number
+  inEvaluation: number
+  approved: number
+  implemented: number
+}
+
+export interface ChangeListItem {
+  id: string
+  code: string
+  title: string
+  changeType: ChangeType
+  processName: string | null
+  requestDate: string
+  status: ChangeStatus
+}
+
+export interface ChangeDetail {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  changeType: ChangeType
+  processId: string | null
+  processName: string | null
+  requestDate: string
+  requestedByName: string | null
+  impactAssessment: string | null
+  status: ChangeStatus
+  approverName: string | null
+  decisionDate: string | null
+  implementationNotes: string | null
+  canManage: boolean
+  canApprove: boolean
+  timeline: NcTimelineEvent[]
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, getEquipment, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -3217,4 +3217,193 @@ export async function exportSstCsv(code: string): Promise<string> {
     { header: "Estado", value: (i) => SST_ITEM_LABEL[i.status] ?? i.status },
     { header: "Justificación", value: (i) => i.justification ?? "" },
   ])
+}
+
+// ---------- Metrología (7.1.5) (v1.2-3) ----------
+
+function revalidateMetrology() {
+  revalidatePath("/app/metrologia", "layout")
+  revalidatePath("/app")
+}
+
+const MET_FREQUENCY = z.enum(["mensual", "bimestral", "trimestral", "semestral", "anual", "bienal"])
+const equipmentSchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  type: z.string().trim().max(100).optional(),
+  processId: z.uuid().nullish(),
+  location: z.string().trim().max(200).optional(),
+  range: z.string().trim().max(100).optional(),
+  unit: z.string().trim().max(40).optional(),
+  frequency: MET_FREQUENCY,
+  responsibleId: z.uuid().nullish(),
+})
+
+export async function createEquipment(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = equipmentSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del equipo.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_equipment", {
+      p_org: user.organization.id, p_name: p.data.name, p_type: p.data.type ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string, p_location: p.data.location ?? "",
+      p_range: p.data.range ?? "", p_unit: p.data.unit ?? "", p_frequency: p.data.frequency,
+      p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateMetrology()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateEquipment(equipmentId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(equipmentId)) return fail(GENERIC)
+    const p = equipmentSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del equipo.")
+    const { error } = await (await createClient()).rpc("update_equipment", {
+      p_equipment: equipmentId, p_name: p.data.name, p_type: p.data.type ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string, p_location: p.data.location ?? "",
+      p_range: p.data.range ?? "", p_unit: p.data.unit ?? "", p_frequency: p.data.frequency,
+      p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateMetrology()
+    return ok(undefined)
+  })
+}
+
+export async function setEquipmentService(equipmentId: string, inService: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(equipmentId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_equipment_service", { p_equipment: equipmentId, p_in_service: inService })
+    if (error) return fail(dbMessage(error))
+    revalidateMetrology()
+    return ok(undefined)
+  })
+}
+
+const calibrationSchema = z.object({
+  date: isoDate,
+  kind: z.enum(["calibracion", "verificacion"]),
+  result: z.enum(["conforme", "no_conforme", "ajustado"]),
+  standard: z.string().trim().max(200).optional(),
+  certificate: z.string().trim().max(120).optional(),
+  provider: z.string().trim().max(120).optional(),
+  note: z.string().trim().max(1000).optional(),
+})
+
+export async function registerCalibration(equipmentId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(equipmentId)) return fail(GENERIC)
+    const p = calibrationSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la calibración.")
+    const { error } = await (await createClient()).rpc("register_calibration", {
+      p_equipment: equipmentId, p_date: p.data.date, p_kind: p.data.kind, p_result: p.data.result,
+      p_standard: p.data.standard ?? "", p_certificate: p.data.certificate ?? "", p_provider: p.data.provider ?? "", p_note: p.data.note ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateMetrology()
+    return ok(undefined)
+  })
+}
+
+const CAL_KIND: Record<string, string> = { calibracion: "Calibración", verificacion: "Verificación" }
+const CAL_RESULT: Record<string, string> = { conforme: "Conforme", no_conforme: "No conforme", ajustado: "Ajustado" }
+
+export async function exportCalibrationsCsv(code: string): Promise<string> {
+  const e = await getEquipment(code)
+  if (!e) return ""
+  return toCsv(e.calibrations, [
+    { header: "Fecha", value: (c) => c.date },
+    { header: "Tipo", value: (c) => CAL_KIND[c.kind] ?? c.kind },
+    { header: "Resultado", value: (c) => CAL_RESULT[c.result] ?? c.result },
+    { header: "Patrón", value: (c) => c.standardUsed ?? "" },
+    { header: "Certificado", value: (c) => c.certificateRef ?? "" },
+    { header: "Proveedor", value: (c) => c.provider ?? "" },
+    { header: "Próxima", value: (c) => c.nextDueDate ?? "" },
+  ])
+}
+
+// ---------- Gestión del cambio (6.3) (v1.2-3) ----------
+
+function revalidateChanges() {
+  revalidatePath("/app/cambios", "layout")
+  revalidatePath("/app")
+}
+
+const CHANGE_TYPE = z.enum(["proceso", "documento", "infraestructura", "tecnologico", "organizacional", "otro"])
+const changeSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  changeType: CHANGE_TYPE,
+  processId: z.uuid().nullish(),
+  description: z.string().trim().max(2000).optional(),
+  requestedById: z.uuid().nullish(),
+})
+
+export async function createChange(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = changeSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la solicitud.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_change", {
+      p_org: user.organization.id, p_title: p.data.title, p_type: p.data.changeType,
+      p_process: (p.data.processId ?? null) as unknown as string, p_description: p.data.description ?? "",
+      p_requested_by: (p.data.requestedById ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateChanges()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateChange(changeId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(changeId)) return fail(GENERIC)
+    const p = changeSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la solicitud.")
+    const { error } = await (await createClient()).rpc("update_change", {
+      p_change: changeId, p_title: p.data.title, p_type: p.data.changeType,
+      p_process: (p.data.processId ?? null) as unknown as string, p_description: p.data.description ?? "",
+      p_requested_by: (p.data.requestedById ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateChanges()
+    return ok(undefined)
+  })
+}
+
+export async function assessChange(changeId: string, impact: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(changeId)) return fail(GENERIC)
+    if (impact.trim().length < 3) return fail("Describe el análisis de impacto.")
+    const { error } = await (await createClient()).rpc("assess_change", { p_change: changeId, p_impact: impact })
+    if (error) return fail(dbMessage(error))
+    revalidateChanges()
+    return ok(undefined)
+  })
+}
+
+export async function decideChange(changeId: string, approve: boolean, approverId?: string | null): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(changeId)) return fail(GENERIC)
+    if (approverId && !isUuid(approverId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("decide_change", {
+      p_change: changeId, p_approve: approve, p_approver: (approverId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateChanges()
+    return ok(undefined)
+  })
+}
+
+export async function implementChange(changeId: string, notes?: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(changeId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("implement_change", { p_change: changeId, p_notes: notes ?? "" })
+    if (error) return fail(dbMessage(error))
+    revalidateChanges()
+    return ok(undefined)
+  })
 }
