@@ -954,5 +954,43 @@ await throws(() => as(db, U.juan, `select public.close_survey('${sv2.id}')`), "N
 await throws(() => as(db, U.sofia, `insert into public.satisfaction_surveys (organization_id, code, title, method, period, token) values ('${A}', 'X', 'Intrusa', 'csat', current_date, 'tok')`),
   "Nadie inserta campañas por REST (029)", "row-level security")
 
+// ========== 030 · Requisitos legales (ISO 14001/45001, SG-SST) ==========
+const rq = (await as(db, U.juan, `select id, code from public.create_requirement('${A}', 'Estándares mínimos SG-SST', 'decreto', 'Dec. 1072/2015 art. 2.2.4.6', 'Mintrabajo', 'Cumplir los estándares mínimos', '${P.sigA}', null, 'anual')`)).rows[0]
+ok(rq.code === "REQ-" + YEAR + "-001", "Numeración REQ-AAAA-001 (030)")
+await throws(() => as(db, U.sofia, `select public.create_requirement('${A}', 'Intrusa', 'ley', 'X', null, 'x', null, null, 'anual')`),
+  "Sofía (consulta) no crea requisitos (030)", "No puedes crear")
+await throws(() => as(db, U.beto, `select public.create_requirement('${A}', 'Intrusa B', 'ley', 'X', null, 'x', null, null, 'anual')`),
+  "Beto (org B) no crea requisitos en A (030)", "No puedes crear")
+
+// Evaluación → cumplimiento vigente derivado + próxima evaluación (+1 año anual)
+await throws(() => as(db, U.juan, `select public.evaluate_requirement('${rq.id}', 'parcial', '  ', current_date, null)`),
+  "La evaluación exige evidencia (030)", "evidencia")
+await as(db, U.juan, `select public.evaluate_requirement('${rq.id}', 'parcial', 'Faltan 3 estándares', current_date, null)`)
+const rl1 = (await as(db, U.juan, `select next_eval_date, (next_eval_date = current_date + interval '12 months') ok from public.legal_requirements where id = '${rq.id}'`)).rows[0]
+ok(rl1.ok === true, "La próxima evaluación se fija a +12 meses (anual) (030)")
+ok((await as(db, U.juan, `select compliance from public.legal_evaluations where requirement_id = '${rq.id}' order by evaluated_at desc limit 1`)).rows[0].compliance === "parcial", "El cumplimiento vigente lo da la última evaluación (030)")
+await throws(() => as(db, U.juan, `select public.evaluate_requirement('${rq.id}', 'x_invalido', 'ev', current_date, null)`),
+  "Cumplimiento no válido rechazado (030)", "no válido")
+
+// Derogar (baja lógica) → no editable
+await as(db, U.juan, `select public.derogate_requirement('${rq.id}')`)
+ok((await as(db, U.juan, `select status, next_eval_date from public.legal_requirements where id = '${rq.id}'`)).rows[0].status === "derogado", "Derogar deja el requisito derogado (030)")
+await throws(() => as(db, U.juan, `select public.update_requirement('${rq.id}', 'x', 'ley', 'y', null, 'z', null, null, 'anual')`),
+  "Un requisito derogado no es editable (030)", "ya no es editable")
+await throws(() => as(db, U.juan, `select public.evaluate_requirement('${rq.id}', 'cumple', 'ev', current_date, null)`),
+  "Un requisito derogado no se evalúa (030)", "derogado")
+
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.legal_requirements where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve requisitos de A (030)")
+const rq2 = (await as(db, U.juan, `select id from public.create_requirement('${A}', 'Otro requisito', 'norma_iso', 'ISO 9001 7.5', null, 'Info documentada', null, null, 'anual')`)).rows[0]
+await throws(() => as(db, U.beto, `select public.evaluate_requirement('${rq2.id}', 'cumple', 'ev', current_date, null)`),
+  "Beto (org B) no evalúa requisitos de A (030)", "no encontrado")
+await throws(() => as(db, U.sofia, `insert into public.legal_requirements (organization_id, code, title, source_type, reference, description) values ('${A}', 'X', 'Intrusa', 'ley', 'r', 'd')`),
+  "Nadie inserta requisitos por REST (030)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.legal_evaluations (organization_id, requirement_id, evaluated_at, compliance, evidence) values ('${A}', '${rq2.id}', current_date, 'cumple', 'ev')`),
+  "Nadie inserta evaluaciones por REST (030)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.legal_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "legal_counters es deny-all (030)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

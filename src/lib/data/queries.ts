@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageCompetencies, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -80,6 +80,10 @@ import type {
   CommitmentView,
   DashboardData,
   DashboardFilters,
+  LegalEvaluationView,
+  LegalRequirementDetail,
+  LegalRequirementListItem,
+  LegalSummary,
   MinuteDetail,
   MinuteListItem,
   MinutesSummary,
@@ -2174,4 +2178,79 @@ export async function listSurveyResponses(surveyId: string): Promise<{ score: nu
   if (!s || !isUuid(surveyId)) return []
   const { data } = await s.supabase.from("survey_responses").select("score, comment, created_at").eq("organization_id", s.org).eq("survey_id", surveyId).order("created_at", { ascending: false })
   return (data ?? []).map((r) => ({ score: Number(r.score), comment: r.comment, createdAt: r.created_at }))
+}
+
+// ---------- Requisitos legales (v1.1-3) ----------
+
+const LEGAL_EVENT_TEXT: Record<string, string> = {
+  crear_requisito: "Registró el requisito.",
+  editar_requisito: "Editó el requisito.",
+  evaluar_requisito: "Evaluó el cumplimiento.",
+  derogar_requisito: "Derogó el requisito.",
+}
+
+const legalComplianceOf = (evals: { requirement_id: string; evaluated_at: string; compliance: string }[], reqId: string): LegalRequirementListItem["compliance"] => {
+  const latest = evals.filter((e) => e.requirement_id === reqId).sort((a, b) => b.evaluated_at.localeCompare(a.evaluated_at))[0]
+  return (latest?.compliance as LegalRequirementListItem["compliance"]) ?? "no_evaluado"
+}
+
+export async function getLegalSummary(): Promise<LegalSummary> {
+  const s = await scope()
+  if (!s) return { active: 0, notMeeting: 0, dueSoon: 0 }
+  const soon = addDays(todayIsoDate(), 30)
+  const [{ data: reqs }, { data: evals }] = await Promise.all([
+    s.supabase.from("legal_requirements").select("id, status, next_eval_date").eq("organization_id", s.org),
+    s.supabase.from("legal_evaluations").select("requirement_id, evaluated_at, compliance").eq("organization_id", s.org),
+  ])
+  const active = (reqs ?? []).filter((r) => r.status === "vigente")
+  return {
+    active: active.length,
+    notMeeting: active.filter((r) => legalComplianceOf(evals ?? [], r.id) === "no_cumple").length,
+    dueSoon: active.filter((r) => r.next_eval_date !== null && r.next_eval_date <= soon).length,
+  }
+}
+
+export async function listLegalRequirements(): Promise<LegalRequirementListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: reqs }, { data: evals }, { data: procs }] = await Promise.all([
+    s.supabase.from("legal_requirements").select("id, code, title, source_type, reference, process_id, status, next_eval_date").eq("organization_id", s.org).order("code", { ascending: false }),
+    s.supabase.from("legal_evaluations").select("requirement_id, evaluated_at, compliance").eq("organization_id", s.org),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (reqs ?? []).map((r) => ({
+    id: r.id, code: r.code, title: r.title, sourceType: r.source_type as LegalRequirementListItem["sourceType"],
+    reference: r.reference, processName: r.process_id ? procMap.get(r.process_id) ?? null : null,
+    status: r.status as LegalRequirementListItem["status"],
+    compliance: legalComplianceOf(evals ?? [], r.id), nextEvalDate: r.next_eval_date,
+  }))
+}
+
+export async function getLegalRequirement(code: string): Promise<LegalRequirementDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: r } = await s.supabase.from("legal_requirements").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!r) return null
+  const [{ data: proc }, { data: evals }, { data: log }] = await Promise.all([
+    r.process_id ? s.supabase.from("processes").select("name").eq("id", r.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("legal_evaluations").select("id, evaluated_at, compliance, evidence, note, created_by").eq("organization_id", s.org).eq("requirement_id", r.id).order("evaluated_at", { ascending: false }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Requisito").eq("entity_id", r.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, [...(evals ?? []).map((e) => e.created_by), ...(log ?? []).map((x) => x.actor_id)])
+  const evaluations: LegalEvaluationView[] = (evals ?? []).map((e) => ({
+    id: e.id, evaluatedAt: e.evaluated_at, compliance: e.compliance as LegalEvaluationView["compliance"],
+    evidence: e.evidence, evaluatedBy: e.created_by ? person(e.created_by).fullName : "—", note: e.note,
+  }))
+  return {
+    id: r.id, code: r.code, title: r.title, sourceType: r.source_type as LegalRequirementDetail["sourceType"],
+    reference: r.reference, issuer: r.issuer, description: r.description,
+    processId: r.process_id, processName: proc?.name ?? null, url: r.url,
+    status: r.status as LegalRequirementDetail["status"], evalFrequency: r.eval_frequency as LegalRequirementDetail["evalFrequency"],
+    nextEvalDate: r.next_eval_date,
+    compliance: (evaluations[0]?.compliance as LegalRequirementDetail["compliance"]) ?? "no_evaluado",
+    evaluations,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: LEGAL_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageLegal(s.user, r.process_id ?? undefined),
+  }
 }

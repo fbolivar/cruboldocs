@@ -1031,6 +1031,61 @@ export interface ObjectiveCardView {
   canManage: boolean
 }
 
+// ---------- Requisitos legales (v1.1-3, ISO 14001/45001, SG-SST) ----------
+
+export type LegalSource = "ley" | "decreto" | "resolucion" | "norma_iso" | "contractual" | "otro"
+export type LegalCompliance = "cumple" | "parcial" | "no_cumple" | "no_evaluado"
+export type LegalStatus = "vigente" | "derogado"
+export type LegalFrequency = "semestral" | "anual" | "bienal"
+
+export interface LegalRequirementListItem {
+  id: string
+  code: string
+  title: string
+  sourceType: LegalSource
+  reference: string
+  processName: string | null
+  status: LegalStatus
+  /** Cumplimiento vigente (derivado de la última evaluación). */
+  compliance: LegalCompliance
+  nextEvalDate: string | null
+}
+
+export interface LegalSummary {
+  active: number
+  notMeeting: number
+  dueSoon: number
+}
+
+export interface LegalEvaluationView {
+  id: string
+  evaluatedAt: string
+  compliance: Exclude<LegalCompliance, "no_evaluado">
+  evidence: string
+  evaluatedBy: string
+  note: string | null
+}
+
+export interface LegalRequirementDetail {
+  id: string
+  code: string
+  title: string
+  sourceType: LegalSource
+  reference: string
+  issuer: string | null
+  description: string
+  processId: string | null
+  processName: string | null
+  url: string | null
+  status: LegalStatus
+  evalFrequency: LegalFrequency
+  nextEvalDate: string | null
+  compliance: LegalCompliance
+  evaluations: LegalEvaluationView[]
+  timeline: NcTimelineEvent[]
+  canManage: boolean
+}
+
 // ---------- Encuesta de satisfacción enviable (v1.1-2, ISO 9.1.2) ----------
 
 export type SurveyScale = "0_100" | "1_5" | "nps_0_10"

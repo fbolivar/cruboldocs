@@ -1273,6 +1273,155 @@ export type Database = {
           },
         ]
       }
+      legal_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_evaluations: {
+        Row: {
+          compliance: string
+          created_at: string
+          created_by: string
+          evaluated_at: string
+          evidence: string
+          id: string
+          note: string | null
+          organization_id: string
+          requirement_id: string
+        }
+        Insert: {
+          compliance: string
+          created_at?: string
+          created_by?: string
+          evaluated_at: string
+          evidence: string
+          id?: string
+          note?: string | null
+          organization_id: string
+          requirement_id: string
+        }
+        Update: {
+          compliance?: string
+          created_at?: string
+          created_by?: string
+          evaluated_at?: string
+          evidence?: string
+          id?: string
+          note?: string | null
+          organization_id?: string
+          requirement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_evaluations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_evaluations_requirement_id_organization_id_fkey"
+            columns: ["requirement_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_requirements"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      legal_requirements: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          eval_frequency: string
+          id: string
+          issuer: string | null
+          next_eval_date: string | null
+          organization_id: string
+          process_id: string | null
+          reference: string
+          source_type: string
+          status: string
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string
+          description: string
+          eval_frequency?: string
+          id?: string
+          issuer?: string | null
+          next_eval_date?: string | null
+          organization_id: string
+          process_id?: string | null
+          reference: string
+          source_type: string
+          status?: string
+          title: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          eval_frequency?: string
+          id?: string
+          issuer?: string | null
+          next_eval_date?: string | null
+          organization_id?: string
+          process_id?: string | null
+          reference?: string
+          source_type?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_requirements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_requirements_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       management_review_counters: {
         Row: {
           last_seq: number
@@ -3551,6 +3700,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_indicators: { Args: { org: string }; Returns: boolean }
+      can_manage_legal: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_minutes: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -3585,6 +3738,7 @@ export type Database = {
       can_see_competencies: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
+      can_see_legal: { Args: { org: string }; Returns: boolean }
       can_see_minutes: { Args: { org: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
       can_see_objectives: { Args: { org: string }; Returns: boolean }
@@ -3790,6 +3944,23 @@ export type Database = {
           id: string
         }[]
       }
+      create_requirement: {
+        Args: {
+          p_description: string
+          p_frequency: string
+          p_issuer: string
+          p_org: string
+          p_process: string
+          p_reference: string
+          p_source: string
+          p_title: string
+          p_url: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       create_review: {
         Args: {
           p_end: string
@@ -3886,6 +4057,7 @@ export type Database = {
       }
       current_actor: { Args: never; Returns: string }
       current_org: { Args: never; Returns: string }
+      derogate_requirement: { Args: { p_req: string }; Returns: undefined }
       doc_or_fail: {
         Args: { p_doc: string }
         Returns: {
@@ -3913,6 +4085,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      evaluate_requirement: {
+        Args: {
+          p_compliance: string
+          p_evaluated: string
+          p_evidence: string
+          p_note: string
+          p_req: string
+        }
+        Returns: undefined
       }
       evaluate_supplier: {
         Args: {
@@ -4022,6 +4204,33 @@ export type Database = {
       is_safe_object_path: {
         Args: { p_path: string; p_prefix: string }
         Returns: boolean
+      }
+      legal_or_fail: {
+        Args: { p_req: string }
+        Returns: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          eval_frequency: string
+          id: string
+          issuer: string | null
+          next_eval_date: string | null
+          organization_id: string
+          process_id: string | null
+          reference: string
+          source_type: string
+          status: string
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "legal_requirements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       log_event: {
         Args: {
@@ -4553,6 +4762,20 @@ export type Database = {
           p_process: string
           p_received: string
           p_type: string
+        }
+        Returns: undefined
+      }
+      update_requirement: {
+        Args: {
+          p_description: string
+          p_frequency: string
+          p_issuer: string
+          p_process: string
+          p_reference: string
+          p_req: string
+          p_source: string
+          p_title: string
+          p_url: string
         }
         Returns: undefined
       }

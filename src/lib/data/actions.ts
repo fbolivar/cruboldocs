@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -2559,5 +2559,106 @@ export async function exportSurveyCsv(surveyId: string): Promise<string> {
     { header: "Fecha", value: (r) => formatDate(r.createdAt) },
     { header: "Puntaje (0-100)", value: (r) => String(r.score) },
     { header: "Comentario", value: (r) => r.comment },
+  ])
+}
+
+// ---------- Requisitos legales (v1.1-3) ----------
+
+function revalidateLegal() {
+  revalidatePath("/app/requisitos-legales", "layout")
+  revalidatePath("/app")
+}
+
+const LEGAL_SOURCES = ["ley", "decreto", "resolucion", "norma_iso", "contractual", "otro"] as const
+const LEGAL_FREQ = ["semestral", "anual", "bienal"] as const
+const legalRequirementSchema = z.object({
+  title: z.string().trim().min(3).max(300),
+  sourceType: z.enum(LEGAL_SOURCES),
+  reference: z.string().trim().min(1).max(300),
+  issuer: z.string().trim().max(200).optional(),
+  description: z.string().trim().min(3).max(4000),
+  processId: z.uuid().nullish(),
+  url: z.string().trim().max(500).optional(),
+  frequency: z.enum(LEGAL_FREQ),
+})
+
+export async function createRequirement(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = legalRequirementSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del requisito.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_requirement", {
+      p_org: user.organization.id, p_title: p.data.title, p_source: p.data.sourceType, p_reference: p.data.reference,
+      p_issuer: p.data.issuer ?? "", p_description: p.data.description, p_process: (p.data.processId ?? null) as unknown as string,
+      p_url: p.data.url ?? "", p_frequency: p.data.frequency,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateLegal()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateRequirement(reqId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(reqId)) return fail(GENERIC)
+    const p = legalRequirementSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del requisito.")
+    const { error } = await (await createClient()).rpc("update_requirement", {
+      p_req: reqId, p_title: p.data.title, p_source: p.data.sourceType, p_reference: p.data.reference,
+      p_issuer: p.data.issuer ?? "", p_description: p.data.description, p_process: (p.data.processId ?? null) as unknown as string,
+      p_url: p.data.url ?? "", p_frequency: p.data.frequency,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateLegal()
+    return ok(undefined)
+  })
+}
+
+export async function derogateRequirement(reqId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(reqId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("derogate_requirement", { p_req: reqId })
+    if (error) return fail(dbMessage(error))
+    revalidateLegal()
+    return ok(undefined)
+  })
+}
+
+const evalSchema = z.object({
+  compliance: z.enum(["cumple", "parcial", "no_cumple"]),
+  evidence: z.string().trim().min(1).max(4000),
+  evaluatedAt: isoDate,
+  note: z.string().trim().max(2000).optional(),
+})
+export async function evaluateRequirement(reqId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(reqId)) return fail(GENERIC)
+    const p = evalSchema.safeParse(input)
+    if (!p.success) return fail("Registra el cumplimiento y la evidencia.")
+    if (p.data.evaluatedAt > todayIsoDate()) return fail("La fecha de evaluación no puede ser futura.")
+    const { error } = await (await createClient()).rpc("evaluate_requirement", {
+      p_req: reqId, p_compliance: p.data.compliance, p_evidence: p.data.evidence,
+      p_evaluated: p.data.evaluatedAt, p_note: p.data.note ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateLegal()
+    return ok(undefined)
+  })
+}
+
+export async function exportLegalCsv(): Promise<string> {
+  const rows = await listLegalRequirements()
+  const SRC: Record<string, string> = { ley: "Ley", decreto: "Decreto", resolucion: "Resolución", norma_iso: "Norma ISO", contractual: "Contractual", otro: "Otro" }
+  const COMP: Record<string, string> = { cumple: "Cumple", parcial: "Parcial", no_cumple: "No cumple", no_evaluado: "No evaluado" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Requisito", value: (r) => r.title },
+    { header: "Fuente", value: (r) => SRC[r.sourceType] ?? r.sourceType },
+    { header: "Referencia", value: (r) => r.reference },
+    { header: "Proceso", value: (r) => r.processName },
+    { header: "Cumplimiento", value: (r) => COMP[r.compliance] ?? r.compliance },
+    { header: "Estado", value: (r) => (r.status === "derogado" ? "Derogado" : "Vigente") },
+    { header: "Próxima evaluación", value: (r) => (r.nextEvalDate ? formatDate(r.nextEvalDate) : null) },
   ])
 }
