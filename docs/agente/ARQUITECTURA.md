@@ -141,3 +141,117 @@ siguientes, apoyar la redacción de documentos y la medición de riesgos.
 - **Acciones erróneas** del agente → mitigado por confirmación humana y por actuar con los permisos del usuario.
 - **Costo** no acotado → mitigado por límites de uso y caching.
 - **Inyección de prompts** desde contenido del cliente → mitigado por el diseño (contenido = dato).
+
+---
+
+# Crubol-Agent — Fase C: Copiloto de causa raíz / CAPA / riesgos (arquitectura)
+
+> Entregable de la **fase de arquitectura** de la evolución del agente más allá del catálogo.
+> Fecha: 2026-11-11. **Pendiente de aprobación de Fernando (parada obligatoria).** No se escribe
+> código ni migraciones en esta fase. El MVP de catálogo (Fase A) ya está desplegado; esta fase es
+> la primera que lee **contenido** del SGC (decisión de Fernando, 2026-11-11).
+
+## C.1. Objetivo
+En la **ficha de una No Conformidad** o de un **Riesgo**, un copiloto que —bajo demanda y solo con
+ese registro— ayuda al responsable a:
+- **NC:** redactar el **análisis de causa** (p. ej. 5 porqués en texto) y proponer el **plan de
+  acciones CAPA** (corrección y acción correctiva, con responsable y plazo sugeridos).
+- **Riesgo:** proponer **controles** y una **valoración** (probabilidad/impacto) sugerida.
+
+Es donde el mercado está invirtiendo (Veeva "Quality Event Agents", Qualityze, SoftExpert Copilot):
+IA **dentro** del flujo de CAPA/causa raíz, con el humano aprobando. Mantiene intactos los límites
+duros del agente.
+
+## C.2. Alcance
+
+### Entra (MVP de Fase C)
+- Botón **"Sugerir con Crubol-Agent"** en las secciones **Análisis de causa** y **Plan de acción**
+  de la ficha de NC, y en **Controles** y **Valoración** de la ficha de Riesgo.
+- El agente **lee solo el registro abierto** (minimización, decisión de Fernando) y genera la
+  sugerencia; el usuario la revisa.
+- **Ejecuta con confirmación** (decisión de Fernando): cada acción de escritura se materializa con una
+  **tarjeta de confirmación** que invoca la **misma acción de dominio** que la UI (sesión del usuario → RLS).
+
+### Fuera del MVP de Fase C
+- Redacción de documentos (es la Fase B, se hará aparte).
+- Lectura de **varios** registros / recuperación amplia (se descartó por privacidad/costo).
+- Cualquier acción con valor probatorio (ver límites duros).
+
+### Nunca (límites duros, sin cambios — ADR-004)
+- El agente **no verifica eficacia, no cierra, no aprueba, no cambia estados** del flujo. En NC solo
+  puede **proponer** causa y acciones; la verificación de eficacia y el cierre siguen siendo actos del
+  usuario. No usa `service_role`.
+
+## C.3. Modelo de dominio (sin cambios de esquema)
+Reusa lo existente; **no crea tablas nuevas**:
+- NC: `nonconformities`, `nc_actions` → tools que mapean a `setNcCause(ncId, cause, ownerPositionId?)`
+  y `addNcAction(input)`.
+- Riesgo: `risks`, `controls`, `risk_assessments` → tools que mapean a `addControl(...)` y
+  `addAssessment(riskId, kind, p, i)`.
+- Uso/límites: reusa `ai_agent_usage` + `ai_agent_consume` (ya existen); se amplían las acciones
+  contadas. Opcional (ADR-052): marcar en `audit_log` que una acción fue **"asistida por IA"** (campo
+  en el `meta` del evento) para trazabilidad, sin tabla nueva.
+
+## C.4. Contexto que ve el agente (minimización)
+Solo el **registro abierto**, y acotado:
+- **NC:** código, origen, proceso, descripción, severidad y las **acciones ya registradas** (para no
+  duplicar). **Se excluye el dato personal del cliente** (p. ej. `customer_name`/`customer_contact`
+  cuando la NC viene de `queja_pqrs`): no se envía a Anthropic.
+- **Riesgo:** descripción, proceso, valoración actual y controles existentes.
+No se envían otros registros, ni correos, ni PII. El contexto se arma **en el servidor** a partir de
+lo que el usuario ya puede ver (RLS), nunca más.
+
+## C.5. Interacción (UI)
+- Botón contextual en la ficha → abre el **panel del agente** (ya existe) con la sugerencia en
+  streaming.
+- Cada acción de escritura propuesta se muestra como **tarjeta de confirmación** (qué va a escribir,
+  con los datos exactos) + **Confirmar/Cancelar**. Nada se escribe sin ese "sí" (human-in-the-loop).
+- La sugerencia de texto (causa) también puede **copiarse** al campo sin ejecutar, por si el usuario
+  prefiere editarla antes de guardar.
+
+## C.6. Seguridad
+- **Actúa como el usuario:** las tools llaman a las acciones de dominio existentes con la **sesión del
+  usuario** → RLS y guardas de rol. Si el usuario no puede gestionar esa NC/riesgo, la acción falla igual.
+- **Anti-inyección (crítico):** la **descripción** de una NC o un riesgo es **contenido del cliente** y
+  puede traer texto malicioso ("ignora tus instrucciones…"). El prompt de sistema lo declara **dato, no
+  instrucción**; el agente solo dispone de las tools de causa/acción/control/valoración y ninguna de
+  firmar/cerrar/aprobar, así que una inyección no puede escalar privilegios.
+- **Human-in-the-loop** en toda escritura. **No `service_role`.**
+- **Límites de uso** por organización (reusa `ai_agent_consume`) para acotar costo/abuso.
+
+## C.7. Privacidad y cumplimiento (Ley 1581) — **gate legal (bloqueante)**
+Esta fase **amplía** lo que se envía a Anthropic: ya no solo el catálogo, sino el **contenido del
+registro (NC/riesgo) que el usuario abra y para el que pida ayuda, bajo demanda**. Por eso:
+1. **Ampliar `/tratamiento-de-datos` §6** y **`/terminos` §9** para declarar este nuevo alcance de
+   datos (contenido de NC/riesgos, bajo demanda, minimizado y sin PII del cliente). **Requiere revisión
+   legal del abogado de Fernando** (igual que la versión de catálogo de 2026-11-10).
+2. **Minimización verificada:** excluir `customer_name`/`customer_contact` y cualquier PII del payload.
+3. **Opt-in por organización** (ya existe) y **desactivado por defecto**.
+4. **No-entrenamiento:** API comercial de Anthropic.
+Decisión de Fernando (2026-11-11): **se avanza arquitectura → diseño → backend/UI detrás de la bandera
+opt-in, desactivado; la activación para clientes espera el OK legal del alcance ampliado.**
+
+## C.8. Costo
+- Causa raíz/CAPA se benefician de razonamiento → **Opus 5.5** para el análisis; **Sonnet 5.5** para la
+  interacción simple (híbrido, coherente con §9). Una sugerencia típica envía un registro + system
+  prompt → pocos miles de tokens → centavos. Reusar **prompt caching** del system prompt y **límites por
+  organización**. Costo asumido por Crubol en v1.x.
+
+## C.9. Plan de implementación (de la Fase C)
+1. **Prerrequisito de privacidad ampliado (bloqueante, legal, en paralelo).**
+2. **Backend:** nuevas tools (`sugerir_causa_nc`, `proponer_accion_capa`, `sugerir_control`,
+   `sugerir_valoracion`) que invocan `setNcCause`/`addNcAction`/`addControl`/`addAssessment` con la
+   sesión del usuario; armado del **contexto mínimo** del registro (sin PII); streaming; límites.
+3. **UI:** botones "Sugerir" en las fichas de NC y Riesgo + tarjetas de confirmación (reusa el panel).
+4. **Seguridad/QA:** pruebas de que el agente no obtiene privilegios extra (RLS), blindaje
+   anti-inyección, **minimización verificada** (el payload no lleva PII), y auditoría del diff **antes de
+   activar**.
+5. **Activación:** tras el OK legal, opt-in por organización.
+
+## C.10. ADRs de esta fase
+- **ADR-051** — Fase C: copiloto de causa/CAPA/riesgos; minimización "solo el registro abierto, bajo
+  demanda"; exclusión de PII del cliente.
+- **ADR-052** — Ejecución por **tools con confirmación** que reusan las acciones de dominio (RLS);
+  límites duros (no verifica/cierra/aprueba); trazabilidad "asistido por IA" en `audit_log`.
+- **ADR-053** — Ampliación de la **declaración de privacidad** y **gate legal**; feature tras opt-in
+  **desactivado** hasta el OK.
