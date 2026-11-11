@@ -4436,6 +4436,57 @@ export type Database = {
           },
         ]
       }
+      rca_analyses: {
+        Row: {
+          conclusion: string | null
+          created_at: string
+          created_by: string
+          data: Json
+          id: string
+          method: string
+          nonconformity_id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          conclusion?: string | null
+          created_at?: string
+          created_by?: string
+          data?: Json
+          id?: string
+          method: string
+          nonconformity_id: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          conclusion?: string | null
+          created_at?: string
+          created_by?: string
+          data?: Json
+          id?: string
+          method?: string
+          nonconformity_id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_analyses_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "rca_analyses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       read_acknowledgements: {
         Row: {
           acknowledged_at: string
@@ -7780,6 +7831,15 @@ export type Database = {
         }
       }
       run_daily_jobs: { Args: never; Returns: Json }
+      save_rca_analysis: {
+        Args: {
+          p_conclusion: string
+          p_data: Json
+          p_method: string
+          p_nc: string
+        }
+        Returns: undefined
+      }
       save_submission_draft: {
         Args: { p_submission: string; p_template: string; p_values: Json }
         Returns: string

@@ -337,6 +337,28 @@ export interface NcDetail {
   timeline: NcTimelineEvent[]
   /** Si el usuario actual puede gestionar (Líder SIG o Líder del proceso). */
   canManage: boolean
+  /** Análisis de causa raíz estructurado (v1.5-2); null si aún no hay. */
+  rca: RcaAnalysisView | null
+}
+
+// ---------- Causa raíz estructurada (v1.5-2) ----------
+
+export type RcaMethod = "5porques" | "ishikawa"
+
+export interface FiveWhysData {
+  problem: string
+  steps: string[]
+}
+
+export interface IshikawaData {
+  categories: { metodo: string[]; maquina: string[]; mano_obra: string[]; material: string[]; medio: string[]; medicion: string[] }
+}
+
+export interface RcaAnalysisView {
+  method: RcaMethod
+  /** Estructura del método: FiveWhysData o IshikawaData (según `method`). */
+  data: FiveWhysData | IshikawaData
+  conclusion: string | null
 }
 
 // ---------- Auditorías internas (ISO 9001 9.2) ----------

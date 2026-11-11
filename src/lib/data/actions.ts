@@ -4588,3 +4588,35 @@ export async function testChatNotifier(id: string): Promise<Result> {
 export async function suggestWithAi(input: DraftInput): Promise<Result<{ text: string; remaining: number }>> {
   return guard(() => generateDraft(input))
 }
+
+// ---------- Causa raíz estructurada (v1.5-2) ----------
+
+const CATS = ["metodo", "maquina", "mano_obra", "material", "medio", "medicion"] as const
+const rcaSchema = z.discriminatedUnion("method", [
+  z.object({
+    ncId: z.uuid(),
+    method: z.literal("5porques"),
+    conclusion: z.string().trim().max(2000).optional(),
+    data: z.object({ problem: z.string().trim().max(1000), steps: z.array(z.string().trim().max(1000)).max(12) }),
+  }),
+  z.object({
+    ncId: z.uuid(),
+    method: z.literal("ishikawa"),
+    conclusion: z.string().trim().max(2000).optional(),
+    data: z.object({ categories: z.object(Object.fromEntries(CATS.map((c) => [c, z.array(z.string().trim().max(500)).max(20)])) as Record<(typeof CATS)[number], z.ZodArray<z.ZodString>>) }),
+  }),
+])
+
+/** Guarda el análisis estructurado de causa (uno por NC). No toca la causa raíz: eso lo hace setNcCause. */
+export async function saveRcaAnalysis(input: unknown): Promise<Result> {
+  return guard(async () => {
+    const p = rcaSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el análisis de causa.")
+    const { error } = await (await createClient()).rpc("save_rca_analysis", {
+      p_nc: p.data.ncId, p_method: p.data.method, p_data: p.data.data as unknown as Json, p_conclusion: p.data.conclusion ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNc()
+    return ok(undefined)
+  })
+}

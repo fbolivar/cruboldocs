@@ -32,6 +32,7 @@ import type {
   FindingSeverity,
   FindingType,
   ChatNotifierView,
+  RcaAnalysisView,
   SavedReportView,
   ApprovalFlowView,
   ApprovalFlowOption,
@@ -403,7 +404,7 @@ export async function getNonconformity(code: string): Promise<NcDetail | null> {
     .maybeSingle()
   if (!n) return null
 
-  const [{ data: acts }, { data: evs }, { data: procs }, { data: positions }, { data: audit }] = await Promise.all([
+  const [{ data: acts }, { data: evs }, { data: procs }, { data: positions }, { data: audit }, { data: rcaRow }] = await Promise.all([
     s.supabase.from("nc_actions").select("*").eq("nonconformity_id", n.id).order("created_at"),
     s.supabase.from("nc_evidences").select("*").eq("nonconformity_id", n.id).order("registered_at"),
     s.supabase.from("processes").select("id, code").eq("organization_id", s.org),
@@ -415,6 +416,7 @@ export async function getNonconformity(code: string): Promise<NcDetail | null> {
       .eq("entity_type", "NoConformidad")
       .eq("entity_id", n.id)
       .order("at", { ascending: false }),
+    s.supabase.from("rca_analyses").select("method, data, conclusion").eq("organization_id", s.org).eq("nonconformity_id", n.id).maybeSingle(),
   ])
 
   const posName = new Map((positions ?? []).map((p) => [p.id, p.name]))
@@ -478,6 +480,9 @@ export async function getNonconformity(code: string): Promise<NcDetail | null> {
       text: NC_EVENT_TEXT[a.action] ?? a.action,
     })),
     canManage: canManageNonconformities(s.user, n.process_id ?? undefined),
+    rca: rcaRow
+      ? { method: rcaRow.method as RcaAnalysisView["method"], data: (rcaRow.data ?? {}) as unknown as RcaAnalysisView["data"], conclusion: rcaRow.conclusion }
+      : null,
   }
 }
 
