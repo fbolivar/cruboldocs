@@ -1319,5 +1319,49 @@ await throws(() => as(db, U.juan, `insert into public.course_counters (organizat
 const lauraCourse = (await as(db, U.laura, `select code from public.create_course('${A}', 'Curso de calidad', '${P.sigA}', null, 80)`)).rows[0]
 ok(lauraCourse.code === "CAP-" + YEAR + "-002", "El líder del proceso crea cursos de su proceso (040)")
 
+
+// ========== 041 · Contexto de la organización (ISO 4.1/4.2) ==========
+// Cuestión externa (amenaza) con PESTEL
+const ctxIssue = (await as(db, U.juan, `select public.create_context_issue('${A}', 'amenaza', 'legal', 'Cambio normativo del sector', 'Riesgo de incumplimiento', '${P.sigA}', null) as id`)).rows[0].id
+ok((await as(db, U.juan, `select pestel from public.context_issues where id = '${ctxIssue}'`)).rows[0].pestel === "legal", "PESTEL se guarda en una cuestión externa (041)")
+// PESTEL solo aplica a externas: en una interna se descarta en el servidor
+const ctxF = (await as(db, U.juan, `select public.create_context_issue('${A}', 'fortaleza', 'legal', 'Equipo certificado', null, null, null) as id`)).rows[0].id
+ok((await as(db, U.juan, `select pestel from public.context_issues where id = '${ctxF}'`)).rows[0].pestel === null, "PESTEL se ignora en una cuestión interna (041)")
+// Generar riesgo desde la cuestión (4.1 → 6.1)
+const ctxRisk = (await as(db, U.juan, `select * from public.generate_risk_from_issue('${ctxIssue}', '${P.sigA}', '${POS.calidad}', 3, 3)`)).rows[0]
+ok(ctxRisk.code && ctxRisk.code.startsWith("R-"), "Generar riesgo desde la cuestión crea un R- (041)")
+ok((await as(db, U.juan, `select risk_id from public.context_issues where id = '${ctxIssue}'`)).rows[0].risk_id === ctxRisk.id, "La cuestión queda enlazada al riesgo (041)")
+ok((await as(db, U.juan, `select category from public.risks where id = '${ctxRisk.id}'`)).rows[0].category === "Contexto", "El riesgo generado se categoriza como Contexto (041)")
+// Idempotente: no genera un segundo riesgo
+await throws(() => as(db, U.juan, `select public.generate_risk_from_issue('${ctxIssue}', '${P.sigA}', '${POS.calidad}', 3, 3)`),
+  "Una cuestión no genera dos riesgos (041)", "ya generó un riesgo")
+// Consulta no gestiona el contexto
+await throws(() => as(db, U.sofia, `select public.create_context_issue('${A}', 'fortaleza', null, 'x', null, null, null)`),
+  "Sofía (consulta) no registra cuestiones (041)", "No puedes registrar")
+await throws(() => as(db, U.sofia, `select public.generate_risk_from_issue('${ctxF}', '${P.sigA}', '${POS.calidad}', 3, 3)`),
+  "Sofía (consulta) no genera riesgos desde el contexto (041)", "no puede identificar")
+// Líder de proceso puede registrar en su proceso
+const ctxLaura = (await as(db, U.laura, `select public.create_context_issue('${A}', 'debilidad', null, 'Alta rotación', null, '${P.sigA}', null) as id`)).rows[0].id
+ok(ctxLaura != null, "El líder del proceso registra cuestiones de su proceso (041)")
+// Archivar
+await as(db, U.juan, `select public.set_issue_archived('${ctxIssue}', true)`)
+ok((await as(db, U.juan, `select status from public.context_issues where id = '${ctxIssue}'`)).rows[0].status === "archivada", "Archivar una cuestión (041)")
+// Partes interesadas
+const ctxParty = (await as(db, U.juan, `select public.create_interested_party('${A}', 'ANLA', 'autoridad', 'cumplimiento', 'licencia ambiental', 'trimestral', '${P.sigA}', null) as id`)).rows[0].id
+ok((await as(db, U.juan, `select party_type from public.interested_parties where id = '${ctxParty}'`)).rows[0].party_type === "autoridad", "Registrar una parte interesada (041)")
+await as(db, U.juan, `select public.update_interested_party('${ctxParty}', 'ANLA', 'autoridad', 'cumplimiento', 'licencia ambiental vigente', 'mensual', '${P.sigA}', null)`)
+ok((await as(db, U.juan, `select monitoring from public.interested_parties where id = '${ctxParty}'`)).rows[0].monitoring === "mensual", "Editar una parte interesada (041)")
+await throws(() => as(db, U.sofia, `select public.create_interested_party('${A}', 'x', 'cliente', null, null, null, null, null)`),
+  "Sofía (consulta) no registra partes (041)", "No puedes registrar")
+// Aislamiento multi-tenant
+ok((await as(db, U.beto, `select count(*)::int n from public.context_issues where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve cuestiones de A (041)")
+ok((await as(db, U.beto, `select count(*)::int n from public.interested_parties where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve partes de A (041)")
+await throws(() => as(db, U.beto, `select public.create_context_issue('${A}', 'fortaleza', null, 'x', null, null, null)`),
+  "Beto (org B) no registra cuestiones en A (041)", "No puedes registrar")
+await throws(() => as(db, U.juan, `insert into public.context_issues (organization_id, swot, description) values ('${A}', 'fortaleza', 'x')`),
+  "Nadie inserta cuestiones por REST (041)", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.interested_parties (organization_id, name, party_type) values ('${A}', 'x', 'cliente')`),
+  "Nadie inserta partes por REST (041)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
