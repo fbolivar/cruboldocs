@@ -206,6 +206,16 @@ export function canApproveChange(user: CurrentUser): boolean {
   return hasRole(user, "lider_sig")
 }
 
+/** Pantalla Salidas no conformes (ISO 8.7): mismos roles del SIG que los demás módulos. */
+export function canSeeNcOutputs(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Registra/gestiona/cierra salidas no conformes y genera NC: Líder SIG o Líder del proceso. */
+export function canManageNcOutputs(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Pantalla Procesos (mapa + caracterización, ISO 4.4): mismos roles del SIG que los demás módulos. */
 export function canSeeProcessMap(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))

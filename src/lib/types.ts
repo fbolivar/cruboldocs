@@ -1779,6 +1779,48 @@ export interface DashboardBlock {
   visible: boolean
 }
 
+// ---------- Salida no conforme (ISO 8.7) (v1.3-5a) ----------
+
+export type NcOutputStatus = "abierto" | "tratado" | "cerrado" | "anulado"
+export type Disposition =
+  | "separar" | "reproceso" | "reclasificar" | "concesion" | "devolucion" | "desecho" | "suspender_servicio"
+
+export interface NcOutputListItem {
+  id: string
+  code: string
+  description: string
+  status: NcOutputStatus
+  disposition: Disposition | null
+  processName: string | null
+  detectedDate: string
+  nonconformityCode: string | null
+}
+
+export interface NcOutputsSummary {
+  open: number
+  treated: number
+  closed: number
+}
+
+export interface NcOutputDetail {
+  id: string
+  code: string
+  description: string
+  status: NcOutputStatus
+  processId: string | null
+  processName: string | null
+  detectedDate: string
+  identification: string | null
+  disposition: Disposition | null
+  dispositionDetail: string | null
+  customerInformed: boolean
+  responsibleName: string | null
+  nonconformityId: string | null
+  nonconformityCode: string | null
+  canManage: boolean
+  timeline: NcTimelineEvent[]
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

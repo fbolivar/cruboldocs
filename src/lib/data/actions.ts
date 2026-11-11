@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import {
   createUploadTicket,
@@ -3899,4 +3899,127 @@ export async function getFormPhotoUrls(paths: unknown): Promise<Record<string, s
     if (data?.signedUrl) out[path] = data.signedUrl
   }
   return out
+}
+
+// ---------- Salida no conforme (ISO 8.7) (v1.3-5a) ----------
+
+function revalidateNcOutputs() {
+  revalidatePath("/app/salidas-no-conformes", "layout")
+}
+
+const DISPOSITION = z.enum(["separar", "reproceso", "reclasificar", "concesion", "devolucion", "desecho", "suspender_servicio"])
+
+const ncOutputSchema = z.object({
+  description: z.string().trim().min(3).max(2000),
+  processId: z.uuid().nullish(),
+  detectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  identification: z.string().trim().max(1000).optional(),
+})
+
+const dispositionSchema = z.object({
+  disposition: DISPOSITION,
+  detail: z.string().trim().max(2000).optional(),
+  customerInformed: z.boolean().optional(),
+  responsiblePositionId: z.uuid().nullish(),
+})
+
+export async function createNcOutput(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = ncOutputSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la salida.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_nc_output", {
+      p_org: user.organization.id,
+      p_description: p.data.description,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_detected: (p.data.detectedDate ?? null) as unknown as string,
+      p_identification: p.data.identification ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNcOutputs()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateNcOutput(outputId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(outputId)) return fail(GENERIC)
+    const p = ncOutputSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la salida.")
+    const { error } = await (await createClient()).rpc("update_nc_output", {
+      p_output: outputId,
+      p_description: p.data.description,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_detected: (p.data.detectedDate ?? null) as unknown as string,
+      p_identification: p.data.identification ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNcOutputs()
+    return ok(undefined)
+  })
+}
+
+export async function setOutputDisposition(outputId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(outputId)) return fail(GENERIC)
+    const p = dispositionSchema.safeParse(input)
+    if (!p.success) return fail("Elige la disposición.")
+    const { error } = await (await createClient()).rpc("set_output_disposition", {
+      p_output: outputId,
+      p_disposition: p.data.disposition,
+      p_detail: p.data.detail ?? "",
+      p_customer_informed: p.data.customerInformed ?? false,
+      p_responsible: (p.data.responsiblePositionId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNcOutputs()
+    return ok(undefined)
+  })
+}
+
+export async function closeOutput(outputId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(outputId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("close_output", { p_output: outputId })
+    if (error) return fail(dbMessage(error))
+    revalidateNcOutputs()
+    return ok(undefined)
+  })
+}
+
+export async function cancelOutput(outputId: string, reason?: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(outputId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("cancel_output", {
+      p_output: outputId, p_reason: (reason ?? "").slice(0, 500),
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateNcOutputs()
+    return ok(undefined)
+  })
+}
+
+export async function generateNcFromNcOutput(outputId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(outputId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_from_snc", { p_output: outputId })
+    if (error) return fail(dbMessage(error))
+    revalidateNcOutputs()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function exportNcOutputsCsv(): Promise<string> {
+  const rows = await listNcOutputs()
+  type Row = (typeof rows)[number]
+  return toCsv<Row>(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Descripción", value: (r) => r.description },
+    { header: "Estado", value: (r) => r.status },
+    { header: "Disposición", value: (r) => r.disposition ?? "" },
+    { header: "Proceso", value: (r) => r.processName ?? "" },
+    { header: "Detectada", value: (r) => r.detectedDate },
+    { header: "NC", value: (r) => r.nonconformityCode ?? "" },
+  ])
 }

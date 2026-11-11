@@ -3074,6 +3074,92 @@ export type Database = {
           },
         ]
       }
+      nonconforming_outputs: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          customer_informed: boolean
+          description: string
+          detected_date: string
+          disposition: string | null
+          disposition_detail: string | null
+          id: string
+          identification: string | null
+          nonconformity_id: string | null
+          organization_id: string
+          process_id: string | null
+          responsible_position_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string
+          customer_informed?: boolean
+          description: string
+          detected_date?: string
+          disposition?: string | null
+          disposition_detail?: string | null
+          id?: string
+          identification?: string | null
+          nonconformity_id?: string | null
+          organization_id: string
+          process_id?: string | null
+          responsible_position_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          customer_informed?: boolean
+          description?: string
+          detected_date?: string
+          disposition?: string | null
+          disposition_detail?: string | null
+          id?: string
+          identification?: string | null
+          nonconformity_id?: string | null
+          organization_id?: string
+          process_id?: string | null
+          responsible_position_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nonconforming_outputs_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nonconforming_outputs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nonconforming_outputs_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "nonconforming_outputs_responsible_position_id_organization_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       nonconformities: {
         Row: {
           cancel_reason: string | null
@@ -4305,6 +4391,32 @@ export type Database = {
           },
         ]
       }
+      snc_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snc_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sst_actions: {
         Row: {
           created_at: string
@@ -5276,6 +5388,10 @@ export type Database = {
         Args: { org: string; process: string }
         Returns: boolean
       }
+      can_manage_nc_outputs: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_objectives: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -5318,6 +5434,7 @@ export type Database = {
       can_see_legal: { Args: { org: string }; Returns: boolean }
       can_see_metrology: { Args: { org: string }; Returns: boolean }
       can_see_minutes: { Args: { org: string }; Returns: boolean }
+      can_see_nc_outputs: { Args: { org: string }; Returns: boolean }
       can_see_nonconformities: { Args: { org: string }; Returns: boolean }
       can_see_objectives: { Args: { org: string }; Returns: boolean }
       can_see_person_competency: {
@@ -5341,6 +5458,10 @@ export type Database = {
         Returns: undefined
       }
       cancel_nc_action: { Args: { p_action: string }; Returns: undefined }
+      cancel_output: {
+        Args: { p_output: string; p_reason: string }
+        Returns: undefined
+      }
       cancel_pqrs: {
         Args: { p_case: string; p_reason: string }
         Returns: undefined
@@ -5384,6 +5505,7 @@ export type Database = {
       }
       close_evaluation: { Args: { p_eval: string }; Returns: undefined }
       close_minute: { Args: { p_minute: string }; Returns: undefined }
+      close_output: { Args: { p_output: string }; Returns: undefined }
       close_pqrs: {
         Args: { p_case: string; p_satisfied: boolean }
         Returns: undefined
@@ -5648,6 +5770,19 @@ export type Database = {
           p_process: string
           p_title: string
           p_type: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
+      create_nc_output: {
+        Args: {
+          p_description: string
+          p_detected: string
+          p_identification: string
+          p_org: string
+          p_process: string
         }
         Returns: {
           code: string
@@ -6001,6 +6136,13 @@ export type Database = {
           code: string
         }[]
       }
+      generate_nc_from_snc: {
+        Args: { p_output: string }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       generate_risk_from_issue: {
         Args: {
           p_impact: number
@@ -6348,6 +6490,33 @@ export type Database = {
           user_id: string
         }[]
       }
+      output_or_fail: {
+        Args: { p_output: string }
+        Returns: {
+          code: string
+          created_at: string
+          created_by: string
+          customer_informed: boolean
+          description: string
+          detected_date: string
+          disposition: string | null
+          disposition_detail: string | null
+          id: string
+          identification: string | null
+          nonconformity_id: string | null
+          organization_id: string
+          process_id: string | null
+          responsible_position_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "nonconforming_outputs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       party_or_fail: {
         Args: { p_party: string }
         Returns: {
@@ -6667,6 +6836,16 @@ export type Database = {
       }
       set_objective_status: {
         Args: { p_objective: string; p_status: string }
+        Returns: undefined
+      }
+      set_output_disposition: {
+        Args: {
+          p_customer_informed: boolean
+          p_detail: string
+          p_disposition: string
+          p_output: string
+          p_responsible: string
+        }
         Returns: undefined
       }
       set_party_archived: {
@@ -7009,6 +7188,16 @@ export type Database = {
           p_process: string
           p_title: string
           p_type: string
+        }
+        Returns: undefined
+      }
+      update_nc_output: {
+        Args: {
+          p_description: string
+          p_detected: string
+          p_identification: string
+          p_output: string
+          p_process: string
         }
         Returns: undefined
       }

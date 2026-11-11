@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
@@ -155,6 +155,11 @@ import type {
   ProcessMapSummary,
   ProcessDetail,
   DashboardBlock,
+  NcOutputListItem,
+  NcOutputsSummary,
+  NcOutputDetail,
+  NcOutputStatus,
+  Disposition,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3385,4 +3390,90 @@ export async function getDashboardLayout(): Promise<DashboardBlock[]> {
     .eq("user_id", s.user.id)
     .maybeSingle()
   return mergeLayout(data?.layout ?? null)
+}
+
+// ---------- Salida no conforme (ISO 8.7) (v1.3-5a) ----------
+
+const SNC_EVENT_TEXT: Record<string, string> = {
+  crear_salida: "Registró la salida no conforme.",
+  editar_salida: "Editó los datos.",
+  disposicion_salida: "Aplicó la disposición.",
+  cerrar_salida: "Cerró la salida.",
+  anular_salida: "Anuló la salida.",
+  salida_a_nc: "Generó una no conformidad.",
+}
+
+export async function getNcOutputsSummary(): Promise<NcOutputsSummary> {
+  const s = await scope()
+  if (!s) return { open: 0, treated: 0, closed: 0 }
+  const { data } = await s.supabase.from("nonconforming_outputs").select("status").eq("organization_id", s.org)
+  const rows = data ?? []
+  return {
+    open: rows.filter((r) => r.status === "abierto").length,
+    treated: rows.filter((r) => r.status === "tratado").length,
+    closed: rows.filter((r) => r.status === "cerrado").length,
+  }
+}
+
+export async function listNcOutputs(): Promise<NcOutputListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }, { data: ncs }] = await Promise.all([
+    s.supabase
+      .from("nonconforming_outputs")
+      .select("id, code, description, status, disposition, process_id, detected_date, nonconformity_id")
+      .eq("organization_id", s.org)
+      .order("code", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("nonconformities").select("id, code").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const ncMap = new Map((ncs ?? []).map((n) => [n.id, n.code]))
+  return (rows ?? []).map((o) => ({
+    id: o.id,
+    code: o.code,
+    description: o.description,
+    status: o.status as NcOutputStatus,
+    disposition: (o.disposition as Disposition | null) ?? null,
+    processName: o.process_id ? procMap.get(o.process_id) ?? null : null,
+    detectedDate: o.detected_date,
+    nonconformityCode: o.nonconformity_id ? ncMap.get(o.nonconformity_id) ?? null : null,
+  }))
+}
+
+export async function getNcOutput(code: string): Promise<NcOutputDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: o } = await s.supabase
+    .from("nonconforming_outputs").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!o) return null
+  const [{ data: proc }, { data: resp }, { data: nc }, { data: log }] = await Promise.all([
+    o.process_id ? s.supabase.from("processes").select("name").eq("id", o.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    o.responsible_position_id ? s.supabase.from("positions").select("name").eq("id", o.responsible_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    o.nonconformity_id ? s.supabase.from("nonconformities").select("code").eq("id", o.nonconformity_id).maybeSingle() : Promise.resolve({ data: null as { code: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "SalidaNoConforme").eq("entity_id", o.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: o.id,
+    code: o.code,
+    description: o.description,
+    status: o.status as NcOutputStatus,
+    processId: o.process_id,
+    processName: proc?.name ?? null,
+    detectedDate: o.detected_date,
+    identification: o.identification,
+    disposition: (o.disposition as Disposition | null) ?? null,
+    dispositionDetail: o.disposition_detail,
+    customerInformed: o.customer_informed,
+    responsibleName: resp?.name ?? null,
+    nonconformityId: o.nonconformity_id,
+    nonconformityCode: nc?.code ?? null,
+    canManage: canManageNcOutputs(s.user, o.process_id ?? undefined),
+    timeline: (log ?? []).map((x) => ({
+      at: x.at,
+      actor: x.actor_id ? person(x.actor_id).fullName : "Sistema",
+      text: SNC_EVENT_TEXT[x.action] ?? x.action,
+    })),
+  }
 }
