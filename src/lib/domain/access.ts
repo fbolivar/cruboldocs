@@ -319,6 +319,11 @@ export function canSeeReports(user: CurrentUser): boolean {
   return !!user.organization.id
 }
 
+/** Focos de riesgo (v1.5-4): roles del SIG (igual que riesgos/indicadores). */
+export function canSeeFocos(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
 /** Comparte/gestiona informes compartidos: Admin de organización o Líder SIG (igual que can_manage_reports). */
 export function canManageReports(user: CurrentUser): boolean {
   return user.isOrgAdmin || hasRole(user, "lider_sig")

@@ -11,6 +11,8 @@ import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
 import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
 import { sanitizeConfig } from "@/lib/bi/compute"
 import { maskChatUrl } from "@/lib/chat/providers"
+import { SEVERITY_ORDER, type RiskSignal } from "@/lib/focos/types"
+import { daysBetween, indicatorSeverity, isDescending, overdueSeverity, recurrenceSeverity, supplierSeverity } from "@/lib/focos/rules"
 import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageFlows, canManageForms, canManageReports, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
@@ -3889,4 +3891,106 @@ export async function getChatNotifierTarget(id: string): Promise<{ provider: "sl
   if (!s || !isUuid(id)) return null
   const { data } = await s.supabase.from("chat_notifiers").select("provider, url").eq("organization_id", s.org).eq("id", id).is("removed_at", null).maybeSingle()
   return data ? { provider: data.provider as "slack" | "teams", url: data.url } : null
+}
+
+// ---------- Calidad predictiva: Focos de riesgo (v1.5-4) ----------
+
+/** Calcula las señales de riesgo de los datos de la organización (RLS). Sin IA, sin persistencia. */
+export async function computeFocos(): Promise<RiskSignal[]> {
+  const s = await scope()
+  if (!s) return []
+  const today = todayIsoDate()
+  const nowIso = new Date().toISOString()
+  const since180 = new Date(Date.now() - 180 * 86_400_000).toISOString().slice(0, 10)
+  const out: RiskSignal[] = []
+
+  const [{ data: capa }, { data: scarRows }, { data: tasks }, { data: inds }, { data: meas }, { data: ncs }, { data: procs }, { data: sups }] = await Promise.all([
+    s.supabase.from("nc_actions").select("due_date, status").eq("organization_id", s.org).in("status", ["pendiente", "en_curso"]).lt("due_date", today),
+    s.supabase.from("scars").select("due_date, status").eq("organization_id", s.org).in("status", ["enviada", "respondida"]).lt("due_date", today),
+    s.supabase.from("tasks").select("id").eq("organization_id", s.org).eq("status", "pendiente").lt("due_date", nowIso),
+    s.supabase.from("indicators").select("id, code, name").eq("organization_id", s.org),
+    s.supabase.from("indicator_measurements").select("indicator_id, period, value, compliance").eq("organization_id", s.org).order("period", { ascending: false }),
+    s.supabase.from("nonconformities").select("process_id, detected_at, reopened_count, status, code").eq("organization_id", s.org),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("suppliers").select("code, name, status, criticality, is_active").eq("organization_id", s.org).eq("is_active", true),
+  ])
+  const procName = new Map((procs ?? []).map((p) => [p.id, p.name]))
+
+  // 1. Vencimientos acumulados
+  const overdueGroup = (rows: { due_date: string | null }[], label: string, href: string, cat: RiskSignal["category"]) => {
+    const dates = rows.map((r) => r.due_date).filter(Boolean) as string[]
+    if (dates.length === 0) return
+    const oldest = dates.reduce((a, b) => (a < b ? a : b))
+    const days = daysBetween(today, oldest)
+    out.push({
+      id: `venc-${label}`, category: cat, severity: overdueSeverity(dates.length, days),
+      title: `${dates.length} ${label} ${dates.length === 1 ? "vencido" : "vencidos"}`,
+      detail: `El más antiguo venció hace ${days} día${days === 1 ? "" : "s"}.`, href,
+    })
+  }
+  overdueGroup(capa ?? [], "acciones CAPA", "/app/no-conformidades", "vencimiento")
+  overdueGroup(scarRows ?? [], "SCAR", "/app/proveedores", "vencimiento")
+  if ((tasks ?? []).length > 0) {
+    out.push({
+      id: "venc-tareas", category: "vencimiento", severity: overdueSeverity((tasks ?? []).length, 0),
+      title: `${(tasks ?? []).length} tarea${(tasks ?? []).length === 1 ? "" : "s"} pendiente${(tasks ?? []).length === 1 ? "" : "s"} vencida${(tasks ?? []).length === 1 ? "" : "s"}`,
+      detail: "Revisa la bandeja y reasigna o cierra.", href: "/app",
+    })
+  }
+
+  // 2. Indicadores en caída
+  const byInd = new Map<string, { value: number | null; compliance: string }[]>()
+  for (const m of meas ?? []) {
+    const arr = byInd.get(m.indicator_id) ?? []
+    arr.push({ value: m.value === null ? null : Number(m.value), compliance: m.compliance })
+    byInd.set(m.indicator_id, arr)
+  }
+  for (const i of inds ?? []) {
+    const ms = byInd.get(i.id) ?? []
+    if (ms.length === 0) continue
+    const descending = isDescending(ms.slice(0, 3).map((x) => x.value ?? 0))
+    const sev = indicatorSeverity(ms[0].compliance, descending)
+    if (!sev) continue
+    out.push({
+      id: `ind-${i.id}`, category: "indicador", severity: sev,
+      title: `Indicador ${i.code} en alerta`,
+      detail: descending ? `${i.name}: tendencia a la baja en las últimas mediciones.` : `${i.name}: la última medición no cumple.`,
+      href: "/app/indicadores",
+    })
+  }
+
+  // 3. NC recurrentes por proceso + reabiertas
+  const open = (ncs ?? []).filter((n) => n.status !== "cerrada" && n.status !== "anulada")
+  const recent = new Map<string, number>()
+  for (const n of ncs ?? []) if (n.detected_at >= since180 && n.process_id) recent.set(n.process_id, (recent.get(n.process_id) ?? 0) + 1)
+  for (const [pid, count] of recent) {
+    const sev = recurrenceSeverity(count)
+    if (!sev) continue
+    out.push({
+      id: `ncrec-${pid}`, category: "nc", severity: sev,
+      title: `${count} no conformidades en ${procName.get(pid) ?? "un proceso"}`,
+      detail: "Recurrencia en los últimos 6 meses: revisa la causa sistémica.", href: "/app/no-conformidades",
+    })
+  }
+  const reopened = open.filter((n) => (n.reopened_count ?? 0) > 0).length
+  if (reopened > 0) {
+    out.push({
+      id: "nc-reabiertas", category: "nc", severity: "media",
+      title: `${reopened} no conformidad${reopened === 1 ? "" : "es"} reabierta${reopened === 1 ? "" : "s"}`,
+      detail: "La verificación de eficacia falló: refuerza el plan de acción.", href: "/app/no-conformidades",
+    })
+  }
+
+  // 4. Proveedores en descenso
+  for (const sup of sups ?? []) {
+    const sev = supplierSeverity(sup.status, sup.criticality)
+    if (!sev) continue
+    out.push({
+      id: `prov-${sup.code}`, category: "proveedor", severity: sev,
+      title: `Proveedor ${sup.name} ${sup.status}`,
+      detail: `Criticidad ${sup.criticality}. Revisa su evaluación o emite un SCAR.`, href: `/app/proveedores/${sup.code}`,
+    })
+  }
+
+  return out.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
 }
