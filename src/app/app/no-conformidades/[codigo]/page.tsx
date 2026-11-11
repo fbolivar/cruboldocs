@@ -8,6 +8,7 @@ import { NcSeverityBadge, NcStatusBadge } from "@/components/no-conformidades/ba
 import { NcActionsPanel } from "@/components/no-conformidades/nc-actions-panel"
 import { NcCancelButton } from "@/components/no-conformidades/nc-cancel-button"
 import { NcCause } from "@/components/no-conformidades/nc-cause"
+import { RcaAnalysis } from "@/components/no-conformidades/rca-analysis"
 import { NcStepper } from "@/components/no-conformidades/nc-stepper"
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { NcVerifyPanel } from "@/components/no-conformidades/nc-verify-panel"
@@ -84,8 +85,12 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
               <CopilotButton entity="nc" recordRef={nc.code} intent="Sugiere el análisis de causa raíz de esta no conformidad." positions={positionOptions} />
             )}
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-4">
             <NcCause ncId={nc.id} ncCode={nc.code} cause={nc.rootCause} canManage={nc.canManage} aiEnabled={agentEnabled} />
+            <div className="border-t border-borde pt-4">
+              <p className="mb-2 text-caption font-medium text-texto-sec">Análisis estructurado</p>
+              <RcaAnalysis ncId={nc.id} cause={nc.rootCause} rca={nc.rca} canManage={nc.canManage} />
+            </div>
           </CardContent>
         </Card>
 
