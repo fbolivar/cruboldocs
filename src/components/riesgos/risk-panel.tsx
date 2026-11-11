@@ -20,6 +20,8 @@ export interface PanelViewer {
   me: PersonRef
   positionId: string | null
   canManage: boolean
+  /** El copiloto está habilitado para la organización (opt-in). */
+  agentEnabled?: boolean
 }
 
 interface Props {

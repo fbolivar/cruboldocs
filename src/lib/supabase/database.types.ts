@@ -4226,6 +4226,10 @@ export type Database = {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
       }
+      ai_agent_consume_record: {
+        Args: { p_limit: number; p_org: string; p_period: string }
+        Returns: number
+      }
       archive_competency: {
         Args: { p_archive: boolean; p_competency: string }
         Returns: undefined

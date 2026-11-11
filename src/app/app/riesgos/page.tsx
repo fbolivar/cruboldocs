@@ -14,7 +14,7 @@ import { RiskTopFilters } from "@/components/riesgos/risk-top-filters"
 import { Page, PageHeader } from "@/components/shell/page"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser, getEntityNorms, getRisk, getRiskMatrix, listActiveNorms, listPositions, listProcesses, listRiskCategories, listRisks } from "@/lib/data/queries"
+import { getCurrentUser, getEntityNorms, getRisk, getRiskMatrix, isAgentEnabled, listActiveNorms, listPositions, listProcesses, listRiskCategories, listRisks } from "@/lib/data/queries"
 import { canManageRisks, canSeeRisks, canTagNorms } from "@/lib/domain/access"
 import { withParams } from "@/lib/url"
 
@@ -46,13 +46,14 @@ export default async function RiesgosPage({ searchParams }: PageProps<"/app/ries
   const { filters, page, riskId, identify } = parseRiskParams(sp)
   const canManage = canManageRisks(user)
 
-  const [matrix, list, risk, processes, categories, positions] = await Promise.all([
+  const [matrix, list, risk, processes, categories, positions, agentEnabled] = await Promise.all([
     orNull(getRiskMatrix(filters)),
     orNull(listRisks({ ...filters, page })),
     riskId ? orNull(getRisk(riskId)) : Promise.resolve(null),
     listProcesses().catch(() => []),
     listRiskCategories().catch(() => []),
     listPositions().catch(() => []),
+    isAgentEnabled().catch(() => false),
   ])
   const [allNorms, taggedNorms] = await Promise.all([
     listActiveNorms().catch(() => []),
@@ -105,6 +106,7 @@ export default async function RiesgosPage({ searchParams }: PageProps<"/app/ries
             positionId: user.positionId,
             // Líder de proceso: solo gestiona los riesgos de su proceso.
             canManage: risk ? canManageRisks(user, risk.processId) : false,
+            agentEnabled,
           }}
         />
       )}

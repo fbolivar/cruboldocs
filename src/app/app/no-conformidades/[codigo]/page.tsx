@@ -11,10 +11,11 @@ import { NcStepper } from "@/components/no-conformidades/nc-stepper"
 import { NcTimeline } from "@/components/no-conformidades/nc-timeline"
 import { NcVerifyPanel } from "@/components/no-conformidades/nc-verify-panel"
 import { SOURCE_LABELS } from "@/components/no-conformidades/labels"
+import { CopilotButton } from "@/components/agente/copilot-button"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { NormCell } from "@/components/multinorma/norm-cell"
-import { getCurrentUser, getEntityNorms, getNonconformity, listActiveNorms, listPositions } from "@/lib/data/queries"
+import { getCurrentUser, getEntityNorms, getNonconformity, isAgentEnabled, listActiveNorms, listPositions } from "@/lib/data/queries"
 import { canSeeNonconformities, canTagNorms } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
@@ -25,10 +26,11 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
   const user = await getCurrentUser()
   if (!canSeeNonconformities(user)) notFound()
 
-  const [nc, positions] = await Promise.all([getNonconformity(decodeURIComponent(codigo)), listPositions()])
+  const [nc, positions, agentEnabled] = await Promise.all([getNonconformity(decodeURIComponent(codigo)), listPositions(), isAgentEnabled()])
   if (!nc) notFound()
   const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
   const [norms, taggedNorms] = await Promise.all([listActiveNorms(), getEntityNorms("no_conformidad", nc.id)])
+  const showCopilot = agentEnabled && nc.canManage && nc.status !== "cerrada" && nc.status !== "anulada"
 
   return (
     <Page>
@@ -72,8 +74,11 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
 
         {/* Análisis de causa */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle>Análisis de causa</CardTitle>
+            {showCopilot && (
+              <CopilotButton entity="nc" recordRef={nc.code} intent="Sugiere el análisis de causa raíz de esta no conformidad." positions={positionOptions} />
+            )}
           </CardHeader>
           <CardContent>
             <NcCause ncId={nc.id} cause={nc.rootCause} canManage={nc.canManage} />
@@ -82,8 +87,11 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
 
         {/* Plan de acción */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle>Plan de acción</CardTitle>
+            {showCopilot && (
+              <CopilotButton entity="nc" recordRef={nc.code} intent="Propón las acciones del plan CAPA para esta no conformidad." positions={positionOptions} />
+            )}
           </CardHeader>
           <CardContent>
             <NcActionsPanel ncId={nc.id} actions={nc.actions} canManage={nc.canManage} positions={positionOptions} />

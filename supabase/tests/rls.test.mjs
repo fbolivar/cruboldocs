@@ -1147,5 +1147,20 @@ await throws(() => as(db, U.juan, `insert into public.form_templates (organizati
 await throws(() => as(db, U.juan, `insert into public.form_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "form_counters es deny-all (033)", "row-level security")
 
+// ========== 034 · Crubol-Agent copiloto — consumo por rol gestor ==========
+await svc(`update public.organizations set ai_agent_enabled = true where id = '${A}'`)
+await svc(`delete from public.ai_agent_usage where organization_id = '${A}'`)
+ok((await as(db, U.juan, `select public.ai_agent_consume_record('${A}', 200, '2026-11') as r`)).rows[0].r === 199,
+  "Líder SIG consume el copiloto; queda 199 de 200 (034)")
+await throws(() => as(db, U.sofia, `select public.ai_agent_consume_record('${A}', 200, '2026-11')`),
+  "Consulta no usa el copiloto (034)", "Sin permiso")
+await throws(() => as(db, U.diana, `select public.ai_agent_consume_record('${A}', 200, '2026-11')`),
+  "Responsable de control no usa el copiloto (034)", "Sin permiso")
+await throws(() => as(db, U.beto, `select public.ai_agent_consume_record('${A}', 200, '2026-11')`),
+  "Otra org no usa el copiloto en A (034)", "Sin permiso")
+await svc(`update public.organizations set ai_agent_enabled = false where id = '${A}'`)
+await throws(() => as(db, U.juan, `select public.ai_agent_consume_record('${A}', 200, '2026-11')`),
+  "Con el agente apagado no se consume (034)", "no está habilitado")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

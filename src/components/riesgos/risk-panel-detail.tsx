@@ -3,6 +3,7 @@
 import { PlusIcon } from "lucide-react"
 import { useState } from "react"
 
+import { CopilotButton } from "@/components/agente/copilot-button"
 import { AddControlForm } from "@/components/riesgos/add-control-form"
 import { AssessmentCards } from "@/components/riesgos/assessment-cards"
 import { ControlCard } from "@/components/riesgos/control-card"
@@ -25,6 +26,8 @@ interface Props {
 /** Cuerpo del panel: Análisis, Valoración y Controles. */
 export function RiskPanelDetail({ risk, assessments, controls, viewer, positions, onAssessmentAdded, onControlAdded, onRegisterEvidence }: Props) {
   const [addingControl, setAddingControl] = useState(false)
+  const copilot = Boolean(viewer.canManage && viewer.agentEnabled && risk.status === "activo")
+  const copilotPositions = positions.map((p) => ({ id: p.value, name: p.label }))
 
   return (
     <>
@@ -42,6 +45,11 @@ export function RiskPanelDetail({ risk, assessments, controls, viewer, positions
         </dl>
       </section>
 
+      {copilot && (
+        <div className="flex justify-end">
+          <CopilotButton entity="riesgo" recordRef={risk.id} intent="Sugiere una valoración (probabilidad e impacto, 1 a 5) para este riesgo." positions={copilotPositions} />
+        </div>
+      )}
       <AssessmentCards riskId={risk.id} me={viewer.me} assessments={assessments} canManage={viewer.canManage} onAdded={onAssessmentAdded} />
 
       <section aria-labelledby="sec-controles" className="flex flex-col gap-3">
@@ -49,12 +57,17 @@ export function RiskPanelDetail({ risk, assessments, controls, viewer, positions
           <h3 id="sec-controles" className="text-caption text-texto-sec uppercase">
             Controles ({controls.length})
           </h3>
-          {viewer.canManage && !addingControl && (
-            <Button variant="ghost" size="sm" onClick={() => setAddingControl(true)}>
-              <PlusIcon aria-hidden="true" />
-              Agregar control
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {copilot && (
+              <CopilotButton entity="riesgo" recordRef={risk.id} intent="Propón controles para este riesgo." positions={copilotPositions} />
+            )}
+            {viewer.canManage && !addingControl && (
+              <Button variant="ghost" size="sm" onClick={() => setAddingControl(true)}>
+                <PlusIcon aria-hidden="true" />
+                Agregar control
+              </Button>
+            )}
+          </div>
         </div>
         {addingControl && (
           <AddControlForm
