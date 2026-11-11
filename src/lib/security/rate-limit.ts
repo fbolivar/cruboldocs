@@ -27,6 +27,8 @@ const RULES = {
   // Encuesta pública: anti-flooding por IP y por (token, IP). Generoso (muchos clientes responden).
   "encuesta:ip": { limit: 30, window: "10 m" },
   "encuesta:token_ip": { limit: 10, window: "1 h" },
+  // API pública de solo lectura: tope por clave (control de abuso).
+  "api:key": { limit: 120, window: "1 m" },
 } satisfies Record<string, Rule>
 
 export type LimitKey = keyof typeof RULES

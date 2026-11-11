@@ -18,6 +18,7 @@ import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
 import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
+import { generateApiToken } from "@/lib/api/keys"
 import {
   createUploadTicket,
   promoteUpload,
@@ -41,6 +42,7 @@ import { createAdminClient, createAuthClient, createClient, createEphemeralClien
 import type { Json } from "@/lib/supabase/database.types"
 import type {
   AuditFilters,
+  ApiKeyCreated,
   ControlType,
   CourseAttemptResult,
   CurrentUser,
@@ -4022,4 +4024,37 @@ export async function exportNcOutputsCsv(): Promise<string> {
     { header: "Detectada", value: (r) => r.detectedDate },
     { header: "NC", value: (r) => r.nonconformityCode ?? "" },
   ])
+}
+
+// ---------- API pública: claves (v1.3) ----------
+
+const apiKeySchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  scopes: z.array(z.enum(["read:nonconformities", "read:indicators", "read:risks", "read:audits", "read:pqrs"])).min(1),
+})
+
+export async function createApiKey(input: unknown): Promise<Result<ApiKeyCreated>> {
+  return guard(async () => {
+    const p = apiKeySchema.safeParse(input)
+    if (!p.success) return fail("Revisa el nombre y los permisos.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { token, prefix, hash } = generateApiToken()
+    const { error } = await (await createClient()).rpc("create_api_key", {
+      p_org: user.organization.id, p_name: p.data.name, p_scopes: p.data.scopes, p_prefix: prefix, p_hash: hash,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app/admin", "layout")
+    return ok({ token, keyPrefix: prefix })
+  })
+}
+
+export async function revokeApiKey(keyId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(keyId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("revoke_api_key", { p_key: keyId })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app/admin", "layout")
+    return ok(undefined)
+  })
 }

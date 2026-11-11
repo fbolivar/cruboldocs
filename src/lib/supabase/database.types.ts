@@ -99,6 +99,53 @@ export type Database = {
           },
         ]
       }
+      api_keys: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          organization_id: string
+          revoked_at: string | null
+          scopes: string[]
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          organization_id: string
+          revoked_at?: string | null
+          scopes: string[]
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          organization_id?: string
+          revoked_at?: string | null
+          scopes?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_counters: {
         Row: {
           last_seq: number
@@ -5575,6 +5622,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_api_key: {
+        Args: {
+          p_hash: string
+          p_name: string
+          p_org: string
+          p_prefix: string
+          p_scopes: string[]
+        }
+        Returns: string
+      }
       create_aspect: {
         Args: {
           p_activity: string
@@ -6755,6 +6812,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      revoke_api_key: { Args: { p_key: string }; Returns: undefined }
       risk_or_fail: {
         Args: { p_risk: string }
         Returns: {

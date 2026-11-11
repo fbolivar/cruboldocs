@@ -160,6 +160,8 @@ import type {
   NcOutputDetail,
   NcOutputStatus,
   Disposition,
+  ApiKeyView,
+  ApiScope,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3476,4 +3478,20 @@ export async function getNcOutput(code: string): Promise<NcOutputDetail | null> 
       text: SNC_EVENT_TEXT[x.action] ?? x.action,
     })),
   }
+}
+
+// ---------- API pública: claves (v1.3) ----------
+
+export async function listApiKeys(): Promise<ApiKeyView[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase
+    .from("api_keys")
+    .select("id, name, key_prefix, scopes, created_at, last_used_at, revoked_at")
+    .eq("organization_id", s.org)
+    .order("created_at", { ascending: false })
+  return (data ?? []).map((k) => ({
+    id: k.id, name: k.name, keyPrefix: k.key_prefix, scopes: k.scopes as ApiScope[],
+    createdAt: k.created_at, lastUsedAt: k.last_used_at, revokedAt: k.revoked_at,
+  }))
 }

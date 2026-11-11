@@ -1821,6 +1821,27 @@ export interface NcOutputDetail {
   timeline: NcTimelineEvent[]
 }
 
+// ---------- API pública (claves de API) (v1.3) ----------
+
+export type ApiScope =
+  | "read:nonconformities" | "read:indicators" | "read:risks" | "read:audits" | "read:pqrs"
+
+export interface ApiKeyView {
+  id: string
+  name: string
+  keyPrefix: string
+  scopes: ApiScope[]
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+}
+
+/** Devuelto al crear una clave: el token en claro, visible una sola vez. */
+export interface ApiKeyCreated {
+  token: string
+  keyPrefix: string
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

@@ -279,14 +279,20 @@ export type AdminTab =
   | "normas"
   | "recertificacion"
   | "auditoria"
+  | "api"
   | "organizaciones"
+
+/** Administra las claves de API: Admin de organización o Líder SIG (igual que can_manage_org). */
+export function canManageApiKeys(user: CurrentUser): boolean {
+  return user.isOrgAdmin || hasRole(user, "lider_sig")
+}
 
 /** Pestañas visibles de /app/admin según rol (spec-admin). */
 export function adminTabsFor(user: CurrentUser): AdminTab[] {
   // El Superadmin solo administra organizaciones; el resto, solo si además es miembro con ese rol.
   const platform: AdminTab[] = user.isPlatformAdmin ? ["organizaciones"] : []
   if (user.isOrgAdmin || hasRole(user, "lider_sig")) {
-    return [...platform, "usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria"]
+    return [...platform, "usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria", "api"]
   }
   if (hasRole(user, "auditor")) return [...platform, "auditoria"]
   return platform
