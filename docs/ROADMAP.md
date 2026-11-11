@@ -14,6 +14,20 @@ electrónica con hash, confirmación de lectura, distribución por cargo, revisi
 Esto equivale a ~2–3 de los ~10 módulos de una suite ISO 9001. Falta el bloque de **Evaluación del
 desempeño (ISO 9001 cap. 9)** y **Mejora (cap. 10)**.
 
+## v1.1 — Paridad y diferenciación con el mercado (decisión de Fernando, 2026-11-10)
+
+Tras el análisis de mercado (KAWAK, Isolución, ISOTools, Suite Visión; internacionales MasterControl/ComplianceQuest/ETQ), el núcleo ISO 9001 está **a la par**; estos 5 ítems cierran los gaps y añaden diferenciación. Orden de ejecución aprobado (gano-rápido → apuesta estratégica), cada uno por el pipeline completo con paradas de aprobación:
+
+| # | Feature | Gap que cierra | Cláusula/mercado | Esfuerzo |
+|---|---|---|---|---|
+| v1.1-1 | **Dashboard gerencial transversal** + export PDF/Excel con gráficas | Reportería/BI y tablero ejecutivo | 9.1/9.3; debilidad de competidores | M |
+| v1.1-2 | **Encuesta de satisfacción enviable** (link público por token → medición actual) | Motor de encuestas (hoy solo registras el resultado) | 9.1.2 | M |
+| v1.1-3 | **Matriz de requisitos legales** (registro + evaluación de cumplimiento) | Requisito legal/normativo | 14001/45001; muy pedido | S–M |
+| v1.1-4 | **Sistema Integrado de Gestión multi-norma** (etiquetar procesos/docs/riesgos/NC por norma + registros propios de 45001 SG-SST y 14001) | Multi-norma (el gap más grande; SG-SST obligatorio en Colombia) | ISO 14001/45001, Dec. 1072 | L |
+| v1.1-5 | **Constructor de formularios / listas de verificación** configurable | "App de calidad" → "plataforma" | transversal | XL |
+
+Cada ítem respeta las reglas invariables: RLS por `organization_id`, migración versionada, aprobación de alcance y de diseño, auditoría de seguridad antes del deploy, reutilizar lo existente. El diferenciador **Crubol-Agent (IA)** se aprovecha donde aplique (p. ej. resumir el dashboard, sugerir requisitos legales, prellenar formularios) con re-auditoría previa.
+
 ## Secuencia de módulos (orden por impacto)
 
 | # | Módulo | Cláusula ISO | Por qué / qué reutiliza | Esfuerzo |
