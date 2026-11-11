@@ -1548,7 +1548,7 @@ await throws(() => as(db, U.juan, `select public.create_webhook_endpoint('${A}',
 await throws(() => as(db, U.juan, `select public.create_webhook_endpoint('${A}', 'https://x.example', array['foo.bar'], 's')`),
   "Evento inválido se rechaza (047)", "Evento no válido")
 // Crear una NC dispara el encolado hacia el endpoint suscrito
-const trigNc = (await svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'otro', null, 'Dispara webhook', 'x', 'menor', current_date)`)).rows[0]
+await svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'otro', null, 'Dispara webhook', 'x', 'menor', current_date)`)
 ok((await as(db, U.juan, `select count(*)::int n from public.webhook_deliveries where endpoint_id = '${ep}' and event = 'nonconformity.created'`)).rows[0].n >= 1, "Crear NC encola entregas al endpoint suscrito (047)")
 // Una PQRS NO encola a un endpoint que solo escucha NC
 const beforePqrs = (await as(db, U.juan, `select count(*)::int n from public.webhook_deliveries where endpoint_id = '${ep}'`)).rows[0].n
@@ -1567,6 +1567,37 @@ ok((await as(db, U.beto, `select count(*)::int n from public.webhook_endpoints w
 // Idempotencia deny-all
 await throws(() => as(db, U.juan, `insert into public.api_idempotency (organization_id, idem_key, response) values ('${A}', 'k', '{}'::jsonb)`),
   "api_idempotency es deny-all (047)", "row-level security")
+
+
+// ========== 048 · Gestión del conocimiento (ISO 7.1.6) ==========
+const art = (await as(db, U.juan, `select id, code from public.create_knowledge_article('${A}', 'Buena práctica de inducción', 'buenas_practicas', '${P.sigA}', 'Contenido del artículo', 'Taller interno')`)).rows[0]
+ok(art.code === "KN-" + YEAR + "-001", "Numeración KN-AAAA-001 (048)")
+// Categoría inválida
+await throws(() => as(db, U.juan, `select public.create_knowledge_article('${A}', 'x y z', 'inventada', null, 'contenido', null)`),
+  "Categoría inválida se rechaza (048)", "Categoría no válida")
+// Visible para cualquier miembro (incluso la consulta)
+ok((await as(db, U.sofia, `select count(*)::int n from public.knowledge_articles where organization_id = '${A}'`)).rows[0].n >= 1, "La consulta ve la base de conocimiento (048)")
+// La consulta NO gestiona
+await throws(() => as(db, U.sofia, `select public.create_knowledge_article('${A}', 'x y z', 'faq', null, 'c', null)`),
+  "Sofía (consulta) no crea artículos (048)", "No puedes crear")
+// Editar y archivar por el líder
+await as(db, U.juan, `select public.update_knowledge_article('${art.id}', 'Inducción v2', 'know_how', '${P.sigA}', 'Nuevo contenido', null)`)
+ok((await as(db, U.juan, `select category from public.knowledge_articles where id = '${art.id}'`)).rows[0].category === "know_how", "Editar un artículo (048)")
+await as(db, U.juan, `select public.set_article_archived('${art.id}', true)`)
+ok((await as(db, U.juan, `select status from public.knowledge_articles where id = '${art.id}'`)).rows[0].status === "archivado", "Archivar un artículo (048)")
+// Lección desde una NC (reusa una NC existente de A)
+const someNc = (await as(db, U.juan, `select id, code from public.nonconformities where organization_id = '${A}' limit 1`)).rows[0]
+const lesson = (await as(db, U.juan, `select * from public.create_article_from_nc('${someNc.id}')`)).rows[0]
+ok(lesson.code && lesson.code.startsWith("KN-"), "Registrar lección desde una NC crea un KN- (048)")
+ok((await as(db, U.juan, `select category, source_nc_id from public.knowledge_articles where id = '${lesson.id}'`)).rows[0].category === "lecciones_aprendidas", "La lección es de categoría lecciones_aprendidas y queda ligada a la NC (048)")
+// Aislamiento
+ok((await as(db, U.beto, `select count(*)::int n from public.knowledge_articles where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve el conocimiento de A (048)")
+await throws(() => as(db, U.beto, `select public.create_knowledge_article('${A}', 'x y z', 'faq', null, 'c', null)`),
+  "Beto (org B) no crea artículos en A (048)", "No puedes crear")
+await throws(() => as(db, U.juan, `insert into public.knowledge_articles (organization_id, code, title, category, content) values ('${A}', 'X', 'xxx', 'faq', 'c')`),
+  "Nadie inserta artículos por REST (048)", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.kn_counters (organization_id, year, last_seq) values ('${A}', 2026, 9)`),
+  "kn_counters es deny-all (048)", "row-level security")
 
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
