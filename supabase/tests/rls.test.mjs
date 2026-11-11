@@ -1270,5 +1270,54 @@ ok((await as(db, U.beto, `select count(*)::int n from public.change_control wher
 await throws(() => as(db, U.juan, `insert into public.change_control (organization_id, code, title, change_type) values ('${A}', 'X', 'x', 'otro')`),
   "Nadie inserta cambios por REST (038)", "row-level security")
 
+
+// ========== 040 · Capacitación / LMS (ISO 7.2) ==========
+const course = (await as(db, U.juan, `select id, code from public.create_course('${A}', 'Inducción en SST', '${P.sigA}', 'Curso base', 70)`)).rows[0]
+ok(course.code === "CAP-" + YEAR + "-001", "Numeración CAP-AAAA-001 (040)")
+ok((await as(db, U.juan, `select status from public.courses where id = '${course.id}'`)).rows[0].status === "borrador", "El curso nace en borrador (040)")
+// Publicar sin preguntas falla
+await throws(() => as(db, U.juan, `select public.publish_course('${course.id}')`),
+  "No se publica un curso sin preguntas (040)", "al menos una pregunta")
+// Opciones inválidas (dos correctas) se rechazan
+await throws(() => as(db, U.juan, `select public.add_course_question('${course.id}', '¿Qué es un EPP?', '[{"text":"a","correct":true},{"text":"b","correct":true}]'::jsonb)`),
+  "Una pregunta con dos correctas se rechaza (040)", "exactamente una correcta")
+// Pregunta válida
+const q1 = (await as(db, U.juan, `select public.add_course_question('${course.id}', '¿Qué es un EPP?', '[{"text":"Elemento de Protección Personal","correct":true},{"text":"Equipo de Primeros Pasos","correct":false}]'::jsonb) as id`)).rows[0].id
+ok((await as(db, U.juan, `select count(*)::int n from public.course_questions where course_id = '${course.id}' and is_active`)).rows[0].n === 1, "Se agrega la pregunta (040)")
+// Consulta no puede editar preguntas
+await throws(() => as(db, U.sofia, `select public.add_course_question('${course.id}', 'x', '[{"text":"a","correct":true},{"text":"b","correct":false}]'::jsonb)`),
+  "Sofía (consulta) no edita preguntas (040)", "No puedes editar")
+// Publicar
+await as(db, U.juan, `select public.publish_course('${course.id}')`)
+ok((await as(db, U.juan, `select status from public.courses where id = '${course.id}'`)).rows[0].status === "publicado", "Líder SIG publica el curso (040)")
+// Tras publicar, las preguntas quedan congeladas
+await throws(() => as(db, U.juan, `select public.add_course_question('${course.id}', 'y', '[{"text":"a","correct":true},{"text":"b","correct":false}]'::jsonb)`),
+  "Un curso publicado no admite nuevas preguntas (040)", "borrador")
+// get_course_to_take NO filtra la respuesta correcta
+const take = (await as(db, U.sofia, `select public.get_course_to_take('${A}', '${course.code}') j`)).rows[0].j
+ok(Array.isArray(take.questions) && take.questions.length === 1, "get_course_to_take devuelve las preguntas (040)")
+ok(typeof take.questions[0].options[0] === "string", "Las opciones se entregan como texto plano (040)")
+ok(!JSON.stringify(take).includes("correct"), "get_course_to_take NUNCA filtra la marca de correcta (040)")
+// Calificación en el servidor: respuesta correcta → 100 aprobado
+const capR1 = (await as(db, U.sofia, `select public.submit_course_attempt('${course.id}', '{"${q1}":0}'::jsonb) j`)).rows[0].j
+ok(capR1.score === 100 && capR1.status === "aprobado", "Responder bien → 100% aprobado (040)")
+// Reintento con respuesta incorrecta: upsert reemplaza, no duplica
+const capR2 = (await as(db, U.sofia, `select public.submit_course_attempt('${course.id}', '{"${q1}":1}'::jsonb) j`)).rows[0].j
+ok(capR2.score === 0 && capR2.status === "no_aprobado", "Responder mal → 0% no aprobado (040)")
+ok((await as(db, U.juan, `select count(*)::int n from public.course_enrollments where course_id = '${course.id}' and user_id = '${U.sofia}'`)).rows[0].n === 1, "El reintento actualiza la inscripción (no duplica) (040)")
+// Aislamiento y deny-all
+await throws(() => as(db, U.sofia, `select public.create_course('${A}', 'x', null, null, 70)`),
+  "Sofía (consulta) no crea cursos (040)", "No puedes crear")
+await throws(() => as(db, U.beto, `select public.create_course('${A}', 'x', null, null, 70)`),
+  "Beto (org B) no crea cursos en A (040)", "No puedes crear")
+ok((await as(db, U.beto, `select count(*)::int n from public.courses where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve cursos de A (040)")
+await throws(() => as(db, U.juan, `insert into public.courses (organization_id, code, title) values ('${A}', 'X', 'x')`),
+  "Nadie inserta cursos por REST (040)", "row-level security")
+await throws(() => as(db, U.juan, `insert into public.course_counters (organization_id, year, last_seq) values ('${A}', 2026, 9)`),
+  "course_counters es deny-all (040)", "row-level security")
+// Líder de proceso del curso puede crear uno de su proceso
+const lauraCourse = (await as(db, U.laura, `select code from public.create_course('${A}', 'Curso de calidad', '${P.sigA}', null, 80)`)).rows[0]
+ok(lauraCourse.code === "CAP-" + YEAR + "-002", "El líder del proceso crea cursos de su proceso (040)")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
