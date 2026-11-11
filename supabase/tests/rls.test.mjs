@@ -1363,5 +1363,29 @@ await throws(() => as(db, U.juan, `insert into public.context_issues (organizati
 await throws(() => as(db, U.juan, `insert into public.interested_parties (organization_id, name, party_type) values ('${A}', 'x', 'cliente')`),
   "Nadie inserta partes por REST (041)", "row-level security")
 
+
+// ========== 042 · Caracterización de procesos (ISO 4.4) ==========
+const NULLS9 = "null, null, null, null, null, null, null, null, null"
+// Líder SIG caracteriza cualquier proceso
+await as(db, U.juan, `select public.update_process_characterization('${P.sigA}', 'Asegurar la conformidad del SGC', 'Todos los procesos', 'Requisitos ISO', 'Dirección', 'SGC mantenido', 'Todos los procesos', 'Plataforma', 'Planear auditorías', 'Ejecutarlas', 'Revisar resultados', 'Mejorar')`)
+ok((await as(db, U.juan, `select objective from public.processes where id = '${P.sigA}'`)).rows[0].objective === "Asegurar la conformidad del SGC", "Caracterizar guarda el objetivo (042)")
+ok((await as(db, U.juan, `select characterized_at is not null ok from public.processes where id = '${P.sigA}'`)).rows[0].ok === true, "Caracterizar marca characterized_at (042)")
+ok((await as(db, U.juan, `select phva_plan from public.processes where id = '${P.sigA}'`)).rows[0].phva_plan === "Planear auditorías", "Caracterizar guarda el PHVA (042)")
+// Líder del proceso caracteriza su proceso
+await as(db, U.laura, `select public.update_process_characterization('${P.sigA}', 'Objetivo ajustado', ${NULLS9}, null)`)
+ok((await as(db, U.laura, `select objective from public.processes where id = '${P.sigA}'`)).rows[0].objective === "Objetivo ajustado", "El líder del proceso caracteriza su proceso (042)")
+// Campos vacíos se normalizan a null
+await as(db, U.juan, `select public.update_process_characterization('${P.sigA}', '   ', ${NULLS9}, null)`)
+ok((await as(db, U.juan, `select objective from public.processes where id = '${P.sigA}'`)).rows[0].objective === null, "Un objetivo en blanco se normaliza a null (042)")
+// Responsable de control (no líder) no caracteriza
+await throws(() => as(db, U.diana, `select public.update_process_characterization('${P.tiA}', 'x', ${NULLS9}, null)`),
+  "Responsable de control no caracteriza (042)", "No puedes caracterizar")
+// Consulta no caracteriza
+await throws(() => as(db, U.sofia, `select public.update_process_characterization('${P.sigA}', 'x', ${NULLS9}, null)`),
+  "Sofía (consulta) no caracteriza (042)", "No puedes caracterizar")
+// Otra organización no caracteriza procesos de A
+await throws(() => as(db, U.beto, `select public.update_process_characterization('${P.sigA}', 'x', ${NULLS9}, null)`),
+  "Beto (org B) no caracteriza procesos de A (042)", "no encontrado o sin acceso")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
