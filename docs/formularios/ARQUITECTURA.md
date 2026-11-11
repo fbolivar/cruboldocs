@@ -67,4 +67,4 @@ Pantallas: `/app/formularios` (lista de plantillas), `/app/formularios/[code]/ed
 - [x] Multi-tenant (org + RLS).
 - [x] Camino dorado de punta a punta (diseñar → publicar → diligenciar → exportar).
 - [x] Riesgos con mitigación.
-- [ ] **Fernando decide A–E y aprueba el alcance antes de pasar a diseño.**
+- [x] **Fernando decidió (2026-11-10): A=mínimo (9 tipos), B=interno, C=clonar al publicar, D=independiente, E=separado de la encuesta. Alcance APROBADO.** Siguiente: fase de diseño.
