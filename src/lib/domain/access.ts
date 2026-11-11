@@ -206,6 +206,16 @@ export function canApproveChange(user: CurrentUser): boolean {
   return hasRole(user, "lider_sig")
 }
 
+/** Base de conocimiento (ISO 7.1.6): visible para cualquier miembro activo de la organización. */
+export function canSeeKnowledge(user: CurrentUser): boolean {
+  return Boolean(user.organization)
+}
+
+/** Crea/edita/archiva artículos y registra lecciones: Líder SIG o Líder del proceso. */
+export function canManageKnowledge(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Pantalla Salidas no conformes (ISO 8.7): mismos roles del SIG que los demás módulos. */
 export function canSeeNcOutputs(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))

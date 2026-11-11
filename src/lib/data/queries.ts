@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
@@ -163,6 +163,11 @@ import type {
   ApiKeyView,
   ApiScope,
   WebhookEndpointView,
+  KnowledgeListItem,
+  KnowledgeSummary,
+  KnowledgeDetail,
+  KnowledgeCategory,
+  KnowledgeStatus,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3517,4 +3522,70 @@ export async function listWebhookEndpoints(): Promise<WebhookEndpointView[]> {
     createdAt: e.created_at, revokedAt: e.revoked_at,
     deliveries: total.get(e.id) ?? 0, failed: failed.get(e.id) ?? 0,
   }))
+}
+
+// ---------- Gestión del conocimiento (ISO 7.1.6) (v1.4-2) ----------
+
+const KN_EVENT_TEXT: Record<string, string> = {
+  crear_articulo: "Creó el artículo.",
+  editar_articulo: "Editó el artículo.",
+  estado_articulo: "Cambió el estado.",
+  leccion_desde_nc: "Lección creada desde una no conformidad.",
+  leccion_desde_auditoria: "Lección creada desde una auditoría.",
+}
+
+const EMPTY_BY_CAT: Record<KnowledgeCategory, number> = { buenas_practicas: 0, lecciones_aprendidas: 0, know_how: 0, faq: 0 }
+
+export async function getKnowledgeSummary(): Promise<KnowledgeSummary> {
+  const s = await scope()
+  if (!s) return { total: 0, byCategory: { ...EMPTY_BY_CAT } }
+  const { data } = await s.supabase.from("knowledge_articles").select("category").eq("organization_id", s.org).eq("status", "vigente")
+  const byCategory = { ...EMPTY_BY_CAT }
+  for (const a of data ?? []) byCategory[a.category as KnowledgeCategory]++
+  return { total: (data ?? []).length, byCategory }
+}
+
+export async function listKnowledge(): Promise<KnowledgeListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: arts }, { data: procs }, { data: ncs }, { data: auds }] = await Promise.all([
+    s.supabase.from("knowledge_articles")
+      .select("id, code, title, category, process_id, source_nc_id, source_audit_id, status")
+      .eq("organization_id", s.org).order("code", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("nonconformities").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("audits").select("id, code").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const ncMap = new Map((ncs ?? []).map((n) => [n.id, n.code]))
+  const audMap = new Map((auds ?? []).map((a) => [a.id, a.code]))
+  return (arts ?? []).map((a) => ({
+    id: a.id, code: a.code, title: a.title, category: a.category as KnowledgeCategory,
+    processName: a.process_id ? procMap.get(a.process_id) ?? null : null,
+    sourceNcCode: a.source_nc_id ? ncMap.get(a.source_nc_id) ?? null : null,
+    sourceAuditCode: a.source_audit_id ? audMap.get(a.source_audit_id) ?? null : null,
+    status: a.status as KnowledgeStatus,
+    canManage: canManageKnowledge(s.user, a.process_id ?? undefined),
+  }))
+}
+
+export async function getKnowledgeArticle(code: string): Promise<KnowledgeDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: a } = await s.supabase.from("knowledge_articles").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!a) return null
+  const [{ data: proc }, { data: nc }, { data: aud }, { data: log }] = await Promise.all([
+    a.process_id ? s.supabase.from("processes").select("name").eq("id", a.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    a.source_nc_id ? s.supabase.from("nonconformities").select("code").eq("id", a.source_nc_id).maybeSingle() : Promise.resolve({ data: null as { code: string } | null }),
+    a.source_audit_id ? s.supabase.from("audits").select("code").eq("id", a.source_audit_id).maybeSingle() : Promise.resolve({ data: null as { code: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Conocimiento").eq("entity_id", a.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: a.id, code: a.code, title: a.title, category: a.category as KnowledgeCategory, content: a.content,
+    processId: a.process_id, processName: proc?.name ?? null, source: a.source,
+    sourceNcCode: nc?.code ?? null, sourceAuditCode: aud?.code ?? null, status: a.status as KnowledgeStatus,
+    canManage: canManageKnowledge(s.user, a.process_id ?? undefined),
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: KN_EVENT_TEXT[x.action] ?? x.action })),
+  }
 }

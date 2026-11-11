@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import { generateApiToken } from "@/lib/api/keys"
 import {
@@ -4091,4 +4091,93 @@ export async function revokeWebhookEndpoint(endpointId: string): Promise<Result>
     revalidatePath("/app/admin", "layout")
     return ok(undefined)
   })
+}
+
+// ---------- Gestión del conocimiento (ISO 7.1.6) (v1.4-2) ----------
+
+function revalidateKnowledge() {
+  revalidatePath("/app/conocimiento", "layout")
+}
+
+const CATEGORY = z.enum(["buenas_practicas", "lecciones_aprendidas", "know_how", "faq"])
+const articleSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  category: CATEGORY,
+  processId: z.uuid().nullish(),
+  content: z.string().trim().min(1).max(20000),
+  source: z.string().trim().max(500).optional(),
+})
+
+export async function createKnowledgeArticle(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = articleSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el título, la categoría y el contenido.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_knowledge_article", {
+      p_org: user.organization.id, p_title: p.data.title, p_category: p.data.category,
+      p_process: (p.data.processId ?? null) as unknown as string, p_content: p.data.content, p_source: p.data.source ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateKnowledge()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateKnowledgeArticle(articleId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(articleId)) return fail(GENERIC)
+    const p = articleSchema.safeParse(input)
+    if (!p.success) return fail("Revisa el título, la categoría y el contenido.")
+    const { error } = await (await createClient()).rpc("update_knowledge_article", {
+      p_article: articleId, p_title: p.data.title, p_category: p.data.category,
+      p_process: (p.data.processId ?? null) as unknown as string, p_content: p.data.content, p_source: p.data.source ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateKnowledge()
+    return ok(undefined)
+  })
+}
+
+export async function setArticleArchived(articleId: string, archived: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(articleId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_article_archived", { p_article: articleId, p_archived: archived })
+    if (error) return fail(dbMessage(error))
+    revalidateKnowledge()
+    return ok(undefined)
+  })
+}
+
+export async function createLessonFromNc(ncId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(ncId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("create_article_from_nc", { p_nc: ncId })
+    if (error) return fail(dbMessage(error))
+    revalidateKnowledge()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function createLessonFromAudit(auditId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(auditId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("create_article_from_audit", { p_audit: auditId })
+    if (error) return fail(dbMessage(error))
+    revalidateKnowledge()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function exportKnowledgeCsv(): Promise<string> {
+  const rows = await listKnowledge()
+  type Row = (typeof rows)[number]
+  return toCsv<Row>(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Título", value: (r) => r.title },
+    { header: "Categoría", value: (r) => r.category },
+    { header: "Proceso", value: (r) => r.processName ?? "" },
+    { header: "Origen", value: (r) => r.sourceNcCode ?? r.sourceAuditCode ?? "" },
+    { header: "Estado", value: (r) => r.status },
+  ])
 }

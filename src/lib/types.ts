@@ -1861,6 +1861,44 @@ export interface ApiKeyCreated {
   keyPrefix: string
 }
 
+// ---------- Gestión del conocimiento (ISO 7.1.6) (v1.4-2) ----------
+
+export type KnowledgeCategory = "buenas_practicas" | "lecciones_aprendidas" | "know_how" | "faq"
+export type KnowledgeStatus = "vigente" | "archivado"
+
+export interface KnowledgeListItem {
+  id: string
+  code: string
+  title: string
+  category: KnowledgeCategory
+  processName: string | null
+  sourceNcCode: string | null
+  sourceAuditCode: string | null
+  status: KnowledgeStatus
+  canManage: boolean
+}
+
+export interface KnowledgeSummary {
+  total: number
+  byCategory: Record<KnowledgeCategory, number>
+}
+
+export interface KnowledgeDetail {
+  id: string
+  code: string
+  title: string
+  category: KnowledgeCategory
+  content: string
+  processId: string | null
+  processName: string | null
+  source: string | null
+  sourceNcCode: string | null
+  sourceAuditCode: string | null
+  status: KnowledgeStatus
+  canManage: boolean
+  timeline: NcTimelineEvent[]
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

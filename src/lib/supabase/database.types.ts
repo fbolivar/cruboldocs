@@ -2389,6 +2389,112 @@ export type Database = {
           },
         ]
       }
+      kn_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kn_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_articles: {
+        Row: {
+          category: string
+          code: string
+          content: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          process_id: string | null
+          source: string | null
+          source_audit_id: string | null
+          source_nc_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          code: string
+          content: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id: string
+          process_id?: string | null
+          source?: string | null
+          source_audit_id?: string | null
+          source_nc_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          code?: string
+          content?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          organization_id?: string
+          process_id?: string | null
+          source?: string | null
+          source_audit_id?: string | null
+          source_nc_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_articles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_articles_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "knowledge_articles_source_audit_id_fkey"
+            columns: ["source_audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_articles_source_nc_id_fkey"
+            columns: ["source_nc_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_counters: {
         Row: {
           last_seq: number
@@ -5526,6 +5632,31 @@ export type Database = {
         Returns: undefined
       }
       archive_indicator: { Args: { p_indicator: string }; Returns: undefined }
+      article_or_fail: {
+        Args: { p_article: string }
+        Returns: {
+          category: string
+          code: string
+          content: string
+          created_at: string
+          created_by: string
+          id: string
+          organization_id: string
+          process_id: string | null
+          source: string | null
+          source_audit_id: string | null
+          source_nc_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "knowledge_articles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assess_change: {
         Args: { p_change: string; p_impact: string }
         Returns: undefined
@@ -5604,6 +5735,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_indicators: { Args: { org: string }; Returns: boolean }
+      can_manage_knowledge: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_legal: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -5817,6 +5952,20 @@ export type Database = {
         }
         Returns: string
       }
+      create_article_from_audit: {
+        Args: { p_audit: string }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
+      create_article_from_nc: {
+        Args: { p_nc: string }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       create_aspect: {
         Args: {
           p_activity: string
@@ -6000,6 +6149,20 @@ export type Database = {
         }
         Returns: {
           expires_at: string
+          id: string
+        }[]
+      }
+      create_knowledge_article: {
+        Args: {
+          p_category: string
+          p_content: string
+          p_org: string
+          p_process: string
+          p_source: string
+          p_title: string
+        }
+        Returns: {
+          code: string
           id: string
         }[]
       }
@@ -6688,6 +6851,7 @@ export type Database = {
         }
       }
       new_template_version: { Args: { p_template: string }; Returns: undefined }
+      next_kn_code: { Args: { p_org: string }; Returns: string }
       notify_position: {
         Args: {
           org: string
@@ -7045,6 +7209,10 @@ export type Database = {
         Returns: string
       }
       set_active_org: { Args: { org: string }; Returns: undefined }
+      set_article_archived: {
+        Args: { p_archived: boolean; p_article: string }
+        Returns: undefined
+      }
       set_aspect_active: {
         Args: { p_active: boolean; p_aspect: string }
         Returns: undefined
@@ -7436,6 +7604,17 @@ export type Database = {
           p_process: string
           p_requirements: string
           p_type: string
+        }
+        Returns: undefined
+      }
+      update_knowledge_article: {
+        Args: {
+          p_article: string
+          p_category: string
+          p_content: string
+          p_process: string
+          p_source: string
+          p_title: string
         }
         Returns: undefined
       }
