@@ -9,6 +9,7 @@ import { ScoreMeter } from "@/components/proveedores/score-meter"
 import { SupplierActions } from "@/components/proveedores/supplier-actions"
 import { EvaluateSupplierSheet, EvaluationHistory } from "@/components/proveedores/supplier-evaluations"
 import { SupplierSelfAssessmentPanel } from "@/components/portal/supplier-self-assessment-panel"
+import { ScarPanel } from "@/components/scar/scar-panel"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser, getSupplier } from "@/lib/data/queries"
@@ -94,6 +95,13 @@ export default async function SupplierPage({ params }: { params: Promise<{ codig
               canManage={canManage}
               baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>SCAR (acciones correctivas)</CardTitle></CardHeader>
+          <CardContent>
+            <ScarPanel supplierId={supplier.id} scars={supplier.scars} canManage={canManage} baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""} />
           </CardContent>
         </Card>
 

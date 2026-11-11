@@ -17,8 +17,9 @@ import { CopilotButton } from "@/components/agente/copilot-button"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { NormCell } from "@/components/multinorma/norm-cell"
-import { getCurrentUser, getEntityNorms, getNonconformity, isAgentEnabled, listActiveNorms, listPositions } from "@/lib/data/queries"
-import { canSeeNonconformities, canTagNorms } from "@/lib/domain/access"
+import { IssueScarButton } from "@/components/scar/issue-scar-button"
+import { getCurrentUser, getEntityNorms, getNonconformity, isAgentEnabled, listActiveNorms, listPositions, listSuppliers } from "@/lib/data/queries"
+import { canSeeNonconformities, canSeeSuppliers, canTagNorms } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
 export const metadata: Metadata = { title: "No conformidad" }
@@ -28,7 +29,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
   const user = await getCurrentUser()
   if (!canSeeNonconformities(user)) notFound()
 
-  const [nc, positions, agentEnabled] = await Promise.all([getNonconformity(decodeURIComponent(codigo)), listPositions(), isAgentEnabled()])
+  const [nc, positions, agentEnabled, suppliers] = await Promise.all([getNonconformity(decodeURIComponent(codigo)), listPositions(), isAgentEnabled(), canSeeSuppliers(user) ? listSuppliers() : Promise.resolve([])])
   if (!nc) notFound()
   const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
   const [norms, taggedNorms] = await Promise.all([listActiveNorms(), getEntityNorms("no_conformidad", nc.id)])
@@ -49,6 +50,9 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
               <h1 className="mt-0.5">{nc.title}</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {nc.canManage && nc.status !== "cerrada" && nc.status !== "anulada" && suppliers.length > 0 && (
+                <IssueScarButton ncId={nc.id} ncTitle={nc.title} ncDescription={nc.description} suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))} />
+              )}
               {nc.canManage && <RegisterLessonButton ncId={nc.id} />}
               {nc.canManage && nc.status !== "cerrada" && nc.status !== "anulada" && <NcCancelButton ncId={nc.id} />}
             </div>
