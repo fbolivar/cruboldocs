@@ -6770,6 +6770,10 @@ export type Database = {
       start_audit: { Args: { p_audit: string }; Returns: undefined }
       storage_can_read_document: { Args: { p_name: string }; Returns: boolean }
       storage_can_read_evidence: { Args: { p_name: string }; Returns: boolean }
+      storage_can_read_form_photo: {
+        Args: { p_name: string }
+        Returns: boolean
+      }
       storage_can_read_nc_evidence: {
         Args: { p_name: string }
         Returns: boolean

@@ -1309,7 +1309,7 @@ export type FormCategory = "inspeccion" | "lista_verificacion" | "formato" | "en
 export type FormStatus = "borrador" | "publicado" | "archivado"
 export type FieldType =
   | "texto" | "texto_largo" | "numero" | "fecha" | "si_no"
-  | "seleccion" | "multiseleccion" | "puntaje" | "seccion"
+  | "seleccion" | "multiseleccion" | "puntaje" | "seccion" | "imagen"
 export type SubmissionStatus = "borrador" | "enviada"
 
 /** Valor de un campo diligenciado (jsonb): texto, número, booleano, fecha ISO o lista. */

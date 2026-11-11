@@ -3076,8 +3076,11 @@ export async function submitNewSubmission(templateId: string, values: unknown): 
     if (!isUuid(templateId)) return fail(GENERIC)
     const v = valuesSchema.safeParse(values)
     if (!v.success) return fail("Revisa los datos antes de enviar.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const promoted = await promoteImageValues(user.organization.id, templateId, v.data)
     const { data, error } = await (await createClient()).rpc("submit_new_submission", {
-      p_template: templateId, p_values: v.data as unknown as Json,
+      p_template: templateId, p_values: promoted as unknown as Json,
     })
     if (error) return fail(dbMessage(error))
     revalidateForms()
@@ -3091,6 +3094,7 @@ const FORM_CSV_BOOL = (v: FieldValue): string =>
 function csvValue(value: FieldValue, type: string): string {
   if (value === null || value === undefined) return ""
   if (type === "si_no") return FORM_CSV_BOOL(value)
+  if (type === "imagen" && Array.isArray(value)) return value.length ? `${value.length} foto(s)` : ""
   if (type === "multiseleccion" && Array.isArray(value)) return value.join("; ")
   if (Array.isArray(value)) return value.join("; ")
   return String(value)
@@ -3827,4 +3831,72 @@ export async function setDashboardLayout(blocks: unknown): Promise<Result> {
     revalidatePath("/app/tablero", "layout")
     return ok(undefined)
   })
+}
+
+// ---------- Fotos de formularios / inspecciones (v1.3-4) ----------
+
+const PHOTO_EXT = new Set(["jpg", "jpeg", "png", "webp"])
+const isPhotoExt = (ext: string) => PHOTO_EXT.has(ext)
+const photoBase = (org: string, templateId: string) => `${org}/${templateId}`
+
+/** Emite tickets de subida (zona temporal) para fotos de un formulario publicado. */
+export async function prepareFormPhotos(templateId: string, exts: unknown): Promise<Result<UploadTicket[]>> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    const list = z.array(z.enum(["jpg", "jpeg", "png", "webp"])).min(1).max(10).safeParse(exts)
+    if (!list.success) return fail("Formato de imagen no admitido.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data: t } = await (await createClient())
+      .from("form_templates").select("id, organization_id, status").eq("id", templateId).maybeSingle()
+    if (!t || t.organization_id !== user.organization.id) return fail("Formulario no disponible.")
+    if (t.status !== "publicado") return fail("Este formulario no está disponible para diligenciar.")
+    const base = photoBase(user.organization.id, templateId)
+    const tickets: UploadTicket[] = []
+    for (const ext of list.data) {
+      const name = `${crypto.randomUUID()}.${ext}`
+      tickets.push(await createUploadTicket("form-photos", stagingPath(base, name)))
+    }
+    return ok(tickets)
+  })
+}
+
+/** Promueve a su ruta final las fotos (rutas temporales bajo <org>/<template>/subida/) que vengan
+ *  en los valores; valida tamaño y firma binaria. Devuelve los valores con las rutas finales. */
+async function promoteImageValues(
+  org: string, templateId: string, values: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const base = photoBase(org, templateId)
+  const stagingPrefix = `${base}/${"subida"}/`
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(values)) {
+    if (Array.isArray(value) && value.some((x) => typeof x === "string" && x.startsWith(stagingPrefix))) {
+      const promoted: unknown[] = []
+      for (const el of value) {
+        if (typeof el === "string" && el.startsWith(stagingPrefix)) {
+          const vf = await promoteUpload("form-photos", base, el, isPhotoExt)
+          promoted.push(vf.path)
+        } else {
+          promoted.push(el)
+        }
+      }
+      out[key] = promoted
+    } else {
+      out[key] = value
+    }
+  }
+  return out
+}
+
+/** URLs firmadas cortas para ver las fotos de una respuesta (la RLS del bucket autoriza). */
+export async function getFormPhotoUrls(paths: unknown): Promise<Record<string, string>> {
+  const list = z.array(z.string().max(300)).max(60).safeParse(paths)
+  if (!list.success) return {}
+  const supabase = await createClient()
+  const out: Record<string, string> = {}
+  for (const path of [...new Set(list.data)]) {
+    const { data } = await supabase.storage.from("form-photos").createSignedUrl(path, 600)
+    if (data?.signedUrl) out[path] = data.signedUrl
+  }
+  return out
 }
