@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SectionError } from "@/components/ui/section-error"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
-import type { Control, PersonRef, Risk } from "@/lib/types"
+import { NormCell } from "@/components/multinorma/norm-cell"
+import type { Control, NormOption, PersonRef, Risk } from "@/lib/types"
 import { useUrlState } from "@/lib/use-url-state"
 
 export interface PanelViewer {
@@ -25,10 +26,13 @@ interface Props {
   risk: Risk | null
   viewer: PanelViewer
   positions: Option[]
+  norms?: NormOption[]
+  taggedNorms?: NormOption[]
+  canTag?: boolean
 }
 
 /** Panel lateral del riesgo (`?riesgo=id`): 560px en escritorio, pantalla completa en móvil. */
-export function RiskPanel({ risk, viewer, positions }: Props) {
+export function RiskPanel({ risk, viewer, positions, norms = [], taggedNorms = [], canTag = false }: Props) {
   const { set } = useUrlState()
   const [controls, setControls] = useState<Control[]>(risk?.controls ?? [])
   const [assessments, setAssessments] = useState(risk?.assessments ?? [])
@@ -60,6 +64,12 @@ export function RiskPanel({ risk, viewer, positions }: Props) {
           <SheetDescription className="text-small text-texto-sec">
             {risk ? `${risk.processName} · Dueño: ${risk.ownerPositionName}` : "No pudimos abrir este riesgo."}
           </SheetDescription>
+          {risk && norms.length > 0 && (
+            <div className="flex items-center gap-2 text-small text-texto-sec">
+              <span>Normas:</span>
+              <NormCell entityType="riesgo" entityId={risk.id} allNorms={norms} tagged={taggedNorms} canManage={canTag} />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">

@@ -7,19 +7,23 @@ import { ObjectiveStatusBadge, PerspectiveChip } from "@/components/objetivos/ba
 import { OBJECTIVE_STATUS_LABELS, PERSPECTIVE_LABELS, PERSPECTIVE_ORDER } from "@/components/objetivos/labels"
 import { ObjectiveProgress } from "@/components/objetivos/objective-progress"
 import { EditObjectiveSheet } from "@/components/objetivos/objective-sheet"
+import { NormCell } from "@/components/multinorma/norm-cell"
 import { Card } from "@/components/ui/card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { ObjectiveCardView, ObjectiveIndicatorRef, ObjectiveStatus, Perspective } from "@/lib/types"
+import type { NormOption, ObjectiveCardView, ObjectiveIndicatorRef, ObjectiveStatus, Perspective } from "@/lib/types"
 
 type Option = { id: string; name: string }
 const STATUSES = Object.keys(OBJECTIVE_STATUS_LABELS) as ObjectiveStatus[]
 
-export function ObjectivesBoard({ items, indicators, processes }: {
+export function ObjectivesBoard({ items, indicators, processes, allNorms = [], normsByEntity, canTag = false }: {
   items: ObjectiveCardView[]
   indicators: ObjectiveIndicatorRef[]
   processes: Option[]
+  allNorms?: NormOption[]
+  normsByEntity?: Map<string, NormOption[]>
+  canTag?: boolean
 }) {
   const [persp, setPersp] = useState<"todas" | Perspective>("todas")
   const [estado, setEstado] = useState<"todos" | ObjectiveStatus>("todos")
@@ -111,6 +115,11 @@ export function ObjectivesBoard({ items, indicators, processes }: {
                           </p>
                           <ObjectiveProgress pct={o.progressPct} />
                         </button>
+                        {allNorms.length > 0 && (
+                          <div className="mt-2 border-t border-borde pt-2">
+                            <NormCell entityType="objetivo" entityId={o.id} allNorms={allNorms} tagged={normsByEntity?.get(o.id) ?? []} canManage={canTag} />
+                          </div>
+                        )}
                       </Card>
                     ))}
                   </div>

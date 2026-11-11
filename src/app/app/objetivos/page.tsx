@@ -5,8 +5,8 @@ import { ObjectivesBoard } from "@/components/objetivos/objectives-board"
 import { ExportObjectivesButton, NewObjectiveSheet } from "@/components/objetivos/objective-sheet"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser, listObjectiveIndicators, listObjectives, listProcesses } from "@/lib/data/queries"
-import { canManageObjectives, canSeeObjectives } from "@/lib/domain/access"
+import { getCurrentUser, listActiveNorms, listEntityNormsFor, listObjectiveIndicators, listObjectives, listProcesses } from "@/lib/data/queries"
+import { canManageObjectives, canSeeObjectives, canTagNorms } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "Objetivos de calidad" }
 
@@ -25,7 +25,9 @@ export default async function ObjetivosPage() {
     )
   }
 
-  const [items, indicators, processes] = await Promise.all([listObjectives(), listObjectiveIndicators(), listProcesses()])
+  const [items, indicators, processes, allNorms, normsByEntity] = await Promise.all([
+    listObjectives(), listObjectiveIndicators(), listProcesses(), listActiveNorms(), listEntityNormsFor("objetivo"),
+  ])
   const canManage = canManageObjectives(user)
   const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
 
@@ -40,7 +42,7 @@ export default async function ObjetivosPage() {
           </div>
         }
       />
-      <ObjectivesBoard items={items} indicators={indicators} processes={processOptions} />
+      <ObjectivesBoard items={items} indicators={indicators} processes={processOptions} allNorms={allNorms} normsByEntity={normsByEntity} canTag={canTagNorms(user)} />
     </Page>
   )
 }

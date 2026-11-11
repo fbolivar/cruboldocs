@@ -13,8 +13,9 @@ import { NcVerifyPanel } from "@/components/no-conformidades/nc-verify-panel"
 import { SOURCE_LABELS } from "@/components/no-conformidades/labels"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCurrentUser, getNonconformity, listPositions } from "@/lib/data/queries"
-import { canSeeNonconformities } from "@/lib/domain/access"
+import { NormCell } from "@/components/multinorma/norm-cell"
+import { getCurrentUser, getEntityNorms, getNonconformity, listActiveNorms, listPositions } from "@/lib/data/queries"
+import { canSeeNonconformities, canTagNorms } from "@/lib/domain/access"
 import { formatDate } from "@/lib/format"
 
 export const metadata: Metadata = { title: "No conformidad" }
@@ -27,6 +28,7 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
   const [nc, positions] = await Promise.all([getNonconformity(decodeURIComponent(codigo)), listPositions()])
   if (!nc) notFound()
   const positionOptions = positions.map((p) => ({ id: p.id, name: p.name }))
+  const [norms, taggedNorms] = await Promise.all([listActiveNorms(), getEntityNorms("no_conformidad", nc.id)])
 
   return (
     <Page>
@@ -55,6 +57,12 @@ export default async function NonconformityPage({ params }: { params: Promise<{ 
             {nc.ownerPositionName ? `Dueño: ${nc.ownerPositionName} · ` : ""}Detectada {formatDate(nc.detectedAt)} · por {nc.reportedByName}
           </p>
           <p className="text-body">{nc.description}</p>
+          {norms.length > 0 && (
+            <div className="flex items-center gap-2 text-small text-texto-sec">
+              <span>Normas:</span>
+              <NormCell entityType="no_conformidad" entityId={nc.id} allNorms={norms} tagged={taggedNorms} canManage={nc.canManage && canTagNorms(user)} />
+            </div>
+          )}
         </div>
 
         {/* Progreso */}

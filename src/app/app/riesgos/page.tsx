@@ -14,8 +14,8 @@ import { RiskTopFilters } from "@/components/riesgos/risk-top-filters"
 import { Page, PageHeader } from "@/components/shell/page"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser, getRisk, getRiskMatrix, listPositions, listProcesses, listRiskCategories, listRisks } from "@/lib/data/queries"
-import { canManageRisks, canSeeRisks } from "@/lib/domain/access"
+import { getCurrentUser, getEntityNorms, getRisk, getRiskMatrix, listActiveNorms, listPositions, listProcesses, listRiskCategories, listRisks } from "@/lib/data/queries"
+import { canManageRisks, canSeeRisks, canTagNorms } from "@/lib/domain/access"
 import { withParams } from "@/lib/url"
 
 export const metadata: Metadata = { title: "Riesgos" }
@@ -53,6 +53,10 @@ export default async function RiesgosPage({ searchParams }: PageProps<"/app/ries
     listProcesses().catch(() => []),
     listRiskCategories().catch(() => []),
     listPositions().catch(() => []),
+  ])
+  const [allNorms, taggedNorms] = await Promise.all([
+    listActiveNorms().catch(() => []),
+    riskId ? getEntityNorms("riesgo", riskId).catch(() => []) : Promise.resolve([]),
   ])
 
   const processOptions: Option[] = processes.map((p) => ({ value: p.id, label: p.name }))
@@ -93,6 +97,9 @@ export default async function RiesgosPage({ searchParams }: PageProps<"/app/ries
           key={riskId}
           risk={risk}
           positions={positionOptions}
+          norms={allNorms}
+          taggedNorms={taggedNorms}
+          canTag={risk ? canTagNorms(user) : false}
           viewer={{
             me: { id: user.id, fullName: user.fullName, positionName: user.positionName ?? "" },
             positionId: user.positionId,
