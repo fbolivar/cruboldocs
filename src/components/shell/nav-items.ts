@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "admin"
+export type NavIcon = "inicio" | "tablero" | "documentos" | "riesgos" | "noconf" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "admin"
 
 export interface NavItem {
   href: string
@@ -35,6 +35,7 @@ export function navItemsFor(user: CurrentUser): NavItem[] {
   if (canSeeMetrology(user)) items.push({ href: "/app/metrologia", label: "Metrología", icon: "metrologia" })
   if (canSeeChanges(user)) items.push({ href: "/app/cambios", label: "Gestión del cambio", icon: "cambios" })
   if (canSeeForms(user)) items.push({ href: "/app/formularios", label: "Formularios", icon: "formularios" })
+  if (canSeeCourses(user)) items.push({ href: "/app/capacitacion", label: "Capacitación", icon: "capacitacion" })
   if (canSeeAdmin(user)) items.push({ href: "/app/admin", label: "Administración", icon: "admin", separated: true })
   return items
 }
