@@ -88,6 +88,16 @@ export function canManagePqrs(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla Aspectos ambientales (14001): mismos roles del SIG que los demás módulos. */
+export function canSeeEnv(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/valora aspectos ambientales: Líder SIG o Líder del proceso. */
+export function canManageEnv(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Pantalla Peligros SST (matriz GTC-45): mismos roles del SIG que los demás módulos. */
 export function canSeeHazards(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))

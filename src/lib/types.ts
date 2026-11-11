@@ -1031,9 +1031,58 @@ export interface ObjectiveCardView {
   canManage: boolean
 }
 
+// ---------- Aspectos ambientales (v1.1-4b, ISO 14001) ----------
+
+export type EnvCondition = "normal" | "anormal" | "emergencia"
+export type EnvSignificance = "significativo" | "no_significativo"
+export type EnvStatus = "activo" | "inactivo"
+
+export interface EnvAspectListItem {
+  id: string
+  code: string
+  aspect: string
+  impact: string
+  condition: EnvCondition
+  processName: string | null
+  score: number
+  significance: EnvSignificance
+  status: EnvStatus
+}
+
+export interface EnvAspectsSummary {
+  active: number
+  significant: number
+  dueSoon: number
+}
+
+export interface EnvAspectDetail {
+  id: string
+  code: string
+  processId: string | null
+  processName: string | null
+  activity: string
+  aspect: string
+  impact: string
+  condition: EnvCondition
+  controls: string | null
+  legalRequirementId: string | null
+  legalRequirementCode: string | null
+  responsibleName: string | null
+  freq: number
+  sev: number
+  reach: number
+  legalCrit: number
+  score: number
+  significance: EnvSignificance
+  status: EnvStatus
+  nextReviewDate: string | null
+  timeline: NcTimelineEvent[]
+  canManage: boolean
+}
+
 // ---------- Multi-norma y peligros SST (v1.1-4) ----------
 
-export type NormEntityType = "proceso" | "documento" | "riesgo" | "no_conformidad" | "objetivo" | "requisito_legal" | "peligro"
+export type NormEntityType = "proceso" | "documento" | "riesgo" | "no_conformidad" | "objetivo" | "requisito_legal" | "peligro" | "aspecto_ambiental"
 
 export interface Norm {
   id: string

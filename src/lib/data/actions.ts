@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -2787,6 +2787,95 @@ export async function exportHazardsCsv(): Promise<string> {
     { header: "Área/Cargo", value: (r) => r.area },
     { header: "NR", value: (r) => String(r.nr) },
     { header: "Nivel", value: (r) => `Nivel ${r.riskLevel}` },
+    { header: "Estado", value: (r) => (r.status === "inactivo" ? "Inactivo" : "Activo") },
+  ])
+}
+
+// ---------- Aspectos ambientales (v1.1-4b, ISO 14001) ----------
+
+function revalidateEnv() {
+  revalidatePath("/app/aspectos-ambientales", "layout")
+  revalidatePath("/app")
+}
+
+const CRIT = z.number().int().min(1).max(3)
+const aspectSchema = z.object({
+  processId: z.uuid().nullish(),
+  activity: z.string().trim().min(2).max(500),
+  aspect: z.string().trim().min(2).max(500),
+  impact: z.string().trim().min(2).max(500),
+  condition: z.enum(["normal", "anormal", "emergencia"]),
+  controls: z.string().trim().max(2000).optional(),
+  legalRequirementId: z.uuid().nullish(),
+  responsibleId: z.uuid().nullish(),
+  freq: CRIT,
+  sev: CRIT,
+  reach: CRIT,
+  legalCrit: CRIT,
+  nextReview: isoDate.nullish(),
+})
+
+export async function createAspect(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = aspectSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos y la valoración del aspecto.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_aspect", {
+      p_org: user.organization.id, p_process: (p.data.processId ?? null) as unknown as string,
+      p_activity: p.data.activity, p_aspect: p.data.aspect, p_impact: p.data.impact, p_condition: p.data.condition,
+      p_controls: p.data.controls ?? "", p_legal: (p.data.legalRequirementId ?? null) as unknown as string,
+      p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_freq: p.data.freq, p_sev: p.data.sev, p_reach: p.data.reach, p_legal_crit: p.data.legalCrit,
+      p_next_review: (p.data.nextReview ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateEnv()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateAspect(aspectId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(aspectId)) return fail(GENERIC)
+    const p = aspectSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos y la valoración del aspecto.")
+    const { error } = await (await createClient()).rpc("update_aspect", {
+      p_aspect: aspectId, p_process: (p.data.processId ?? null) as unknown as string,
+      p_activity: p.data.activity, p_aspect_text: p.data.aspect, p_impact: p.data.impact, p_condition: p.data.condition,
+      p_controls: p.data.controls ?? "", p_legal: (p.data.legalRequirementId ?? null) as unknown as string,
+      p_responsible: (p.data.responsibleId ?? null) as unknown as string,
+      p_freq: p.data.freq, p_sev: p.data.sev, p_reach: p.data.reach, p_legal_crit: p.data.legalCrit,
+      p_next_review: (p.data.nextReview ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateEnv()
+    return ok(undefined)
+  })
+}
+
+export async function setAspectActive(aspectId: string, active: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(aspectId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_aspect_active", { p_aspect: aspectId, p_active: active })
+    if (error) return fail(dbMessage(error))
+    revalidateEnv()
+    return ok(undefined)
+  })
+}
+
+export async function exportEnvCsv(): Promise<string> {
+  const rows = await listEnvAspects()
+  const COND: Record<string, string> = { normal: "Normal", anormal: "Anormal", emergencia: "Emergencia" }
+  const SIG: Record<string, string> = { significativo: "Significativo", no_significativo: "No significativo" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Aspecto", value: (r) => r.aspect },
+    { header: "Impacto", value: (r) => r.impact },
+    { header: "Condición", value: (r) => COND[r.condition] ?? r.condition },
+    { header: "Proceso", value: (r) => r.processName },
+    { header: "Índice", value: (r) => String(r.score) },
+    { header: "Significancia", value: (r) => SIG[r.significance] ?? r.significance },
     { header: "Estado", value: (r) => (r.status === "inactivo" ? "Inactivo" : "Activo") },
   ])
 }

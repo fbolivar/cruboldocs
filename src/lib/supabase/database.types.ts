@@ -1076,6 +1076,136 @@ export type Database = {
           },
         ]
       }
+      env_aspects: {
+        Row: {
+          activity: string
+          aspect: string
+          code: string
+          condition: string
+          controls: string | null
+          created_at: string
+          created_by: string
+          freq: number
+          id: string
+          impact: string
+          legal_crit: number
+          legal_requirement_id: string | null
+          next_review_date: string | null
+          organization_id: string
+          process_id: string | null
+          reach: number
+          responsible_position_id: string | null
+          score: number
+          sev: number
+          significance: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          activity: string
+          aspect: string
+          code: string
+          condition: string
+          controls?: string | null
+          created_at?: string
+          created_by?: string
+          freq: number
+          id?: string
+          impact: string
+          legal_crit: number
+          legal_requirement_id?: string | null
+          next_review_date?: string | null
+          organization_id: string
+          process_id?: string | null
+          reach: number
+          responsible_position_id?: string | null
+          score: number
+          sev: number
+          significance: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          activity?: string
+          aspect?: string
+          code?: string
+          condition?: string
+          controls?: string | null
+          created_at?: string
+          created_by?: string
+          freq?: number
+          id?: string
+          impact?: string
+          legal_crit?: number
+          legal_requirement_id?: string | null
+          next_review_date?: string | null
+          organization_id?: string
+          process_id?: string | null
+          reach?: number
+          responsible_position_id?: string | null
+          score?: number
+          sev?: number
+          significance?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "env_aspects_legal_requirement_id_organization_id_fkey"
+            columns: ["legal_requirement_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_requirements"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "env_aspects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "env_aspects_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "env_aspects_responsible_position_id_organization_id_fkey"
+            columns: ["responsible_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      env_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "env_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hazard_counters: {
         Row: {
           last_seq: number
@@ -4031,6 +4161,28 @@ export type Database = {
         Returns: Json
       }
       confirm_read: { Args: { p_version: string }; Returns: undefined }
+      create_aspect: {
+        Args: {
+          p_activity: string
+          p_aspect: string
+          p_condition: string
+          p_controls: string
+          p_freq: number
+          p_impact: string
+          p_legal: string
+          p_legal_crit: number
+          p_next_review: string
+          p_org: string
+          p_process: string
+          p_reach: number
+          p_responsible: string
+          p_sev: number
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       create_competency: {
         Args: {
           p_description: string
@@ -4316,6 +4468,43 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      env_aspect_or_fail: {
+        Args: { p_aspect: string }
+        Returns: {
+          activity: string
+          aspect: string
+          code: string
+          condition: string
+          controls: string | null
+          created_at: string
+          created_by: string
+          freq: number
+          id: string
+          impact: string
+          legal_crit: number
+          legal_requirement_id: string | null
+          next_review_date: string | null
+          organization_id: string
+          process_id: string | null
+          reach: number
+          responsible_position_id: string | null
+          score: number
+          sev: number
+          significance: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "env_aspects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      env_significance: {
+        Args: { p_condition: string; p_legal: string; p_score: number }
+        Returns: string
       }
       evaluate_requirement: {
         Args: {
@@ -4854,6 +5043,10 @@ export type Database = {
       }
       run_daily_jobs: { Args: never; Returns: Json }
       set_active_org: { Args: { org: string }; Returns: undefined }
+      set_aspect_active: {
+        Args: { p_active: boolean; p_aspect: string }
+        Returns: undefined
+      }
       set_entity_norms: {
         Args: {
           p_entity_id: string
@@ -4982,6 +5175,25 @@ export type Database = {
         Returns: undefined
       }
       unarchive_indicator: { Args: { p_indicator: string }; Returns: undefined }
+      update_aspect: {
+        Args: {
+          p_activity: string
+          p_aspect: string
+          p_aspect_text: string
+          p_condition: string
+          p_controls: string
+          p_freq: number
+          p_impact: string
+          p_legal: string
+          p_legal_crit: number
+          p_next_review: string
+          p_process: string
+          p_reach: number
+          p_responsible: string
+          p_sev: number
+        }
+        Returns: undefined
+      }
       update_competency: {
         Args: {
           p_competency: string

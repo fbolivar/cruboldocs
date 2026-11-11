@@ -1038,5 +1038,37 @@ await throws(() => as(db, U.sofia, `insert into public.hazards (organization_id,
 await throws(() => as(db, U.sofia, `insert into public.entity_norms (organization_id, norm_id, entity_type, entity_id) values ('${A}', '${norm45}', 'proceso', '${P.sigA}')`),
   "Nadie etiqueta por REST (031)", "row-level security")
 
+// ========== 032 · Aspectos ambientales (ISO 14001) ==========
+const asp = (await as(db, U.juan, `select id, code from public.create_aspect('${A}', '${P.sigA}', 'Lavado de equipos', 'Vertimiento de aguas', 'Contaminación hídrica', 'normal', 'Trampa de grasas', null, null, 3, 3, 2, 3, null)`)).rows[0]
+ok(asp.code === "ASP-" + YEAR + "-001", "Numeración ASP-AAAA-001 (032)")
+const av = (await as(db, U.juan, `select score, significance from public.env_aspects where id = '${asp.id}'`)).rows[0]
+ok(av.score === 11 && av.significance === "significativo", "Significancia derivada en servidor: índice 11 ≥ 8 → significativo (032)")
+// No significativo si índice < 8, condición normal y sin requisito legal
+const asp2 = (await as(db, U.juan, `select id from public.create_aspect('${A}', null, 'Uso de papel', 'Consumo de papel', 'Agotamiento de recursos', 'normal', null, null, null, 1, 1, 1, 1, null)`)).rows[0]
+ok((await as(db, U.juan, `select significance from public.env_aspects where id = '${asp2.id}'`)).rows[0].significance === "no_significativo", "Índice 4 sin emergencia ni legal → no significativo (032)")
+// Emergencia fuerza significativo aunque el índice sea bajo
+const asp3 = (await as(db, U.juan, `select id from public.create_aspect('${A}', null, 'Derrame', 'Derrame de químicos', 'Contaminación de suelo', 'emergencia', null, null, null, 1, 1, 1, 1, null)`)).rows[0]
+ok((await as(db, U.juan, `select significance from public.env_aspects where id = '${asp3.id}'`)).rows[0].significance === "significativo", "Condición emergencia → significativo aunque índice bajo (032)")
+await throws(() => as(db, U.juan, `select public.create_aspect('${A}', null, 'x', 'y', 'z', 'normal', null, null, null, 5, 1, 1, 1, null)`),
+  "Valoración ambiental inválida rechazada (freq=5) (032)", "no válida")
+await throws(() => as(db, U.sofia, `select public.create_aspect('${A}', null, 'x', 'y', 'z', 'normal', null, null, null, 1, 1, 1, 1, null)`),
+  "Sofía (consulta) no registra aspectos (032)", "No puedes registrar")
+await throws(() => as(db, U.beto, `select public.create_aspect('${A}', null, 'x', 'y', 'z', 'normal', null, null, null, 1, 1, 1, 1, null)`),
+  "Beto (org B) no registra aspectos en A (032)", "No puedes registrar")
+
+// Editar recalcula; inactivar bloquea
+await as(db, U.juan, `select public.update_aspect('${asp.id}', '${P.sigA}', 'Lavado', 'Vertimiento', 'Contaminación', 'normal', null, null, null, 1, 1, 1, 1, null)`)
+ok((await as(db, U.juan, `select score, significance from public.env_aspects where id = '${asp.id}'`)).rows[0].significance === "no_significativo", "Editar recalcula la significancia (índice 4) (032)")
+await as(db, U.juan, `select public.set_aspect_active('${asp.id}', false)`)
+await throws(() => as(db, U.juan, `select public.update_aspect('${asp.id}', null, 'x', 'y', 'z', 'normal', null, null, null, 1, 1, 1, 1, null)`),
+  "Un aspecto inactivo no es editable (032)", "ya no es editable")
+
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.env_aspects where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve aspectos de A (032)")
+await throws(() => as(db, U.sofia, `insert into public.env_aspects (organization_id, code, activity, aspect, impact, condition, freq, sev, reach, legal_crit, score, significance) values ('${A}', 'X', 'a', 'b', 'c', 'normal', 1, 1, 1, 1, 4, 'no_significativo')`),
+  "Nadie inserta aspectos por REST (032)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.env_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "env_counters es deny-all (032)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageCompetencies, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canManageAudits, canManageCompetencies, canManageEnv, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -80,6 +80,9 @@ import type {
   CommitmentView,
   DashboardData,
   DashboardFilters,
+  EnvAspectDetail,
+  EnvAspectListItem,
+  EnvAspectsSummary,
   HazardDetail,
   HazardListItem,
   HazardsSummary,
@@ -2378,5 +2381,66 @@ export async function getHazard(code: string): Promise<HazardDetail | null> {
     nextReviewDate: h.next_review_date,
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: HAZARD_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageHazards(s.user, h.process_id ?? undefined),
+  }
+}
+
+// ---------- Aspectos ambientales (v1.1-4b, ISO 14001) ----------
+
+const ENV_EVENT_TEXT: Record<string, string> = {
+  crear_aspecto: "Registró el aspecto ambiental.",
+  editar_aspecto: "Editó la valoración del aspecto.",
+  estado_aspecto: "Cambió el estado del aspecto.",
+}
+
+export async function getEnvSummary(): Promise<EnvAspectsSummary> {
+  const s = await scope()
+  if (!s) return { active: 0, significant: 0, dueSoon: 0 }
+  const soon = addDays(todayIsoDate(), 30)
+  const { data } = await s.supabase.from("env_aspects").select("status, significance, next_review_date").eq("organization_id", s.org)
+  const active = (data ?? []).filter((a) => a.status === "activo")
+  return {
+    active: active.length,
+    significant: active.filter((a) => a.significance === "significativo").length,
+    dueSoon: active.filter((a) => a.next_review_date !== null && a.next_review_date <= soon).length,
+  }
+}
+
+export async function listEnvAspects(): Promise<EnvAspectListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.from("env_aspects").select("id, code, aspect, impact, condition, process_id, score, significance, status").eq("organization_id", s.org).order("code", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((a) => ({
+    id: a.id, code: a.code, aspect: a.aspect, impact: a.impact,
+    condition: a.condition as EnvAspectListItem["condition"],
+    processName: a.process_id ? procMap.get(a.process_id) ?? null : null,
+    score: a.score, significance: a.significance as EnvAspectListItem["significance"], status: a.status as EnvAspectListItem["status"],
+  }))
+}
+
+export async function getEnvAspect(code: string): Promise<EnvAspectDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: a } = await s.supabase.from("env_aspects").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!a) return null
+  const [{ data: proc }, { data: pos }, { data: req }, { data: log }] = await Promise.all([
+    a.process_id ? s.supabase.from("processes").select("name").eq("id", a.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    a.responsible_position_id ? s.supabase.from("positions").select("name").eq("id", a.responsible_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    a.legal_requirement_id ? s.supabase.from("legal_requirements").select("code").eq("id", a.legal_requirement_id).maybeSingle() : Promise.resolve({ data: null as { code: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Aspecto").eq("entity_id", a.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: a.id, code: a.code, processId: a.process_id, processName: proc?.name ?? null,
+    activity: a.activity, aspect: a.aspect, impact: a.impact, condition: a.condition as EnvAspectDetail["condition"],
+    controls: a.controls, legalRequirementId: a.legal_requirement_id, legalRequirementCode: req?.code ?? null,
+    responsibleName: pos?.name ?? null, freq: a.freq, sev: a.sev, reach: a.reach, legalCrit: a.legal_crit,
+    score: a.score, significance: a.significance as EnvAspectDetail["significance"], status: a.status as EnvAspectDetail["status"],
+    nextReviewDate: a.next_review_date,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: ENV_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageEnv(s.user, a.process_id ?? undefined),
   }
 }
