@@ -6,6 +6,7 @@ import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { saveSubmissionDraft, submitNewSubmission, submitSubmission } from "@/lib/data/actions"
+import { enqueueSubmission } from "@/lib/pwa/queue"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -134,6 +135,7 @@ export function SubmissionForm({
   const [submissionId, setSubmissionId] = useState<string | null>(initialSubmissionId ?? null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [done, setDone] = useState(false)
+  const [queued, setQueued] = useState(false)
   const [savingDraft, startDraft] = useTransition()
   const [sending, startSend] = useTransition()
 
@@ -165,6 +167,22 @@ export function SubmissionForm({
 
   function send() {
     if (!validate()) { toast.error("Revisa los campos obligatorios."); return }
+    // Sin conexión (y es una respuesta nueva): se guarda en la cola local y se envía al reconectar.
+    if (typeof navigator !== "undefined" && !navigator.onLine && !submissionId) {
+      startSend(async () => {
+        try {
+          await enqueueSubmission({
+            id: crypto.randomUUID(), formId: form.id, formCode: form.code, formTitle: form.title,
+            values, capturedAt: new Date().toISOString(), status: "queued",
+          })
+          window.dispatchEvent(new Event("cruboldocs:queue-changed"))
+          setQueued(true); setDone(true)
+        } catch {
+          toast.error("No pudimos guardar sin conexión en este dispositivo.")
+        }
+      })
+      return
+    }
     startSend(async () => {
       const r = submissionId
         ? await submitSubmission(submissionId, values)
@@ -177,11 +195,15 @@ export function SubmissionForm({
   if (done) {
     return (
       <Card className="flex flex-col items-center gap-3 p-8 text-center">
-        <CheckCircle2Icon className="size-10 text-exito-texto" aria-hidden="true" />
-        <p className="font-display text-h3 text-texto">Respuesta enviada</p>
-        <p className="text-body text-texto-sec">Gracias. Tu respuesta a {form.title} quedó registrada.</p>
+        <CheckCircle2Icon className={`size-10 ${queued ? "text-advertencia-texto" : "text-exito-texto"}`} aria-hidden="true" />
+        <p className="font-display text-h3 text-texto">{queued ? "Guardado para enviar" : "Respuesta enviada"}</p>
+        <p className="text-body text-texto-sec">
+          {queued
+            ? `Tu respuesta a ${form.title} se enviará automáticamente cuando vuelva la conexión.`
+            : `Gracias. Tu respuesta a ${form.title} quedó registrada.`}
+        </p>
         <div className="mt-2 flex flex-wrap justify-center gap-2">
-          <Button variant="outline" onClick={() => { setValues({}); setSubmissionId(null); setErrors({}); setDone(false) }}>Responder otra</Button>
+          <Button variant="outline" onClick={() => { setValues({}); setSubmissionId(null); setErrors({}); setDone(false); setQueued(false) }}>Responder otra</Button>
           <Button asChild><Link href={`/app/formularios/${form.code}`}>Volver a la plantilla</Link></Button>
         </div>
       </Card>

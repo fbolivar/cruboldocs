@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { logout, setActiveOrganization } from "@/lib/data/actions"
+import { clearOfflineData } from "@/lib/pwa/cleanup"
 import type { CurrentUser } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -88,7 +89,7 @@ export function UserMenu({ user }: { user: CurrentUser }) {
           </>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => startTransition(() => logout())}>
+        <DropdownMenuItem onSelect={() => startTransition(async () => { await clearOfflineData(); await logout() })}>
           <LogOutIcon aria-hidden="true" /> Cerrar sesión
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { IBM_Plex_Mono, IBM_Plex_Sans, Space_Grotesk } from "next/font/google"
 import { connection } from "next/server"
 
@@ -31,6 +31,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001"),
   title: { default: "CrubolDocs", template: "%s · CrubolDocs" },
   description: "Control documental y gestión de riesgos para tu sistema de gestión.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "CrubolDocs", statusBarStyle: "default" },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#0B7285",
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

@@ -7,6 +7,7 @@ import { MobileTabBar } from "@/components/shell/mobile-tab-bar"
 import { navItemsFor } from "@/components/shell/nav-items"
 import { TaskCountBadge } from "@/components/shell/task-count-badge"
 import { MobileTopbar, Topbar } from "@/components/shell/topbar"
+import { PwaShell } from "@/components/pwa/pwa-shell"
 import { getCurrentUser } from "@/lib/data/queries"
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
         </div>
       </div>
       <MobileTabBar items={items} taskBadge={taskBadge} />
+      <PwaShell />
     </BreadcrumbProvider>
   )
 }

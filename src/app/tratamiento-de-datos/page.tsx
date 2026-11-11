@@ -155,6 +155,14 @@ export default function TratamientoDeDatosPage() {
             El acceso se limita por organización y cargo; los archivos se guardan en almacenamiento privado; las firmas
             y la auditoría no se pueden modificar; y la comunicación viaja cifrada.
           </p>
+          <p>
+            <strong className="font-semibold">Uso sin conexión:</strong> si instalas la aplicación o diligencias
+            formularios sin conexión, el formulario y tu respuesta se guardan temporalmente en el{" "}
+            <strong className="font-semibold">almacenamiento de tu propio dispositivo</strong> (no se envían a terceros)
+            y se transmiten a nuestros servidores cuando vuelve la conexión. Esos datos locales se{" "}
+            <strong className="font-semibold">eliminan al cerrar sesión</strong>; en dispositivos compartidos, cierra la
+            sesión al terminar.
+          </p>
         </Section>
 
         <Section title="8. Vigencia">

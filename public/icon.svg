@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="CrubolDocs">
+  <rect width="512" height="512" rx="96" fill="#0B7285"/>
+  <path d="M256 128 L360 188 L360 324 L256 384 L152 324 L152 188 Z" fill="none" stroke="#63E6BE" stroke-width="26" stroke-linejoin="round"/>
+  <text x="256" y="300" font-family="Space Grotesk, Arial, sans-serif" font-size="150" font-weight="700" fill="#FFFFFF" text-anchor="middle">C</text>
+</svg>
