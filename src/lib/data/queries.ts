@@ -2022,7 +2022,7 @@ const NC_OPEN = new Set(["abierta", "analisis_causa", "plan_accion", "en_ejecuci
 export async function getDashboard(filters: DashboardFilters): Promise<DashboardData> {
   const year = filters.year
   const empty: DashboardData = {
-    year, hasAnyData: false, processes: [],
+    year, hasAnyData: false, processes: [], norms: [],
     nc: { open: 0, overdueActions: 0, byStatus: [], bySeverity: [] },
     audits: { plannedOrInProgress: 0, closedThisYear: 0 },
     indicators: { active: 0, compliancePct: null, cumple: 0, atRisk: 0, notMeeting: 0, withoutMeasurement: 0 },
@@ -2038,7 +2038,17 @@ export async function getDashboard(filters: DashboardFilters): Promise<Dashboard
   const today = todayIsoDate()
   const in30 = addDays(today, 30)
   const period = currentMonthIso()
-  const byProc = <T extends { process_id: string | null }>(rows: T[]) => (proc ? rows.filter((r) => r.process_id === proc) : rows)
+  // Segmento "Norma": acota a los procesos etiquetados con esa norma (entity_norms).
+  let normSet: Set<string> | null = null
+  const [{ data: normRows }, { data: tagRows }] = await Promise.all([
+    s.supabase.from("norms").select("id, code, name").eq("organization_id", org).eq("is_active", true).order("code"),
+    filters.normId
+      ? s.supabase.from("entity_norms").select("entity_id").eq("organization_id", org).eq("entity_type", "proceso").eq("norm_id", filters.normId).eq("is_active", true)
+      : Promise.resolve({ data: [] as { entity_id: string }[] }),
+  ])
+  if (filters.normId) normSet = new Set((tagRows ?? []).map((t) => t.entity_id))
+  const keepProc = (pid: string | null) => (proc ? pid === proc : true) && (normSet ? pid !== null && normSet.has(pid) : true)
+  const byProc = <T extends { process_id: string | null }>(rows: T[]) => rows.filter((r) => keepProc(r.process_id))
 
   const [ncQ, actQ, audQ, indQ, measQ, objRows, pqrsQ, satQ, docsCount, procsQ] = await Promise.all([
     s.supabase.from("nonconformities").select("id, status, severity, process_id").eq("organization_id", org),
@@ -2133,6 +2143,7 @@ export async function getDashboard(filters: DashboardFilters): Promise<Dashboard
   return {
     year, hasAnyData,
     processes: (procsQ.data ?? []).map((p) => ({ id: p.id, name: p.name })),
+    norms: (normRows ?? []).map((n) => ({ id: n.id, code: n.code, name: n.name })),
     nc: { open: ncAll.filter((n) => NC_OPEN.has(n.status)).length, overdueActions, byStatus, bySeverity },
     audits, indicators, objectives, pqrs, satisfaction, documents,
   }

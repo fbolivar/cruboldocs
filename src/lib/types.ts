@@ -1186,6 +1186,8 @@ export interface DashboardFilters {
   processId: string | null
   /** Año del periodo (p. ej. 2026). */
   year: number
+  /** Norma (id) o null = todas: acota a los procesos etiquetados con esa norma. */
+  normId?: string | null
 }
 
 export interface DashboardProcessRef {
@@ -1206,6 +1208,8 @@ export interface DashboardData {
   year: number
   hasAnyData: boolean
   processes: DashboardProcessRef[]
+  /** Normas activas de la organización (para el segmento del Tablero). */
+  norms: NormOption[]
   nc: {
     open: number
     overdueActions: number

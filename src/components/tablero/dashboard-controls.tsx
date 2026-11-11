@@ -5,13 +5,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { DashboardProcessRef } from "@/lib/types"
+import type { DashboardProcessRef, NormOption } from "@/lib/types"
 
-/** Filtros (proceso, periodo) + imprimir. Escriben en la URL → la página re-consulta en servidor. */
-export function DashboardControls({ processes, processId, year }: {
+/** Filtros (proceso, periodo, norma) + imprimir. Escriben en la URL → la página re-consulta en servidor. */
+export function DashboardControls({ processes, norms, processId, year, normId }: {
   processes: DashboardProcessRef[]
+  norms: NormOption[]
   processId: string | null
   year: number
+  normId: string | null
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -41,6 +43,15 @@ export function DashboardControls({ processes, processId, year }: {
           {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
         </SelectContent>
       </Select>
+      {norms.length > 0 && (
+        <Select value={normId ?? "todas"} onValueChange={(v) => setParam("norma", v === "todas" ? null : v)}>
+          <SelectTrigger className="md:w-44" aria-label="Norma"><SelectValue placeholder="Norma" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Toda norma</SelectItem>
+            {norms.map((n) => <SelectItem key={n.id} value={n.id}>{n.code}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
       <Button variant="outline" onClick={() => window.print()}><PrinterIcon /> Imprimir / PDF</Button>
     </div>
   )

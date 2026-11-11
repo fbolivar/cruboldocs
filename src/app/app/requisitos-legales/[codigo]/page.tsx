@@ -10,8 +10,9 @@ import { RequirementEvaluations, RequirementHeaderActions } from "@/components/r
 import { Page } from "@/components/shell/page"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getCurrentUser, getLegalRequirement, listProcesses } from "@/lib/data/queries"
-import { canSeeLegal } from "@/lib/domain/access"
+import { NormCell } from "@/components/multinorma/norm-cell"
+import { getCurrentUser, getEntityNorms, getLegalRequirement, listActiveNorms, listProcesses } from "@/lib/data/queries"
+import { canSeeLegal, canTagNorms } from "@/lib/domain/access"
 import { formatDate, todayIsoDate } from "@/lib/format"
 
 export const metadata: Metadata = { title: "Requisito legal" }
@@ -24,7 +25,11 @@ export default async function RequisitoLegalDetailPage({ params }: { params: Pro
   const req = await getLegalRequirement(decodeURIComponent(codigo))
   if (!req) notFound()
 
-  const processes = req.canManage ? await listProcesses() : []
+  const [processes, norms, tagged] = await Promise.all([
+    req.canManage ? listProcesses() : Promise.resolve([]),
+    listActiveNorms(),
+    getEntityNorms("requisito_legal", req.id),
+  ])
   const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
   const overdue = req.status === "vigente" && req.nextEvalDate !== null && req.nextEvalDate < todayIsoDate()
 
@@ -51,6 +56,12 @@ export default async function RequisitoLegalDetailPage({ params }: { params: Pro
               <span className={`text-small ${overdue ? "font-medium text-advertencia-texto" : "text-texto-sec"}`}>· Reevaluar {formatDate(req.nextEvalDate)}{overdue ? " (vencida)" : ""}</span>
             )}
           </div>
+          {norms.length > 0 && (
+            <div className="flex items-center gap-2 text-small text-texto-sec">
+              <span>Normas:</span>
+              <NormCell entityType="requisito_legal" entityId={req.id} allNorms={norms} tagged={tagged} canManage={req.canManage && canTagNorms(user)} />
+            </div>
+          )}
         </div>
 
         <Card>

@@ -15,7 +15,7 @@ import { isUuid } from "@/lib/data/queries"
 
 export const metadata: Metadata = { title: "Tablero" }
 
-export default async function TableroPage({ searchParams }: { searchParams: Promise<{ proceso?: string; anio?: string }> }) {
+export default async function TableroPage({ searchParams }: { searchParams: Promise<{ proceso?: string; anio?: string; norma?: string }> }) {
   const user = await getCurrentUser()
   if (!canSeeDashboard(user)) {
     return (
@@ -30,13 +30,15 @@ export default async function TableroPage({ searchParams }: { searchParams: Prom
   const now = new Date().getFullYear()
   const year = sp.anio && /^\d{4}$/.test(sp.anio) ? Number(sp.anio) : now
   const processId = sp.proceso && isUuid(sp.proceso) ? sp.proceso : null
-  const d = await getDashboard({ processId, year })
+  const normId = sp.norma && isUuid(sp.norma) ? sp.norma : null
+  const d = await getDashboard({ processId, year, normId })
   const processName = processId ? d.processes.find((p) => p.id === processId)?.name ?? null : null
+  const normCode = normId ? d.norms.find((n) => n.id === normId)?.code ?? null : null
 
   return (
     <Page wide>
-      <PageHeader title="Tablero" actions={<DashboardControls processes={d.processes} processId={processId} year={year} />} />
-      <PrintHeader organizationName={user.organization.name} year={year} processName={processName} />
+      <PageHeader title="Tablero" actions={<DashboardControls processes={d.processes} norms={d.norms} processId={processId} year={year} normId={normId} />} />
+      <PrintHeader organizationName={user.organization.name} year={year} processName={processName} normCode={normCode} />
 
       {!d.hasAnyData ? (
         <EmptyState
