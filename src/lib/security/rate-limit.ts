@@ -34,6 +34,8 @@ const RULES = {
   "pqrs_pub:token_ip": { limit: 8, window: "1 h" },
   "proveedor:ip": { limit: 20, window: "10 m" },
   "proveedor:token_ip": { limit: 8, window: "1 h" },
+  "scar:ip": { limit: 20, window: "10 m" },
+  "scar:token_ip": { limit: 8, window: "1 h" },
 } satisfies Record<string, Rule>
 
 export type LimitKey = keyof typeof RULES

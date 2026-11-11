@@ -931,6 +931,28 @@ export interface SupplierDetail {
   /** Portal externo (v1.4-3): enlace vigente de autoevaluación y respuestas recibidas. */
   selfAssessmentToken: string | null
   selfAssessments: SupplierSelfAssessmentView[]
+  /** SCAR (v1.5-3): solicitudes de acción correctiva de este proveedor. */
+  scars: ScarView[]
+}
+
+// ---------- SCAR: solicitud de acción correctiva a proveedor (v1.5-3) ----------
+
+export type ScarStatus = "enviada" | "respondida" | "aceptada" | "rechazada" | "anulada"
+
+export interface ScarView {
+  id: string
+  code: string
+  status: ScarStatus
+  title: string
+  description: string
+  dueDate: string | null
+  token: string
+  ncCode: string | null
+  rootCause: string | null
+  actions: string | null
+  commitDate: string | null
+  reviewNotes: string | null
+  reopenedCount: number
 }
 
 /** Autoevaluación enviada por un proveedor desde el enlace público (para revisión del SIG). */

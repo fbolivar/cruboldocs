@@ -4961,6 +4961,126 @@ export type Database = {
           },
         ]
       }
+      scar_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scar_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scars: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          due_date: string | null
+          id: string
+          nonconformity_id: string | null
+          organization_id: string
+          reopened_count: number
+          responded_at: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          supplier_actions: string | null
+          supplier_commit_date: string | null
+          supplier_id: string
+          supplier_root_cause: string | null
+          title: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string
+          description: string
+          due_date?: string | null
+          id?: string
+          nonconformity_id?: string | null
+          organization_id: string
+          reopened_count?: number
+          responded_at?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          supplier_actions?: string | null
+          supplier_commit_date?: string | null
+          supplier_id: string
+          supplier_root_cause?: string | null
+          title: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          due_date?: string | null
+          id?: string
+          nonconformity_id?: string | null
+          organization_id?: string
+          reopened_count?: number
+          responded_at?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          supplier_actions?: string | null
+          supplier_commit_date?: string | null
+          supplier_id?: string
+          supplier_root_cause?: string | null
+          title?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scars_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "scars_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scars_supplier_id_organization_id_fkey"
+            columns: ["supplier_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       signatures: {
         Row: {
           action: string
@@ -6379,6 +6499,10 @@ export type Database = {
         Args: { p_reason: string; p_review: string }
         Returns: undefined
       }
+      cancel_scar: {
+        Args: { p_reason: string; p_scar: string }
+        Returns: undefined
+      }
       change_or_fail: {
         Args: { p_change: string }
         Returns: {
@@ -6876,6 +7000,20 @@ export type Database = {
           id: string
         }[]
       }
+      create_scar: {
+        Args: {
+          p_description: string
+          p_due_days: number
+          p_nc: string
+          p_org: string
+          p_supplier: string
+          p_title: string
+          p_token: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       create_supplier: {
         Args: {
           p_category: string
@@ -7198,6 +7336,16 @@ export type Database = {
       get_published_form_by_code: {
         Args: { p_code: string; p_org: string }
         Returns: Json
+      }
+      get_scar_public: {
+        Args: { p_token: string }
+        Returns: {
+          description: string
+          due_date: string
+          organization: string
+          supplier: string
+          title: string
+        }[]
       }
       get_supplier_self_assessment: {
         Args: { p_token: string }
@@ -7801,6 +7949,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      review_scar: {
+        Args: { p_accept: boolean; p_notes: string; p_scar: string }
+        Returns: undefined
+      }
       revoke_api_key: { Args: { p_key: string }; Returns: undefined }
       revoke_webhook_endpoint: {
         Args: { p_endpoint: string }
@@ -8055,6 +8207,16 @@ export type Database = {
           p_description: string
           p_token: string
           p_type: string
+        }
+        Returns: undefined
+      }
+      submit_scar_response: {
+        Args: {
+          p_actions: string
+          p_commit_date: string
+          p_ip_hash: string
+          p_root_cause: string
+          p_token: string
         }
         Returns: undefined
       }

@@ -44,7 +44,7 @@ export function Turnstile({
   onToken,
   ref,
 }: {
-  action: "login" | "recuperar" | "invitacion" | "encuesta" | "pqrs_publica" | "proveedor"
+  action: "login" | "recuperar" | "invitacion" | "encuesta" | "pqrs_publica" | "proveedor" | "scar"
   onToken: (token: string | null) => void
   ref?: React.Ref<TurnstileHandle>
 }) {

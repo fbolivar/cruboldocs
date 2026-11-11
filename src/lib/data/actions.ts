@@ -4620,3 +4620,79 @@ export async function saveRcaAnalysis(input: unknown): Promise<Result> {
     return ok(undefined)
   })
 }
+
+// ---------- SCAR: solicitud de acción correctiva a proveedor (v1.5-3) ----------
+
+const scarSchema = z.object({
+  supplierId: z.uuid(),
+  nonconformityId: z.uuid().nullish(),
+  title: z.string().trim().min(3).max(200),
+  description: z.string().trim().min(3).max(4000),
+  dueDays: z.number().int().min(1).max(365).optional(),
+})
+
+export async function createScar(input: unknown): Promise<Result<{ code: string; token: string }>> {
+  return guard(async () => {
+    const p = scarSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del SCAR.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const token = randomBytes(18).toString("hex")
+    const { data, error } = await (await createClient()).rpc("create_scar", {
+      p_org: user.organization.id, p_supplier: p.data.supplierId, p_nc: (p.data.nonconformityId ?? null) as unknown as string,
+      p_title: p.data.title, p_description: p.data.description, p_due_days: p.data.dueDays ?? 15, p_token: token,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    revalidatePath("/app/no-conformidades", "layout")
+    return ok({ code: data?.[0]?.code ?? "", token })
+  })
+}
+
+export async function reviewScar(scarId: string, accept: boolean, notes?: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(scarId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("review_scar", {
+      p_scar: scarId, p_accept: !!accept, p_notes: (notes ?? "").trim().slice(0, 2000),
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok(undefined)
+  })
+}
+
+export async function cancelScar(scarId: string, reason?: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(scarId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("cancel_scar", { p_scar: scarId, p_reason: (reason ?? "").trim().slice(0, 500) })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok(undefined)
+  })
+}
+
+/** Respuesta pública del proveedor (sin sesión): CAPTCHA + rate-limit, luego RPC anónimo. */
+export async function submitScarResponse(input: {
+  token: string
+  rootCause: string
+  actions: string
+  commitDate?: string
+  captchaToken: string
+}): Promise<Result> {
+  return guard(async () => {
+    const token = String(input.token ?? "")
+    if (token.length < 16 || token.length > 128) return fail("Este formulario no está disponible.")
+    const rootCause = String(input.rootCause ?? "").trim().slice(0, 4000)
+    const actions = String(input.actions ?? "").trim().slice(0, 4000)
+    if (rootCause.length < 3 || actions.length < 3) return fail("Completa la causa raíz y las acciones.")
+    const commit = input.commitDate && /^\d{4}-\d{2}-\d{2}$/.test(input.commitDate) ? input.commitDate : null
+    const ip = await clientIp()
+    if (!(await verifyTurnstile(input.captchaToken, "scar", ip))) return fail(CAPTCHA_FAILED)
+    if (!(await withinLimits([["scar:ip", ip], ["scar:token_ip", `${token}|${ipKey(ip) ?? "x"}`]]))) return fail(TOO_MANY)
+    const { error } = await (await createClient()).rpc("submit_scar_response", {
+      p_token: token, p_root_cause: rootCause, p_actions: actions, p_commit_date: commit as unknown as string, p_ip_hash: ip ? sha256Hex(`${ip}|${token}`) : "",
+    })
+    if (error) return fail(dbMessage(error, "Este formulario no está disponible."))
+    return ok(undefined)
+  })
+}
