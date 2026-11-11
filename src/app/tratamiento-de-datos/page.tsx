@@ -18,15 +18,16 @@ export const metadata: Metadata = {
   },
 }
 
-// Texto aprobado tras revisión legal (2026-09-24) y re-aprobado por el abogado de Fernando el
-// 2026-11-10 con la adición del §6 (Anthropic / Crubol-Agent como encargado). Vigencia fijada en
-// la fecha de esa actualización.
+// Texto aprobado tras revisión legal (2026-09-24), re-aprobado el 2026-11-10 (adición del §6:
+// Anthropic / Crubol-Agent como encargado) y ampliado el 2026-11-11 (el §6 declara también el
+// contenido de NC/riesgos que el copiloto procesa bajo demanda, minimizado y sin PII del cliente),
+// con el visto bueno del abogado de Fernando. Vigencia fijada en la fecha de esta ampliación.
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
   nit: "902107870-4",
   domicilio: "Calle 77A # 85-46, Bogotá D.C., Colombia",
   correo: "datos@crubol.com",
-  vigenciaDesde: "el 10 de noviembre de 2026",
+  vigenciaDesde: "el 11 de noviembre de 2026",
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -132,10 +133,14 @@ export default function TratamientoDeDatosPage() {
             <li>
               Anthropic (API de Claude): <strong className="font-semibold">solo si tu organización activa el asistente
               de IA Crubol-Agent</strong>, que está desactivado por defecto. Procesa en Estados Unidos el texto de tu
-              conversación con el asistente y el catálogo de tu organización (nombres de procesos, tipos de documento y
-              cargos) para generar las sugerencias que tú confirmas. Anthropic no usa estos datos para entrenar sus
-              modelos. En esta versión el asistente no accede al contenido de tus documentos ni a los datos de otras
-              organizaciones.
+              conversación con el asistente, el catálogo de tu organización (nombres de procesos, tipos de documento y
+              cargos) y, <strong className="font-semibold">cuando lo solicitas expresamente dentro de una ficha, el
+              contenido del registro que abres</strong> —una no conformidad o un riesgo— para sugerir su análisis de
+              causa, acciones, controles o valoración, que tú confirmas. El asistente procesa únicamente el registro
+              para el que pides ayuda en ese momento; no realiza lecturas masivas ni en segundo plano, y se omiten los
+              datos de contacto del peticionario cuando la no conformidad proviene de una PQRS. Anthropic no usa estos
+              datos para entrenar sus modelos. El asistente no accede a los datos de otras organizaciones ni ejecuta por
+              sí mismo ninguna acción sin tu confirmación.
             </li>
           </ul>
           <p>

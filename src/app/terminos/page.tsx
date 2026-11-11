@@ -18,11 +18,12 @@ export const metadata: Metadata = {
   },
 }
 
-// Texto aprobado por el abogado de Fernando (2026-11-10), incluida la §9 "Asistente de IA
-// (Crubol-Agent)" (opt-in, solo propone, humano confirma, Anthropic como encargado en EE. UU.
-// sin entrenamiento). Decisiones reflejadas: 7.6-1 (el cliente responde por el contenido que
-// carga), sin antivirus en v1 (riesgo declarado), supresión por anonimización. Datos de la
-// empresa reutilizados de /tratamiento-de-datos.
+// Texto aprobado por el abogado de Fernando (2026-11-10) y ampliado el 2026-11-11 con su visto
+// bueno: la §9 "Asistente de IA (Crubol-Agent)" ahora cubre el copiloto de causa/CAPA/riesgos, que
+// bajo demanda procesa el contenido del registro abierto (solo propone, humano confirma, no cierra
+// ni verifica; Anthropic como encargado en EE. UU. sin entrenamiento). Decisiones reflejadas:
+// 7.6-1 (el cliente responde por el contenido que carga), sin antivirus en v1 (riesgo declarado),
+// supresión por anonimización. Datos de la empresa reutilizados de /tratamiento-de-datos.
 const EMPRESA = {
   nombre: "Crubol Technology S.A.S.",
   nit: "902107870-4",
@@ -30,7 +31,7 @@ const EMPRESA = {
   ciudad: "Bogotá D.C.",
   correo: "info@crubol.com",
   correoDatos: "datos@crubol.com",
-  vigenciaDesde: "el 10 de noviembre de 2026",
+  vigenciaDesde: "el 11 de noviembre de 2026",
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -156,14 +157,17 @@ export default function TerminosPage() {
         <Section title="9. Asistente de IA (Crubol-Agent)">
           <p>
             Crubol-Agent es una función opcional de inteligencia artificial que ayuda a configurar el catálogo de la
-            organización (procesos, tipos de documento y cargos) conversando con el Usuario. Está{" "}
+            organización (procesos, tipos de documento y cargos) y, <strong className="font-semibold">dentro de las
+            fichas de no conformidades y riesgos, a redactar el análisis de causa, el plan de acciones, los controles o
+            la valoración</strong>, conversando con el Usuario. Está{" "}
             <strong className="font-semibold">desactivada por defecto</strong> y solo se habilita por organización, a
             solicitud o con el consentimiento del Cliente.
           </p>
           <p>
             El asistente únicamente <strong className="font-semibold">propone</strong> acciones: no se crea, modifica ni
             elimina nada sin que un Usuario con permiso lo <strong className="font-semibold">confirme</strong>. No firma,
-            no aprueba y no accede al contenido de los documentos ni a los datos de otras organizaciones.
+            no aprueba, no cierra ni verifica la eficacia, y solo accede al registro que el Usuario abre y para el que
+            pide ayuda; no accede al contenido de otros registros ni a los datos de otras organizaciones.
           </p>
           <p>
             Las sugerencias las genera un modelo de IA y <strong className="font-semibold">pueden contener errores o
@@ -172,8 +176,9 @@ export default function TerminosPage() {
           </p>
           <p>
             Para prestar esta función, Crubol utiliza la API de Claude de Anthropic como encargado, que procesa en
-            Estados Unidos el texto de la conversación y el catálogo de la organización, no usa esos datos para entrenar
-            sus modelos y los trata solo para generar las sugerencias. Este tratamiento se rige por la{" "}
+            Estados Unidos el texto de la conversación, el catálogo y el contenido del registro para el que el Usuario
+            solicita ayuda, no usa esos datos para entrenar sus modelos y los trata solo para generar las sugerencias.
+            Este tratamiento se rige por la{" "}
             <a href="/tratamiento-de-datos" className="font-medium text-acento underline underline-offset-4">
               Política de tratamiento de datos personales
             </a>
