@@ -6,7 +6,7 @@
 // organizaciones, Storage y outbox de correo. La traza de administración la escribe la base
 // (triggers), no la aplicación.
 
-import { randomUUID } from "node:crypto"
+import { randomBytes, randomUUID } from "node:crypto"
 import type { PostgrestError } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
@@ -43,6 +43,7 @@ import type { Json } from "@/lib/supabase/database.types"
 import type {
   AuditFilters,
   ApiKeyCreated,
+  WebhookCreated,
   ControlType,
   CourseAttemptResult,
   CurrentUser,
@@ -4053,6 +4054,39 @@ export async function revokeApiKey(keyId: string): Promise<Result> {
   return guard(async () => {
     if (!isUuid(keyId)) return fail(GENERIC)
     const { error } = await (await createClient()).rpc("revoke_api_key", { p_key: keyId })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app/admin", "layout")
+    return ok(undefined)
+  })
+}
+
+// ---------- Webhooks (v1.4-1) ----------
+
+const webhookSchema = z.object({
+  url: z.string().trim().url().startsWith("https://").max(500),
+  events: z.array(z.enum(["nonconformity.created", "indicator.measurement.recorded", "pqrs.created", "nonconforming_output.created"])).min(1),
+})
+
+export async function createWebhookEndpoint(input: unknown): Promise<Result<WebhookCreated>> {
+  return guard(async () => {
+    const p = webhookSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la URL (https://) y los eventos.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const secret = `whsec_${randomBytes(24).toString("base64url")}`
+    const { error } = await (await createClient()).rpc("create_webhook_endpoint", {
+      p_org: user.organization.id, p_url: p.data.url, p_events: p.data.events, p_secret: secret,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app/admin", "layout")
+    return ok({ secret })
+  })
+}
+
+export async function revokeWebhookEndpoint(endpointId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(endpointId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("revoke_webhook_endpoint", { p_endpoint: endpointId })
     if (error) return fail(dbMessage(error))
     revalidatePath("/app/admin", "layout")
     return ok(undefined)

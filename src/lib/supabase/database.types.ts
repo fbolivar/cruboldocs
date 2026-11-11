@@ -99,6 +99,35 @@ export type Database = {
           },
         ]
       }
+      api_idempotency: {
+        Row: {
+          created_at: string
+          idem_key: string
+          organization_id: string
+          response: Json
+        }
+        Insert: {
+          created_at?: string
+          idem_key: string
+          organization_id: string
+          response: Json
+        }
+        Update: {
+          created_at?: string
+          idem_key?: string
+          organization_id?: string
+          response?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_idempotency_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string
@@ -5217,6 +5246,101 @@ export type Database = {
           },
         ]
       }
+      webhook_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          endpoint_id: string
+          event: string
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          organization_id: string
+          payload: Json
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          endpoint_id: string
+          event: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          organization_id: string
+          payload: Json
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          endpoint_id?: string
+          event?: string
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          organization_id?: string
+          payload?: Json
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_deliveries_endpoint_id_organization_id_fkey"
+            columns: ["endpoint_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_endpoints"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "webhook_deliveries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_endpoints: {
+        Row: {
+          created_at: string
+          created_by: string
+          events: string[]
+          id: string
+          organization_id: string
+          revoked_at: string | null
+          secret: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          events: string[]
+          id?: string
+          organization_id: string
+          revoked_at?: string | null
+          secret: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          events?: string[]
+          id?: string
+          organization_id?: string
+          revoked_at?: string | null
+          secret?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_endpoints_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -5335,6 +5459,67 @@ export type Database = {
       ai_agent_consume_record: {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
+      }
+      api_create_nc_output: {
+        Args: {
+          p_actor: string
+          p_description: string
+          p_detected: string
+          p_identification: string
+          p_org: string
+          p_process: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
+      api_create_pqrs: {
+        Args: {
+          p_actor: string
+          p_channel: string
+          p_customer_contact: string
+          p_customer_name: string
+          p_description: string
+          p_due_days: number
+          p_org: string
+          p_process: string
+          p_received: string
+          p_type: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
+      api_record_measurement: {
+        Args: {
+          p_actor: string
+          p_denominator: number
+          p_indicator: string
+          p_note: string
+          p_numerator: number
+          p_org: string
+          p_period: string
+          p_value: number
+        }
+        Returns: string
+      }
+      api_report_nonconformity: {
+        Args: {
+          p_actor: string
+          p_description: string
+          p_detected: string
+          p_org: string
+          p_process: string
+          p_severity: string
+          p_source: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
       }
       archive_competency: {
         Args: { p_archive: boolean; p_competency: string }
@@ -6016,6 +6201,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_webhook_endpoint: {
+        Args: {
+          p_events: string[]
+          p_org: string
+          p_secret: string
+          p_url: string
+        }
+        Returns: string
+      }
       current_actor: { Args: never; Returns: string }
       current_org: { Args: never; Returns: string }
       decide_change: {
@@ -6050,6 +6244,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      enqueue_webhook: {
+        Args: { p_event: string; p_org: string; p_payload: Json }
+        Returns: undefined
       }
       env_aspect_or_fail: {
         Args: { p_aspect: string }
@@ -6813,6 +7011,10 @@ export type Database = {
         }
       }
       revoke_api_key: { Args: { p_key: string }; Returns: undefined }
+      revoke_webhook_endpoint: {
+        Args: { p_endpoint: string }
+        Returns: undefined
+      }
       risk_or_fail: {
         Args: { p_risk: string }
         Returns: {

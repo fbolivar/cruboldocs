@@ -162,6 +162,7 @@ import type {
   Disposition,
   ApiKeyView,
   ApiScope,
+  WebhookEndpointView,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3493,5 +3494,27 @@ export async function listApiKeys(): Promise<ApiKeyView[]> {
   return (data ?? []).map((k) => ({
     id: k.id, name: k.name, keyPrefix: k.key_prefix, scopes: k.scopes as ApiScope[],
     createdAt: k.created_at, lastUsedAt: k.last_used_at, revokedAt: k.revoked_at,
+  }))
+}
+
+// ---------- Webhooks (v1.4-1) ----------
+
+export async function listWebhookEndpoints(): Promise<WebhookEndpointView[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: eps }, { data: deliveries }] = await Promise.all([
+    s.supabase.from("webhook_endpoints").select("id, url, events, created_at, revoked_at").eq("organization_id", s.org).order("created_at", { ascending: false }),
+    s.supabase.from("webhook_deliveries").select("endpoint_id, status").eq("organization_id", s.org),
+  ])
+  const total = new Map<string, number>()
+  const failed = new Map<string, number>()
+  for (const d of deliveries ?? []) {
+    total.set(d.endpoint_id, (total.get(d.endpoint_id) ?? 0) + 1)
+    if (d.status === "fallido") failed.set(d.endpoint_id, (failed.get(d.endpoint_id) ?? 0) + 1)
+  }
+  return (eps ?? []).map((e) => ({
+    id: e.id, url: e.url, events: e.events as WebhookEndpointView["events"],
+    createdAt: e.created_at, revokedAt: e.revoked_at,
+    deliveries: total.get(e.id) ?? 0, failed: failed.get(e.id) ?? 0,
   }))
 }

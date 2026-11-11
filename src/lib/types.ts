@@ -1825,6 +1825,25 @@ export interface NcOutputDetail {
 
 export type ApiScope =
   | "read:nonconformities" | "read:indicators" | "read:risks" | "read:audits" | "read:pqrs"
+  | "write:nonconformities" | "write:indicators" | "write:pqrs" | "write:nonconforming_outputs"
+
+export type WebhookEvent =
+  | "nonconformity.created" | "indicator.measurement.recorded" | "pqrs.created" | "nonconforming_output.created"
+
+export interface WebhookEndpointView {
+  id: string
+  url: string
+  events: WebhookEvent[]
+  createdAt: string
+  revokedAt: string | null
+  deliveries: number
+  failed: number
+}
+
+/** Devuelto al crear un webhook: el secreto de firma, visible una sola vez. */
+export interface WebhookCreated {
+  secret: string
+}
 
 export interface ApiKeyView {
   id: string

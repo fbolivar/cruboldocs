@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 
+import { deliverWebhooks } from "@/lib/api/webhooks"
 import { flushOutbox } from "@/lib/email/outbox"
 import { createAdminClient } from "@/lib/supabase/server"
 
@@ -26,5 +27,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falló el job diario" }, { status: 500 })
   }
   const mail = await flushOutbox(200)
-  return NextResponse.json({ tareas: data, correos: mail })
+  const hooks = await deliverWebhooks(200)
+  return NextResponse.json({ tareas: data, correos: mail, webhooks: hooks })
 }
