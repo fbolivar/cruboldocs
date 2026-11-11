@@ -1714,6 +1714,60 @@ export interface ContextSummary {
   parties: number
 }
 
+// ---------- Caracterización de procesos (ISO 4.4) (v1.3-2) ----------
+
+export interface ProcessMapItem {
+  id: string
+  code: string
+  name: string
+  type: ProcessType
+  leaderName: string | null
+  characterized: boolean
+}
+
+export interface ProcessMapSummary {
+  total: number
+  characterized: number
+  uncharacterized: number
+}
+
+export interface ProcessCharacterization {
+  objective: string | null
+  scope: string | null
+  inputs: string | null
+  suppliers: string | null
+  outputs: string | null
+  clients: string | null
+  resources: string | null
+  phvaPlan: string | null
+  phvaDo: string | null
+  phvaCheck: string | null
+  phvaAct: string | null
+}
+
+/** Conteos de lo ligado a un proceso (por process_id, respetando la RLS de cada módulo). */
+export interface ProcessLinkedCounts {
+  indicators: number
+  risks: number
+  documents: number
+  objectives: number
+  legal: number
+  parties: number
+  issues: number
+}
+
+export interface ProcessDetail {
+  id: string
+  code: string
+  name: string
+  type: ProcessType
+  leaderName: string | null
+  characterizedAt: string | null
+  characterization: ProcessCharacterization
+  linked: ProcessLinkedCounts
+  canManage: boolean
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

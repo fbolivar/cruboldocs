@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -150,6 +150,9 @@ import type {
   Pestel,
   PartyType,
   ContextStatus,
+  ProcessMapItem,
+  ProcessMapSummary,
+  ProcessDetail,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3292,4 +3295,78 @@ export async function listInterestedParties(): Promise<InterestedPartyView[]> {
     status: p.status as ContextStatus,
     canManage: canManageContext(s.user, p.process_id ?? undefined),
   }))
+}
+
+// ---------- Caracterización de procesos (ISO 4.4) (v1.3-2) ----------
+
+export async function getProcessMap(): Promise<{ summary: ProcessMapSummary; items: ProcessMapItem[] }> {
+  const s = await scope()
+  if (!s) return { summary: { total: 0, characterized: 0, uncharacterized: 0 }, items: [] }
+  const [{ data: procs }, { data: positions }] = await Promise.all([
+    s.supabase
+      .from("processes")
+      .select("id, code, name, type, leader_position_id, characterized_at")
+      .eq("organization_id", s.org)
+      .order("code", { ascending: true }),
+    s.supabase.from("positions").select("id, name").eq("organization_id", s.org),
+  ])
+  const posMap = new Map((positions ?? []).map((p) => [p.id, p.name]))
+  const items: ProcessMapItem[] = (procs ?? []).map((p) => ({
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    type: p.type as ProcessType,
+    leaderName: p.leader_position_id ? posMap.get(p.leader_position_id) ?? null : null,
+    characterized: p.characterized_at != null,
+  }))
+  const characterized = items.filter((i) => i.characterized).length
+  return {
+    summary: { total: items.length, characterized, uncharacterized: items.length - characterized },
+    items,
+  }
+}
+
+export async function getProcessDetail(code: string): Promise<ProcessDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: p } = await s.supabase
+    .from("processes")
+    .select("*")
+    .eq("organization_id", s.org)
+    .eq("code", code)
+    .maybeSingle()
+  if (!p) return null
+  const countFor = (
+    table: "indicators" | "risks" | "documents" | "quality_objectives" | "legal_requirements" | "interested_parties" | "context_issues",
+  ) => s.supabase.from(table).select("id", { count: "exact", head: true }).eq("organization_id", s.org).eq("process_id", p.id)
+  const [leader, c1, c2, c3, c4, c5, c6, c7] = await Promise.all([
+    p.leader_position_id
+      ? s.supabase.from("positions").select("name").eq("id", p.leader_position_id).maybeSingle()
+      : Promise.resolve({ data: null as { name: string } | null }),
+    countFor("indicators"),
+    countFor("risks"),
+    countFor("documents"),
+    countFor("quality_objectives"),
+    countFor("legal_requirements"),
+    countFor("interested_parties"),
+    countFor("context_issues"),
+  ])
+  return {
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    type: p.type as ProcessType,
+    leaderName: leader.data?.name ?? null,
+    characterizedAt: p.characterized_at,
+    characterization: {
+      objective: p.objective, scope: p.scope, inputs: p.inputs, suppliers: p.suppliers,
+      outputs: p.outputs, clients: p.clients, resources: p.resources,
+      phvaPlan: p.phva_plan, phvaDo: p.phva_do, phvaCheck: p.phva_check, phvaAct: p.phva_act,
+    },
+    linked: {
+      indicators: c1.count ?? 0, risks: c2.count ?? 0, documents: c3.count ?? 0, objectives: c4.count ?? 0,
+      legal: c5.count ?? 0, parties: c6.count ?? 0, issues: c7.count ?? 0,
+    },
+    canManage: canManageProcess(s.user, p.id),
+  }
 }

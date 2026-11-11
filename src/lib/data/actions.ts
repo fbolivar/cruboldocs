@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -3747,5 +3747,58 @@ export async function exportInterestedPartiesCsv(): Promise<string> {
     { header: "Proceso", value: (r) => r.processName ?? "" },
     { header: "Requisito legal", value: (r) => r.legalRequirementCode ?? "" },
     { header: "Estado", value: (r) => r.status },
+  ])
+}
+
+// ---------- Caracterización de procesos (ISO 4.4) (v1.3-2) ----------
+
+const characterizationSchema = z.object({
+  objective: z.string().trim().max(2000).optional(),
+  scope: z.string().trim().max(2000).optional(),
+  inputs: z.string().trim().max(2000).optional(),
+  suppliers: z.string().trim().max(1000).optional(),
+  outputs: z.string().trim().max(2000).optional(),
+  clients: z.string().trim().max(1000).optional(),
+  resources: z.string().trim().max(2000).optional(),
+  phvaPlan: z.string().trim().max(1000).optional(),
+  phvaDo: z.string().trim().max(1000).optional(),
+  phvaCheck: z.string().trim().max(1000).optional(),
+  phvaAct: z.string().trim().max(1000).optional(),
+})
+
+export async function updateProcessCharacterization(processId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(processId)) return fail(GENERIC)
+    const p = characterizationSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la caracterización.")
+    const { error } = await (await createClient()).rpc("update_process_characterization", {
+      p_process: processId,
+      p_objective: p.data.objective ?? "",
+      p_scope: p.data.scope ?? "",
+      p_inputs: p.data.inputs ?? "",
+      p_suppliers: p.data.suppliers ?? "",
+      p_outputs: p.data.outputs ?? "",
+      p_clients: p.data.clients ?? "",
+      p_resources: p.data.resources ?? "",
+      p_phva_plan: p.data.phvaPlan ?? "",
+      p_phva_do: p.data.phvaDo ?? "",
+      p_phva_check: p.data.phvaCheck ?? "",
+      p_phva_act: p.data.phvaAct ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePath("/app/procesos", "layout")
+    return ok(undefined)
+  })
+}
+
+export async function exportProcessesCsv(): Promise<string> {
+  const { items } = await getProcessMap()
+  type Row = (typeof items)[number]
+  return toCsv<Row>(items, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Proceso", value: (r) => r.name },
+    { header: "Tipo", value: (r) => r.type },
+    { header: "Líder", value: (r) => r.leaderName ?? "" },
+    { header: "Caracterizado", value: (r) => (r.characterized ? "Sí" : "No") },
   ])
 }

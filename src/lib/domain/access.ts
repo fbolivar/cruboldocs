@@ -206,6 +206,16 @@ export function canApproveChange(user: CurrentUser): boolean {
   return hasRole(user, "lider_sig")
 }
 
+/** Pantalla Procesos (mapa + caracterización, ISO 4.4): mismos roles del SIG que los demás módulos. */
+export function canSeeProcessMap(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Caracteriza un proceso: Líder SIG o Líder del proceso. El catálogo (alta/baja) sigue en Admin. */
+export function canManageProcess(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Pantalla Contexto de la organización (ISO 4.1/4.2): mismos roles del SIG que los demás módulos. */
 export function canSeeContext(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))

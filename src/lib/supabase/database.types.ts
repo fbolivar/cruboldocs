@@ -3608,32 +3608,68 @@ export type Database = {
       }
       processes: {
         Row: {
+          characterized_at: string | null
+          clients: string | null
           code: string
           created_at: string
           id: string
+          inputs: string | null
           leader_position_id: string | null
           name: string
+          objective: string | null
           organization_id: string
+          outputs: string | null
+          phva_act: string | null
+          phva_check: string | null
+          phva_do: string | null
+          phva_plan: string | null
+          resources: string | null
+          scope: string | null
+          suppliers: string | null
           type: string
           updated_at: string
         }
         Insert: {
+          characterized_at?: string | null
+          clients?: string | null
           code: string
           created_at?: string
           id?: string
+          inputs?: string | null
           leader_position_id?: string | null
           name: string
+          objective?: string | null
           organization_id: string
+          outputs?: string | null
+          phva_act?: string | null
+          phva_check?: string | null
+          phva_do?: string | null
+          phva_plan?: string | null
+          resources?: string | null
+          scope?: string | null
+          suppliers?: string | null
           type: string
           updated_at?: string
         }
         Update: {
+          characterized_at?: string | null
+          clients?: string | null
           code?: string
           created_at?: string
           id?: string
+          inputs?: string | null
           leader_position_id?: string | null
           name?: string
+          objective?: string | null
           organization_id?: string
+          outputs?: string | null
+          phva_act?: string | null
+          phva_check?: string | null
+          phva_do?: string | null
+          phva_plan?: string | null
+          resources?: string | null
+          scope?: string | null
+          suppliers?: string | null
           type?: string
           updated_at?: string
         }
@@ -5222,6 +5258,10 @@ export type Database = {
       }
       can_manage_pqrs: {
         Args: { org: string; process?: string }
+        Returns: boolean
+      }
+      can_manage_process: {
+        Args: { org: string; process: string }
         Returns: boolean
       }
       can_manage_reviews: { Args: { org: string }; Returns: boolean }
@@ -6959,6 +6999,23 @@ export type Database = {
           p_process: string
           p_received: string
           p_type: string
+        }
+        Returns: undefined
+      }
+      update_process_characterization: {
+        Args: {
+          p_clients: string
+          p_inputs: string
+          p_objective: string
+          p_outputs: string
+          p_phva_act: string
+          p_phva_check: string
+          p_phva_do: string
+          p_phva_plan: string
+          p_process: string
+          p_resources: string
+          p_scope: string
+          p_suppliers: string
         }
         Returns: undefined
       }
