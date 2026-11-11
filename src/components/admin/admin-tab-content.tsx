@@ -1,3 +1,4 @@
+import { ApiKeysTab } from "@/components/admin/api-keys-tab"
 import { AuditTab } from "@/components/admin/audit-tab"
 import { DocTypesTab } from "@/components/admin/doc-types-tab"
 import { NormasTab } from "@/components/admin/normas-tab"
@@ -26,6 +27,8 @@ export function AdminTabContent({ tab, sp }: { tab: AdminTab; sp: SearchParams }
       return <RecertTab />
     case "auditoria":
       return <AuditTab sp={sp} />
+    case "api":
+      return <ApiKeysTab />
     case "organizaciones":
       return <OrgsTab />
   }
