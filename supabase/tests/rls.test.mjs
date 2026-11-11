@@ -1849,5 +1849,38 @@ ok((await as(db, U.beto, `select count(*)::int n from public.rca_analyses where 
 await throws(() => as(db, U.sofia, `insert into public.rca_analyses (organization_id, nonconformity_id, method) values ('${A}', '${rcNc.id}', '5porques')`),
   "Nadie inserta análisis por REST (055)", "row-level security")
 
+// ========== 056 · SCAR (solicitud de acción correctiva a proveedor) ==========
+// prov es un proveedor activo de A (proceso sigA). Juan = lider_sig gestiona.
+const scarTok = "scartoken1234567890ab"
+const scarCode = (await as(db, U.juan, `select code from public.create_scar('${A}', '${prov.id}', null::uuid, 'Entregas incompletas', 'El proveedor entregó material incompleto varias veces.', 15, '${scarTok}')`)).rows[0].code
+ok(scarCode === "SCAR-" + YEAR + "-001", "Numeración SCAR-AAAA-001 (056)")
+await throws(() => as(db, U.sofia, `select public.create_scar('${A}', '${prov.id}', null::uuid, 'xx', 'descripción válida', 15, 'tk2')`),
+  "Sofía (consulta) no emite SCAR (056)", "No puedes emitir")
+await throws(() => as(db, U.beto, `select public.create_scar('${A}', '${prov.id}', null::uuid, 'xx', 'descripción válida', 15, 'tk3')`),
+  "Beto (org B) no emite SCAR en A (056)", "no encontrado")
+// anon lee por token y responde
+ok((await anon(`select supplier from public.get_scar_public('${scarTok}')`)).rows[0].supplier != null, "anon lee el SCAR por token (056)")
+await anon(`select public.submit_scar_response('${scarTok}', 'Causa: fallo de picking', 'Acción: doble verificación de empaque', null, null)`)
+const sc = (await svc(`select id, status from public.scars where code='${scarCode}' and organization_id='${A}'`)).rows[0]
+ok(sc.status === "respondida", "anon responde y el SCAR pasa a respondida (056)")
+ok((await anon(`select count(*)::int n from public.get_scar_public('${scarTok}')`)).rows[0].n === 0, "Un SCAR respondido ya no se lee por token (056)")
+await throws(() => anon(`select public.submit_scar_response('${scarTok}', 'a', 'b', null, null)`),
+  "Un SCAR ya respondido no acepta otra respuesta (056)", "no está disponible")
+// Rechazar reabre; responder de nuevo; aceptar cierra
+await as(db, U.juan, `select public.review_scar('${sc.id}', false, 'Falta evidencia')`)
+ok((await svc(`select status, reopened_count from public.scars where id='${sc.id}'`)).rows[0].status === "enviada", "Rechazar reabre el SCAR a enviada (056)")
+await anon(`select public.submit_scar_response('${scarTok}', 'Causa corregida', 'Acción corregida con evidencia', current_date + 10, null)`)
+await as(db, U.juan, `select public.review_scar('${sc.id}', true, null)`)
+ok((await svc(`select status from public.scars where id='${sc.id}'`)).rows[0].status === "aceptada", "Aceptar cierra el SCAR (056)")
+await throws(() => as(db, U.juan, `select public.review_scar('${sc.id}', true, null)`),
+  "Un SCAR cerrado no se vuelve a revisar (056)", "no está respondido")
+// Aislamiento + REST
+ok((await as(db, U.beto, `select count(*)::int n from public.scars where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve SCAR de A (056)")
+await throws(() => anon(`select count(*) from public.scars`), "anon no lee SCAR por REST (056)", "permission denied")
+await throws(() => as(db, U.sofia, `insert into public.scars (organization_id, code, supplier_id, title, description, token) values ('${A}', 'X', '${prov.id}', 't', 'd', 'tk')`),
+  "Nadie inserta SCAR por REST (056)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.scar_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "scar_counters es deny-all (056)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
