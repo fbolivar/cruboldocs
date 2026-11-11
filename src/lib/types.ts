@@ -1583,6 +1583,92 @@ export interface ChangeDetail {
   timeline: NcTimelineEvent[]
 }
 
+// ---------- Capacitación / LMS (ISO 7.2) (v1.2-4b) ----------
+
+export type CourseStatus = "borrador" | "publicado" | "archivado"
+
+/** Opción de una pregunta en el diseñador (la correcta solo existe en gestión). */
+export interface CourseOption {
+  text: string
+  correct: boolean
+}
+
+export interface CourseQuestionView {
+  id: string
+  order: number
+  text: string
+  options: CourseOption[]
+}
+
+/** Pregunta tal como se entrega al tomar el curso: SIN marca de correcta. */
+export interface CourseQuestionToTake {
+  id: string
+  order: number
+  text: string
+  options: string[]
+}
+
+export interface CourseListItem {
+  id: string
+  code: string
+  title: string
+  status: CourseStatus
+  passingScore: number
+  processName: string | null
+  questionCount: number
+  approvedCount: number
+  canManage: boolean
+}
+
+export interface CoursesSummary {
+  total: number
+  published: number
+  approvedThisMonth: number
+}
+
+export interface CourseEnrollmentView {
+  id: string
+  userName: string
+  status: "aprobado" | "no_aprobado"
+  score: number
+  completedAt: string
+}
+
+export interface CourseDetail {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  content: string | null
+  status: CourseStatus
+  passingScore: number
+  processId: string | null
+  processName: string | null
+  questions: CourseQuestionView[]
+  enrollments: CourseEnrollmentView[]
+  myEnrollment: CourseEnrollmentView | null
+  canManage: boolean
+  canTake: boolean
+  timeline: NcTimelineEvent[]
+}
+
+/** Curso listo para tomarse (desde get_course_to_take, sin respuestas correctas). */
+export interface CourseToTake {
+  id: string
+  code: string
+  title: string
+  content: string | null
+  passingScore: number
+  questions: CourseQuestionToTake[]
+}
+
+/** Resultado de un intento (desde submit_course_attempt). */
+export interface CourseAttemptResult {
+  score: number
+  status: "aprobado" | "no_aprobado"
+  passingScore: number
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

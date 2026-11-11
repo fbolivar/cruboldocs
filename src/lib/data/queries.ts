@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -136,6 +136,13 @@ import type {
   SubmissionDetail,
   SubmissionStatus,
   FieldValue,
+  CourseListItem,
+  CoursesSummary,
+  CourseDetail,
+  CourseToTake,
+  CourseEnrollmentView,
+  CourseQuestionView,
+  CourseOption,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3005,5 +3012,189 @@ export async function getChange(code: string): Promise<ChangeDetail | null> {
     decisionDate: c.decision_date, implementationNotes: c.implementation_notes,
     canManage: canManageChanges(s.user, c.process_id ?? undefined), canApprove: canApproveChange(s.user),
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: CHANGE_EVENT_TEXT[x.action] ?? x.action })),
+  }
+}
+
+// ---------- Capacitación / LMS (ISO 7.2) (v1.2-4b) ----------
+
+const COURSE_EVENT_TEXT: Record<string, string> = {
+  crear_curso: "Creó el curso.",
+  editar_curso: "Editó los datos del curso.",
+  publicar_curso: "Publicó el curso.",
+  estado_curso: "Cambió el estado del curso.",
+  tomar_curso: "Alguien tomó el curso.",
+}
+
+type CourseOptionRow = { text?: unknown; correct?: unknown }
+
+function toCourseOptions(raw: unknown): CourseOption[] {
+  if (!Array.isArray(raw)) return []
+  return (raw as CourseOptionRow[]).map((o) => ({
+    text: String(o?.text ?? ""),
+    correct: Boolean(o?.correct),
+  }))
+}
+
+export async function getCoursesSummary(): Promise<CoursesSummary> {
+  const s = await scope()
+  if (!s) return { total: 0, published: 0, approvedThisMonth: 0 }
+  const now = new Date()
+  const monthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
+  const [{ data: courses }, { count: approved }] = await Promise.all([
+    s.supabase.from("courses").select("status").eq("organization_id", s.org),
+    s.supabase
+      .from("course_enrollments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", s.org)
+      .eq("status", "aprobado")
+      .gte("completed_at", monthStart),
+  ])
+  const active = (courses ?? []).filter((c) => c.status !== "archivado")
+  return {
+    total: active.length,
+    published: active.filter((c) => c.status === "publicado").length,
+    approvedThisMonth: approved ?? 0,
+  }
+}
+
+export async function listCourses(): Promise<CourseListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: courses }, { data: questions }, { data: enrolls }, { data: procs }] = await Promise.all([
+    s.supabase
+      .from("courses")
+      .select("id, code, title, status, passing_score, process_id")
+      .eq("organization_id", s.org)
+      .order("code", { ascending: false }),
+    s.supabase.from("course_questions").select("course_id").eq("organization_id", s.org).eq("is_active", true),
+    s.supabase.from("course_enrollments").select("course_id, status").eq("organization_id", s.org).eq("status", "aprobado"),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const qCount = new Map<string, number>()
+  for (const q of questions ?? []) qCount.set(q.course_id, (qCount.get(q.course_id) ?? 0) + 1)
+  const aCount = new Map<string, number>()
+  for (const e of enrolls ?? []) aCount.set(e.course_id, (aCount.get(e.course_id) ?? 0) + 1)
+  return (courses ?? []).map((c) => ({
+    id: c.id,
+    code: c.code,
+    title: c.title,
+    status: c.status as CourseListItem["status"],
+    passingScore: c.passing_score,
+    processName: c.process_id ? procMap.get(c.process_id) ?? null : null,
+    questionCount: qCount.get(c.id) ?? 0,
+    approvedCount: aCount.get(c.id) ?? 0,
+    canManage: canManageCourses(s.user, c.process_id ?? undefined),
+  }))
+}
+
+export async function getCourse(code: string): Promise<CourseDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: c } = await s.supabase
+    .from("courses")
+    .select("*")
+    .eq("organization_id", s.org)
+    .eq("code", code)
+    .maybeSingle()
+  if (!c) return null
+  const [{ data: questions }, { data: enrolls }, { data: proc }, { data: log }] = await Promise.all([
+    s.supabase
+      .from("course_questions")
+      .select("id, order_index, text, options")
+      .eq("organization_id", s.org)
+      .eq("course_id", c.id)
+      .eq("is_active", true)
+      .order("order_index", { ascending: true }),
+    s.supabase
+      .from("course_enrollments")
+      .select("id, user_id, status, score, completed_at")
+      .eq("organization_id", s.org)
+      .eq("course_id", c.id)
+      .order("completed_at", { ascending: false }),
+    c.process_id
+      ? s.supabase.from("processes").select("name").eq("id", c.process_id).maybeSingle()
+      : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase
+      .from("audit_log")
+      .select("at, actor_id, action")
+      .eq("organization_id", s.org)
+      .eq("entity_type", "Capacitacion")
+      .eq("entity_id", c.id)
+      .order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (enrolls ?? []).map((e) => e.user_id))
+  const canManage = canManageCourses(s.user, c.process_id ?? undefined)
+  const qViews: CourseQuestionView[] = (questions ?? []).map((q) => ({
+    id: q.id,
+    order: q.order_index,
+    text: q.text,
+    // La respuesta correcta solo se expone a quien gestiona (diseñador); nunca a quien toma.
+    options: canManage
+      ? toCourseOptions(q.options)
+      : toCourseOptions(q.options).map((o) => ({ text: o.text, correct: false })),
+  }))
+  const enrollViews: CourseEnrollmentView[] = (enrolls ?? []).map((e) => ({
+    id: e.id,
+    userName: e.user_id ? person(e.user_id).fullName : "—",
+    status: e.status as CourseEnrollmentView["status"],
+    score: Number(e.score),
+    completedAt: e.completed_at,
+  }))
+  const mine = (enrolls ?? []).find((e) => e.user_id === s.user.id)
+  return {
+    id: c.id,
+    code: c.code,
+    title: c.title,
+    description: c.description,
+    content: c.content,
+    status: c.status as CourseDetail["status"],
+    passingScore: c.passing_score,
+    processId: c.process_id,
+    processName: proc?.name ?? null,
+    questions: qViews,
+    // Quien llega a la ficha ya pasó la RLS de cursos (roles del SIG); ve los resultados.
+    enrollments: enrollViews,
+    myEnrollment: mine
+      ? {
+          id: mine.id,
+          userName: s.user.fullName,
+          status: mine.status as CourseEnrollmentView["status"],
+          score: Number(mine.score),
+          completedAt: mine.completed_at,
+        }
+      : null,
+    canManage,
+    canTake: canTakeCourses(s.user) && c.status === "publicado",
+    timeline: (log ?? []).map((x) => ({
+      at: x.at,
+      actor: x.actor_id ? person(x.actor_id).fullName : "Sistema",
+      text: COURSE_EVENT_TEXT[x.action] ?? x.action,
+    })),
+  }
+}
+
+/** Curso listo para tomarse (cualquier miembro activo, vía RPC definer; sin respuestas correctas). */
+export async function getCourseToTake(code: string): Promise<CourseToTake | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data, error } = await s.supabase.rpc("get_course_to_take", { p_org: s.org, p_code: code })
+  if (error || !data) return null
+  const d = data as {
+    id: string; code: string; title: string; content: string | null; passingScore: number
+    questions: { id: string; order: number; text: string; options: string[] }[]
+  }
+  return {
+    id: d.id,
+    code: d.code,
+    title: d.title,
+    content: d.content,
+    passingScore: d.passingScore,
+    questions: (d.questions ?? []).map((q) => ({
+      id: q.id,
+      order: q.order,
+      text: q.text,
+      options: (q.options ?? []).map((o) => String(o)),
+    })),
   }
 }

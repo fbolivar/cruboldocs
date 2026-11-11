@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, getEquipment, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -41,6 +41,7 @@ import type { Json } from "@/lib/supabase/database.types"
 import type {
   AuditFilters,
   ControlType,
+  CourseAttemptResult,
   CurrentUser,
   DocumentFilters,
   DocumentStatus,
@@ -3406,4 +3407,157 @@ export async function implementChange(changeId: string, notes?: string): Promise
     revalidateChanges()
     return ok(undefined)
   })
+}
+
+// ---------- Capacitación / LMS (ISO 7.2) (v1.2-4b) ----------
+
+function revalidateCourses() {
+  revalidatePath("/app/capacitacion", "layout")
+}
+
+const courseDataSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  processId: z.uuid().nullish(),
+  description: z.string().trim().max(2000).optional(),
+  content: z.string().trim().max(20000).optional(),
+  passingScore: z.number().int().min(0).max(100),
+})
+
+const questionSchema = z.object({
+  text: z.string().trim().min(1).max(500),
+  options: z
+    .array(z.object({ text: z.string().trim().min(1).max(300), correct: z.boolean() }))
+    .min(2)
+    .max(10)
+    .refine((opts) => opts.filter((o) => o.correct).length === 1, {
+      message: "Marca exactamente una opción correcta.",
+    }),
+})
+
+const attemptSchema = z.record(z.string(), z.number().int().min(0).max(50))
+
+export async function createCourse(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = courseDataSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del curso.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_course", {
+      p_org: user.organization.id,
+      p_title: p.data.title,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_description: p.data.description ?? "",
+      p_passing: p.data.passingScore,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCourses()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateCourseData(courseId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(courseId)) return fail(GENERIC)
+    const p = courseDataSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del curso.")
+    const { error } = await (await createClient()).rpc("update_course_data", {
+      p_course: courseId,
+      p_title: p.data.title,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_description: p.data.description ?? "",
+      p_content: p.data.content ?? "",
+      p_passing: p.data.passingScore,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCourses()
+    return ok(undefined)
+  })
+}
+
+export async function addCourseQuestion(courseId: string, input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    if (!isUuid(courseId)) return fail(GENERIC)
+    const p = questionSchema.safeParse(input)
+    if (!p.success) return fail(p.error.issues[0]?.message ?? "Revisa la pregunta.")
+    const { data, error } = await (await createClient()).rpc("add_course_question", {
+      p_course: courseId, p_text: p.data.text, p_options: p.data.options as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCourses()
+    return ok({ id: (data as unknown as string) ?? "" })
+  })
+}
+
+export async function updateCourseQuestion(questionId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(questionId)) return fail(GENERIC)
+    const p = questionSchema.safeParse(input)
+    if (!p.success) return fail(p.error.issues[0]?.message ?? "Revisa la pregunta.")
+    const { error } = await (await createClient()).rpc("update_course_question", {
+      p_question: questionId, p_text: p.data.text, p_options: p.data.options as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCourses()
+    return ok(undefined)
+  })
+}
+
+export async function removeCourseQuestion(questionId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(questionId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("remove_course_question", { p_question: questionId })
+    if (error) return fail(dbMessage(error))
+    revalidateCourses()
+    return ok(undefined)
+  })
+}
+
+export async function publishCourse(courseId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(courseId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("publish_course", { p_course: courseId })
+    if (error) return fail(dbMessage(error))
+    revalidateCourses()
+    return ok(undefined)
+  })
+}
+
+export async function setCourseArchived(courseId: string, archived: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(courseId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_course_archived", {
+      p_course: courseId, p_archived: archived,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateCourses()
+    return ok(undefined)
+  })
+}
+
+/** Envía un intento; el servidor califica (sin confiar en el cliente) y devuelve el resultado. */
+export async function submitCourseAttempt(courseId: string, answers: unknown): Promise<Result<CourseAttemptResult>> {
+  return guard(async () => {
+    if (!isUuid(courseId)) return fail(GENERIC)
+    const a = attemptSchema.safeParse(answers)
+    if (!a.success) return fail("Responde todas las preguntas antes de enviar.")
+    const { data, error } = await (await createClient()).rpc("submit_course_attempt", {
+      p_course: courseId, p_answers: a.data as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    const d = data as { score: number; status: "aprobado" | "no_aprobado"; passingScore: number }
+    revalidateCourses()
+    return ok({ score: Number(d.score), status: d.status, passingScore: Number(d.passingScore) })
+  })
+}
+
+export async function exportCourseResultsCsv(code: string): Promise<string> {
+  const course = await getCourse(code)
+  if (!course) return ""
+  type Row = (typeof course.enrollments)[number]
+  return toCsv<Row>(course.enrollments, [
+    { header: "Persona", value: (r) => r.userName },
+    { header: "Fecha", value: (r) => (r.completedAt ? formatDateTime(r.completedAt) : "") },
+    { header: "Puntaje", value: (r) => String(r.score) },
+    { header: "Resultado", value: (r) => (r.status === "aprobado" ? "Aprobado" : "No aprobado") },
+  ])
 }

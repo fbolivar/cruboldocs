@@ -868,6 +868,188 @@ export type Database = {
           },
         ]
       }
+      course_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_enrollments: {
+        Row: {
+          answers: Json | null
+          completed_at: string
+          course_id: string
+          id: string
+          organization_id: string
+          score: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json | null
+          completed_at?: string
+          course_id: string
+          id?: string
+          organization_id: string
+          score: number
+          status: string
+          user_id?: string
+        }
+        Update: {
+          answers?: Json | null
+          completed_at?: string
+          course_id?: string
+          id?: string
+          organization_id?: string
+          score?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_enrollments_course_id_organization_id_fkey"
+            columns: ["course_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_questions: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          options: Json
+          order_index: number
+          organization_id: string
+          text: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          options: Json
+          order_index?: number
+          organization_id: string
+          text: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          options?: Json
+          order_index?: number
+          organization_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_questions_course_id_organization_id_fkey"
+            columns: ["course_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "course_questions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          code: string
+          content: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          organization_id: string
+          passing_score: number
+          process_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          content?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          organization_id: string
+          passing_score?: number
+          process_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          content?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          organization_id?: string
+          passing_score?: number
+          process_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "courses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       document_distribution: {
         Row: {
           document_id: string
@@ -4716,6 +4898,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_course_question: {
+        Args: { p_course: string; p_options: Json; p_text: string }
+        Returns: string
+      }
       add_field: {
         Args: { p_label: string; p_template: string; p_type: string }
         Returns: string
@@ -4849,6 +5035,10 @@ export type Database = {
         Args: { org: string; process?: string }
         Returns: boolean
       }
+      can_manage_courses: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_forms: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -4900,6 +5090,7 @@ export type Database = {
       can_see_audits: { Args: { org: string }; Returns: boolean }
       can_see_changes: { Args: { org: string }; Returns: boolean }
       can_see_competencies: { Args: { org: string }; Returns: boolean }
+      can_see_courses: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_forms: { Args: { org: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
@@ -5018,6 +5209,29 @@ export type Database = {
         Returns: Json
       }
       confirm_read: { Args: { p_version: string }; Returns: undefined }
+      course_or_fail: {
+        Args: { p_course: string }
+        Returns: {
+          code: string
+          content: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          organization_id: string
+          passing_score: number
+          process_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "courses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_aspect: {
         Args: {
           p_activity: string
@@ -5062,6 +5276,19 @@ export type Database = {
           p_org: string
         }
         Returns: string
+      }
+      create_course: {
+        Args: {
+          p_description: string
+          p_org: string
+          p_passing: number
+          p_process: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
       }
       create_document: {
         Args: {
@@ -5528,6 +5755,14 @@ export type Database = {
           code: string
         }[]
       }
+      get_course_by_code: {
+        Args: { p_code: string; p_org: string }
+        Returns: string
+      }
+      get_course_to_take: {
+        Args: { p_code: string; p_org: string }
+        Returns: Json
+      }
       get_published_form: { Args: { p_template: string }; Returns: Json }
       get_published_form_by_code: {
         Args: { p_code: string; p_org: string }
@@ -5888,7 +6123,31 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      publish_course: { Args: { p_course: string }; Returns: undefined }
       publish_template: { Args: { p_template: string }; Returns: undefined }
+      question_course: {
+        Args: { p_question: string }
+        Returns: {
+          code: string
+          content: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          organization_id: string
+          passing_score: number
+          process_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "courses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       record_measurement: {
         Args: {
           p_denominator: number
@@ -5944,6 +6203,10 @@ export type Database = {
       reissue_invitation: {
         Args: { p_actor: string; p_invitation: string; p_token_hash: string }
         Returns: string
+      }
+      remove_course_question: {
+        Args: { p_question: string }
+        Returns: undefined
       }
       remove_field: { Args: { p_field: string }; Returns: undefined }
       remove_position_requirement: {
@@ -6048,6 +6311,10 @@ export type Database = {
       set_active_org: { Args: { org: string }; Returns: undefined }
       set_aspect_active: {
         Args: { p_active: boolean; p_aspect: string }
+        Returns: undefined
+      }
+      set_course_archived: {
+        Args: { p_archived: boolean; p_course: string }
         Returns: undefined
       }
       set_entity_norms: {
@@ -6188,6 +6455,10 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      submit_course_attempt: {
+        Args: { p_answers: Json; p_course: string }
+        Returns: Json
+      }
       submit_new_submission: {
         Args: { p_template: string; p_values: Json }
         Returns: string
@@ -6306,6 +6577,21 @@ export type Database = {
           p_kind: string
           p_name: string
         }
+        Returns: undefined
+      }
+      update_course_data: {
+        Args: {
+          p_content: string
+          p_course: string
+          p_description: string
+          p_passing: number
+          p_process: string
+          p_title: string
+        }
+        Returns: undefined
+      }
+      update_course_question: {
+        Args: { p_options: Json; p_question: string; p_text: string }
         Returns: undefined
       }
       update_equipment: {
@@ -6456,6 +6742,7 @@ export type Database = {
         Args: { p_code: string; p_name: string; p_org: string }
         Returns: string
       }
+      valid_question_options: { Args: { p_options: Json }; Returns: boolean }
       validate_submission_values: {
         Args: {
           p_require: boolean

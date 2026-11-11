@@ -206,6 +206,21 @@ export function canApproveChange(user: CurrentUser): boolean {
   return hasRole(user, "lider_sig")
 }
 
+/** Pantalla Capacitación (LMS, ISO 7.2): mismos roles del SIG que los demás módulos. */
+export function canSeeCourses(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/publica/archiva cursos y sus preguntas: Líder SIG o Líder del proceso dueño. */
+export function canManageCourses(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
+/** Toma un curso publicado: cualquier miembro activo de la organización. */
+export function canTakeCourses(user: CurrentUser): boolean {
+  return Boolean(user.organization)
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
