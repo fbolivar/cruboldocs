@@ -37,7 +37,7 @@ export interface Dictionary {
 
 export const es: Dictionary = {
   nav: {
-    inicio: "Inicio", tablero: "Tablero", documentos: "Documentos", contexto: "Contexto",
+    inicio: "Inicio", tablero: "Tablero", focos: "Focos", documentos: "Documentos", contexto: "Contexto",
     procesos: "Procesos", riesgos: "Riesgos", noconf: "No conformidades", salidas: "Salidas no conformes",
     auditorias: "Auditorías", indicadores: "Indicadores", revisiones: "Revisión por la dirección",
     competencias: "Competencias", proveedores: "Proveedores", pqrs: "PQRS", actas: "Actas",
@@ -63,7 +63,7 @@ export const es: Dictionary = {
 
 export const en: Dictionary = {
   nav: {
-    inicio: "Home", tablero: "Dashboard", documentos: "Documents", contexto: "Context",
+    inicio: "Home", tablero: "Dashboard", focos: "Risk focus", documentos: "Documents", contexto: "Context",
     procesos: "Processes", riesgos: "Risks", noconf: "Nonconformities", salidas: "Nonconforming outputs",
     auditorias: "Audits", indicadores: "Indicators", revisiones: "Management review",
     competencias: "Competencies", proveedores: "Suppliers", pqrs: "Feedback (PQRS)", actas: "Minutes",

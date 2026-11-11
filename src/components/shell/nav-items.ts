@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeApprovals, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReports, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeApprovals, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeFocos, canSeeForms, canSeeHazards, canSeeIndicators, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReports, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "solicitudes" | "informes" | "admin"
+export type NavIcon = "inicio" | "tablero" | "focos" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "solicitudes" | "informes" | "admin"
 
 export interface NavItem {
   href: string
@@ -17,6 +17,7 @@ export function navItemsFor(user: CurrentUser, nav: Record<NavIcon, string>): Na
   const item = (href: string, icon: NavIcon, separated?: boolean): NavItem => ({ href, label: nav[icon], icon, separated })
   const items: NavItem[] = [item("/app", "inicio")]
   if (canSeeDashboard(user)) items.push(item("/app/tablero", "tablero"))
+  if (canSeeFocos(user)) items.push(item("/app/focos", "focos"))
   items.push(item("/app/documentos", "documentos"))
   if (canSeeContext(user)) items.push(item("/app/contexto", "contexto"))
   if (canSeeProcessMap(user)) items.push(item("/app/procesos", "procesos"))
