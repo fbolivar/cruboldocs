@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCurrentUser, getDashboard, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCurrentUser, getDashboard, getFormTemplate, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -46,6 +46,8 @@ import type {
   DocumentStatus,
   DocumentSummary,
   EvidenceResult,
+  FieldValue,
+  SubmissionDetail,
   Result,
   RiskFilters,
   RiskLevel,
@@ -2878,4 +2880,239 @@ export async function exportEnvCsv(): Promise<string> {
     { header: "Significancia", value: (r) => SIG[r.significance] ?? r.significance },
     { header: "Estado", value: (r) => (r.status === "inactivo" ? "Inactivo" : "Activo") },
   ])
+}
+
+// ---------- Formularios (v1.1-5, constructor) ----------
+
+function revalidateForms() {
+  revalidatePath("/app/formularios", "layout")
+  revalidatePath("/app")
+}
+
+const FIELD_TYPE = z.enum([
+  "texto", "texto_largo", "numero", "fecha", "si_no",
+  "seleccion", "multiseleccion", "puntaje", "seccion",
+])
+
+const templateDataSchema = z.object({
+  title: z.string().trim().min(3).max(200),
+  category: z.enum(["inspeccion", "lista_verificacion", "formato", "encuesta_interna", "otro"]),
+  processId: z.uuid().nullish(),
+  description: z.string().trim().max(2000).optional(),
+})
+
+const fieldEditSchema = z.object({
+  label: z.string().trim().min(1).max(300),
+  help: z.string().trim().max(1000).optional(),
+  required: z.boolean(),
+  options: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+  config: z.object({ min: z.number().finite().optional(), max: z.number().finite().optional() }).nullish(),
+})
+
+const valuesSchema = z.record(z.string(), z.unknown())
+
+export async function createTemplate(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = templateDataSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la plantilla.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_template", {
+      p_org: user.organization.id,
+      p_title: p.data.title,
+      p_category: p.data.category,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_description: p.data.description ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateTemplateData(templateId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    const p = templateDataSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la plantilla.")
+    const { error } = await (await createClient()).rpc("update_template_data", {
+      p_template: templateId,
+      p_title: p.data.title,
+      p_category: p.data.category,
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_description: p.data.description ?? "",
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function addField(templateId: string, type: unknown, label?: string): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    const t = FIELD_TYPE.safeParse(type)
+    if (!t.success) return fail("Tipo de campo no válido.")
+    const { data, error } = await (await createClient()).rpc("add_field", {
+      p_template: templateId, p_type: t.data, p_label: (label ?? "").slice(0, 300),
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok({ id: (data as unknown as string) ?? "" })
+  })
+}
+
+export async function updateField(fieldId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(fieldId)) return fail(GENERIC)
+    const p = fieldEditSchema.safeParse(input)
+    if (!p.success) return fail("Revisa la configuración del campo.")
+    const { error } = await (await createClient()).rpc("update_field", {
+      p_field: fieldId,
+      p_label: p.data.label,
+      p_help: p.data.help ?? "",
+      p_required: p.data.required,
+      p_options: (p.data.options ?? null) as unknown as Json,
+      p_config: (p.data.config ?? null) as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function removeField(fieldId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(fieldId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("remove_field", { p_field: fieldId })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function setFieldOrder(templateId: string, fieldIds: string[]): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(templateId) || !Array.isArray(fieldIds) || fieldIds.some((id) => !isUuid(id))) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_field_order", {
+      p_template: templateId, p_field_ids: fieldIds,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function publishTemplate(templateId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("publish_template", { p_template: templateId })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function newTemplateVersion(templateId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("new_template_version", { p_template: templateId })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function setTemplateArchived(templateId: string, archived: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_template_archived", {
+      p_template: templateId, p_archived: archived,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function saveSubmissionDraft(
+  submissionId: string | null,
+  templateId: string,
+  values: unknown,
+): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    if (submissionId !== null && !isUuid(submissionId)) return fail(GENERIC)
+    const v = valuesSchema.safeParse(values)
+    if (!v.success) return fail("No pudimos guardar el borrador.")
+    const { data, error } = await (await createClient()).rpc("save_submission_draft", {
+      p_submission: (submissionId ?? null) as unknown as string,
+      p_template: templateId,
+      p_values: v.data as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok({ id: (data as unknown as string) ?? "" })
+  })
+}
+
+export async function submitSubmission(submissionId: string, values: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(submissionId)) return fail(GENERIC)
+    const v = valuesSchema.safeParse(values)
+    if (!v.success) return fail("Revisa los datos antes de enviar.")
+    const { error } = await (await createClient()).rpc("submit_submission", {
+      p_submission: submissionId, p_values: v.data as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok(undefined)
+  })
+}
+
+export async function submitNewSubmission(templateId: string, values: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    if (!isUuid(templateId)) return fail(GENERIC)
+    const v = valuesSchema.safeParse(values)
+    if (!v.success) return fail("Revisa los datos antes de enviar.")
+    const { data, error } = await (await createClient()).rpc("submit_new_submission", {
+      p_template: templateId, p_values: v.data as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateForms()
+    return ok({ id: (data as unknown as string) ?? "" })
+  })
+}
+
+const FORM_CSV_BOOL = (v: FieldValue): string =>
+  typeof v === "boolean" ? (v ? "Sí" : "No") : v === "si" || v === "sí" ? "Sí" : v === "no" ? "No" : ""
+
+function csvValue(value: FieldValue, type: string): string {
+  if (value === null || value === undefined) return ""
+  if (type === "si_no") return FORM_CSV_BOOL(value)
+  if (type === "multiseleccion" && Array.isArray(value)) return value.join("; ")
+  if (Array.isArray(value)) return value.join("; ")
+  return String(value)
+}
+
+export async function exportFormCsv(code: string): Promise<string> {
+  const template = await getFormTemplate(code)
+  if (!template) return ""
+  const columns = template.fields.filter((f) => f.type !== "seccion")
+  const rows = await listSubmissionsForExport(template.id)
+  type Row = (typeof rows)[number]
+  return toCsv<Row>(rows, [
+    { header: "Fecha", value: (r) => (r.submittedAt ? formatDateTime(r.submittedAt) : "") },
+    { header: "Diligenció", value: (r) => r.submittedByName },
+    { header: "Versión", value: (r) => String(r.templateVersion) },
+    ...columns.map((c) => ({
+      header: c.label,
+      value: (r: Row) => csvValue(r.values[c.id] ?? null, c.type),
+    })),
+  ])
+}
+
+/** Carga una respuesta para verla (lectura); la RLS valida acceso del rol SIG. */
+export async function fetchSubmission(id: string): Promise<SubmissionDetail | null> {
+  if (!isUuid(id)) return null
+  return getSubmission(id)
 }

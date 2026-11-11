@@ -1206,6 +1206,209 @@ export type Database = {
           },
         ]
       }
+      form_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_fields: {
+        Row: {
+          config: Json | null
+          created_at: string
+          help: string | null
+          id: string
+          is_active: boolean
+          label: string
+          options: Json | null
+          order_index: number
+          organization_id: string
+          required: boolean
+          template_id: string
+          type: string
+          version: number
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          help?: string | null
+          id?: string
+          is_active?: boolean
+          label: string
+          options?: Json | null
+          order_index?: number
+          organization_id: string
+          required?: boolean
+          template_id: string
+          type: string
+          version: number
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          help?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          options?: Json | null
+          order_index?: number
+          organization_id?: string
+          required?: boolean
+          template_id?: string
+          type?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_fields_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_fields_template_id_organization_id_fkey"
+            columns: ["template_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      form_submissions: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          status: string
+          submitted_at: string | null
+          submitted_by: string
+          template_id: string
+          template_version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string
+          template_id: string
+          template_version: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string
+          template_id?: string
+          template_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_submissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_template_id_organization_id_fkey"
+            columns: ["template_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      form_templates: {
+        Row: {
+          category: string
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          draft_version: number
+          id: string
+          organization_id: string
+          process_id: string | null
+          published_at: string | null
+          published_version: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          code: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          draft_version?: number
+          id?: string
+          organization_id: string
+          process_id?: string | null
+          published_at?: string | null
+          published_version?: number | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          draft_version?: number
+          id?: string
+          organization_id?: string
+          process_id?: string | null
+          published_at?: string | null
+          published_version?: number | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_templates_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       hazard_counters: {
         Row: {
           last_seq: number
@@ -3419,6 +3622,52 @@ export type Database = {
           },
         ]
       }
+      submission_values: {
+        Row: {
+          field_id: string
+          id: string
+          organization_id: string
+          submission_id: string
+          value: Json | null
+        }
+        Insert: {
+          field_id: string
+          id?: string
+          organization_id: string
+          submission_id: string
+          value?: Json | null
+        }
+        Update: {
+          field_id?: string
+          id?: string
+          organization_id?: string
+          submission_id?: string
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_values_field_id_organization_id_fkey"
+            columns: ["field_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "form_fields"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "submission_values_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_values_submission_id_organization_id_fkey"
+            columns: ["submission_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "form_submissions"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       supplier_counters: {
         Row: {
           last_seq: number
@@ -3928,6 +4177,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_field: {
+        Args: { p_label: string; p_template: string; p_type: string }
+        Returns: string
+      }
       add_nc_action: {
         Args: {
           p_description: string
@@ -4035,6 +4288,10 @@ export type Database = {
         Args: { org: string; process?: string }
         Returns: boolean
       }
+      can_manage_forms: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_indicators: { Args: { org: string }; Returns: boolean }
       can_manage_legal: {
         Args: { org: string; process?: string }
@@ -4077,6 +4334,7 @@ export type Database = {
       can_see_audits: { Args: { org: string }; Returns: boolean }
       can_see_competencies: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
+      can_see_forms: { Args: { org: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
       can_see_legal: { Args: { org: string }; Returns: boolean }
       can_see_minutes: { Args: { org: string }; Returns: boolean }
@@ -4425,6 +4683,19 @@ export type Database = {
         }
         Returns: undefined
       }
+      create_template: {
+        Args: {
+          p_category: string
+          p_description: string
+          p_org: string
+          p_process: string
+          p_title: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       create_training: {
         Args: {
           p_date: string
@@ -4533,6 +4804,31 @@ export type Database = {
           total: number
         }[]
       }
+      field_template: {
+        Args: { p_field: string }
+        Returns: {
+          category: string
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          draft_version: number
+          id: string
+          organization_id: string
+          process_id: string | null
+          published_at: string | null
+          published_version: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "form_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       frequency_interval: { Args: { f: string }; Returns: string }
       generate_nc_from_finding: {
         Args: { p_finding: string }
@@ -4557,6 +4853,11 @@ export type Database = {
         Returns: {
           code: string
         }[]
+      }
+      get_published_form: { Args: { p_template: string }; Returns: Json }
+      get_published_form_by_code: {
+        Args: { p_code: string; p_org: string }
+        Returns: Json
       }
       get_survey_public: {
         Args: { p_token: string }
@@ -4789,6 +5090,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      new_template_version: { Args: { p_template: string }; Returns: undefined }
       notify_position: {
         Args: {
           org: string
@@ -4904,6 +5206,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      publish_template: { Args: { p_template: string }; Returns: undefined }
       record_measurement: {
         Args: {
           p_denominator: number
@@ -4947,6 +5250,7 @@ export type Database = {
         Args: { p_actor: string; p_invitation: string; p_token_hash: string }
         Returns: string
       }
+      remove_field: { Args: { p_field: string }; Returns: undefined }
       remove_position_requirement: {
         Args: { p_req: string }
         Returns: undefined
@@ -5042,6 +5346,10 @@ export type Database = {
         }
       }
       run_daily_jobs: { Args: never; Returns: Json }
+      save_submission_draft: {
+        Args: { p_submission: string; p_template: string; p_values: Json }
+        Returns: string
+      }
       set_active_org: { Args: { org: string }; Returns: undefined }
       set_aspect_active: {
         Args: { p_active: boolean; p_aspect: string }
@@ -5054,6 +5362,10 @@ export type Database = {
           p_norm_ids: string[]
           p_org: string
         }
+        Returns: undefined
+      }
+      set_field_order: {
+        Args: { p_field_ids: string[]; p_template: string }
         Returns: undefined
       }
       set_hazard_active: {
@@ -5084,6 +5396,10 @@ export type Database = {
       }
       set_supplier_active: {
         Args: { p_active: boolean; p_supplier: string }
+        Returns: undefined
+      }
+      set_template_archived: {
+        Args: { p_archived: boolean; p_template: string }
         Returns: undefined
       }
       set_version_files: {
@@ -5131,6 +5447,14 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      submit_new_submission: {
+        Args: { p_template: string; p_values: Json }
+        Returns: string
+      }
+      submit_submission: {
+        Args: { p_submission: string; p_values: Json }
+        Returns: undefined
+      }
       submit_survey_response: {
         Args: {
           p_comment: string
@@ -5174,6 +5498,35 @@ export type Database = {
         Args: { p_ids: string[]; p_objective: string; p_org: string }
         Returns: undefined
       }
+      template_has_open_draft: {
+        Args: { t: Database["public"]["Tables"]["form_templates"]["Row"] }
+        Returns: boolean
+      }
+      template_or_fail: {
+        Args: { p_template: string }
+        Returns: {
+          category: string
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          draft_version: number
+          id: string
+          organization_id: string
+          process_id: string | null
+          published_at: string | null
+          published_version: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "form_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       unarchive_indicator: { Args: { p_indicator: string }; Returns: undefined }
       update_aspect: {
         Args: {
@@ -5200,6 +5553,17 @@ export type Database = {
           p_description: string
           p_kind: string
           p_name: string
+        }
+        Returns: undefined
+      }
+      update_field: {
+        Args: {
+          p_config: Json
+          p_field: string
+          p_help: string
+          p_label: string
+          p_options: Json
+          p_required: boolean
         }
         Returns: undefined
       }
@@ -5312,9 +5676,28 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_template_data: {
+        Args: {
+          p_category: string
+          p_description: string
+          p_process: string
+          p_template: string
+          p_title: string
+        }
+        Returns: undefined
+      }
       upsert_norm: {
         Args: { p_code: string; p_name: string; p_org: string }
         Returns: string
+      }
+      validate_submission_values: {
+        Args: {
+          p_require: boolean
+          p_template: string
+          p_values: Json
+          p_version: number
+        }
+        Returns: undefined
       }
       verify_nc: {
         Args: { p_effective: boolean; p_nc: string; p_notes?: string }

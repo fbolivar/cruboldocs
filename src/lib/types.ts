@@ -1303,6 +1303,102 @@ export interface Invitation {
   accountExists: boolean
 }
 
+// ---------- Constructor de formularios (v1.1-5) ----------
+
+export type FormCategory = "inspeccion" | "lista_verificacion" | "formato" | "encuesta_interna" | "otro"
+export type FormStatus = "borrador" | "publicado" | "archivado"
+export type FieldType =
+  | "texto" | "texto_largo" | "numero" | "fecha" | "si_no"
+  | "seleccion" | "multiseleccion" | "puntaje" | "seccion"
+export type SubmissionStatus = "borrador" | "enviada"
+
+/** Valor de un campo diligenciado (jsonb): texto, número, booleano, fecha ISO o lista. */
+export type FieldValue = string | number | boolean | string[] | null
+
+export interface FormFieldView {
+  id: string
+  order: number
+  type: FieldType
+  label: string
+  help: string | null
+  required: boolean
+  /** opciones de selección/multiselección. */
+  options: string[] | null
+  /** configuración por tipo (min/max de número o puntaje). */
+  config: { min?: number; max?: number } | null
+}
+
+export interface FormTemplateListItem {
+  id: string
+  code: string
+  title: string
+  category: FormCategory
+  status: FormStatus
+  version: number
+  processName: string | null
+  fieldCount: number
+  submissionCount: number
+  canManage: boolean
+}
+
+export interface FormsSummary {
+  total: number
+  published: number
+  submissionsThisMonth: number
+}
+
+export interface FormTemplateDetail {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  category: FormCategory
+  status: FormStatus
+  publishedVersion: number | null
+  draftVersion: number
+  /** hay un borrador editable por encima de lo publicado (o aún sin publicar). */
+  hasOpenDraft: boolean
+  processId: string | null
+  processName: string | null
+  /** campos de la versión vigente (borrador si hay, si no la publicada). */
+  fields: FormFieldView[]
+  submissionCount: number
+  canManage: boolean
+  canFill: boolean
+  timeline: NcTimelineEvent[]
+}
+
+/** Formulario publicado listo para diligenciar (desde get_published_form). */
+export interface PublishedForm {
+  id: string
+  code: string
+  title: string
+  category: FormCategory
+  version: number
+  fields: FormFieldView[]
+}
+
+export interface SubmissionListItem {
+  id: string
+  submittedByName: string
+  templateVersion: number
+  status: SubmissionStatus
+  submittedAt: string | null
+  createdAt: string
+}
+
+export interface SubmissionDetail {
+  id: string
+  status: SubmissionStatus
+  submittedByName: string
+  templateVersion: number
+  submittedAt: string | null
+  createdAt: string
+  /** campos de la versión con que se diligenció, en orden. */
+  fields: FormFieldView[]
+  values: Record<string, FieldValue>
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

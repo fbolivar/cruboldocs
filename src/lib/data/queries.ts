@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canManageAudits, canManageCompetencies, canManageEnv, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
+import { canAddFindings, canFillForms, canManageAudits, canManageCompetencies, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -125,6 +125,17 @@ import type {
   Task,
   TaskType,
   VersionStatus,
+  FormCategory,
+  FormStatus,
+  FormFieldView,
+  FormTemplateListItem,
+  FormsSummary,
+  FormTemplateDetail,
+  PublishedForm,
+  SubmissionListItem,
+  SubmissionDetail,
+  SubmissionStatus,
+  FieldValue,
 } from "@/lib/types"
 
 export const PAGE_SIZE = 25
@@ -2443,4 +2454,278 @@ export async function getEnvAspect(code: string): Promise<EnvAspectDetail | null
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: ENV_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageEnv(s.user, a.process_id ?? undefined),
   }
+}
+
+// ---------- Formularios (v1.1-5, constructor) ----------
+
+const FORM_EVENT_TEXT: Record<string, string> = {
+  crear_plantilla: "Creó la plantilla.",
+  editar_plantilla: "Editó los datos de la plantilla.",
+  publicar_plantilla: "Publicó la plantilla.",
+  nueva_version_plantilla: "Creó una nueva versión.",
+  estado_plantilla: "Cambió el estado de la plantilla.",
+  enviar_respuesta: "Se registró una respuesta.",
+}
+
+type FieldRow = {
+  id: string
+  order_index: number
+  type: string
+  label: string
+  help: string | null
+  required: boolean
+  options: unknown
+  config: unknown
+}
+
+function toFieldView(f: FieldRow): FormFieldView {
+  const opts = Array.isArray(f.options) ? (f.options as unknown[]).map((x) => String(x)) : null
+  const cfg = f.config && typeof f.config === "object" ? (f.config as { min?: number; max?: number }) : null
+  return {
+    id: f.id,
+    order: f.order_index,
+    type: f.type as FormFieldView["type"],
+    label: f.label,
+    help: f.help,
+    required: f.required,
+    options: opts,
+    config: cfg,
+  }
+}
+
+function displayVersion(t: { status: string; published_version: number | null; draft_version: number }): number {
+  // La versión vigente para mostrar: la publicada si existe, si no el borrador.
+  return t.published_version ?? t.draft_version
+}
+
+export async function getFormsSummary(): Promise<FormsSummary> {
+  const s = await scope()
+  if (!s) return { total: 0, published: 0, submissionsThisMonth: 0 }
+  const now = new Date()
+  const monthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
+  const [{ data: tpls }, { count: subCount }] = await Promise.all([
+    s.supabase.from("form_templates").select("status").eq("organization_id", s.org),
+    s.supabase
+      .from("form_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", s.org)
+      .eq("status", "enviada")
+      .gte("submitted_at", monthStart),
+  ])
+  const active = (tpls ?? []).filter((t) => t.status !== "archivado")
+  return {
+    total: active.length,
+    published: active.filter((t) => t.status === "publicado").length,
+    submissionsThisMonth: subCount ?? 0,
+  }
+}
+
+export async function listFormTemplates(): Promise<FormTemplateListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: tpls }, { data: fields }, { data: subs }, { data: procs }] = await Promise.all([
+    s.supabase
+      .from("form_templates")
+      .select("id, code, title, category, status, published_version, draft_version, process_id")
+      .eq("organization_id", s.org)
+      .order("code", { ascending: false }),
+    s.supabase.from("form_fields").select("template_id, version, type").eq("organization_id", s.org).eq("is_active", true),
+    s.supabase.from("form_submissions").select("template_id").eq("organization_id", s.org).eq("status", "enviada"),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const subCount = new Map<string, number>()
+  for (const r of subs ?? []) subCount.set(r.template_id, (subCount.get(r.template_id) ?? 0) + 1)
+  return (tpls ?? []).map((t) => {
+    const ver = displayVersion(t)
+    const fieldCount = (fields ?? []).filter(
+      (f) => f.template_id === t.id && f.version === ver && f.type !== "seccion",
+    ).length
+    return {
+      id: t.id,
+      code: t.code,
+      title: t.title,
+      category: t.category as FormCategory,
+      status: t.status as FormStatus,
+      version: ver,
+      processName: t.process_id ? procMap.get(t.process_id) ?? null : null,
+      fieldCount,
+      submissionCount: subCount.get(t.id) ?? 0,
+      canManage: canManageForms(s.user, t.process_id ?? undefined),
+    }
+  })
+}
+
+export async function getFormTemplate(code: string): Promise<FormTemplateDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: t } = await s.supabase
+    .from("form_templates")
+    .select("*")
+    .eq("organization_id", s.org)
+    .eq("code", code)
+    .maybeSingle()
+  if (!t) return null
+  const hasOpenDraft = t.status !== "archivado" && (t.status === "borrador" || t.draft_version > (t.published_version ?? 0))
+  const shownVersion = hasOpenDraft ? t.draft_version : t.published_version ?? t.draft_version
+  const [{ data: fields }, { count: subCount }, { data: proc }, { data: log }] = await Promise.all([
+    s.supabase
+      .from("form_fields")
+      .select("id, order_index, type, label, help, required, options, config")
+      .eq("organization_id", s.org)
+      .eq("template_id", t.id)
+      .eq("version", shownVersion)
+      .eq("is_active", true)
+      .order("order_index", { ascending: true }),
+    s.supabase
+      .from("form_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", s.org)
+      .eq("template_id", t.id)
+      .eq("status", "enviada"),
+    t.process_id
+      ? s.supabase.from("processes").select("name").eq("id", t.process_id).maybeSingle()
+      : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase
+      .from("audit_log")
+      .select("at, actor_id, action")
+      .eq("organization_id", s.org)
+      .eq("entity_type", "Formulario")
+      .eq("entity_id", t.id)
+      .order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: t.id,
+    code: t.code,
+    title: t.title,
+    description: t.description,
+    category: t.category as FormCategory,
+    status: t.status as FormStatus,
+    publishedVersion: t.published_version,
+    draftVersion: t.draft_version,
+    hasOpenDraft,
+    processId: t.process_id,
+    processName: proc?.name ?? null,
+    fields: (fields ?? []).map(toFieldView),
+    submissionCount: subCount ?? 0,
+    canManage: canManageForms(s.user, t.process_id ?? undefined),
+    canFill: canFillForms(s.user),
+    timeline: (log ?? []).map((x) => ({
+      at: x.at,
+      actor: x.actor_id ? person(x.actor_id).fullName : "Sistema",
+      text: FORM_EVENT_TEXT[x.action] ?? x.action,
+    })),
+  }
+}
+
+/** Formulario publicado para diligenciar (cualquier miembro activo, vía RPC definer). */
+export async function getPublishedFormByCode(code: string): Promise<PublishedForm | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data, error } = await s.supabase.rpc("get_published_form_by_code", { p_org: s.org, p_code: code })
+  if (error || !data) return null
+  const d = data as {
+    id: string; code: string; title: string; category: string; version: number
+    fields: FieldRow[]
+  }
+  return {
+    id: d.id,
+    code: d.code,
+    title: d.title,
+    category: d.category as FormCategory,
+    version: d.version,
+    fields: (d.fields ?? []).map(toFieldView),
+  }
+}
+
+export async function listSubmissions(templateId: string): Promise<SubmissionListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data: subs } = await s.supabase
+    .from("form_submissions")
+    .select("id, submitted_by, template_version, status, submitted_at, created_at")
+    .eq("organization_id", s.org)
+    .eq("template_id", templateId)
+    .order("created_at", { ascending: false })
+  const person = await peopleOf(s.org, (subs ?? []).map((x) => x.submitted_by))
+  return (subs ?? []).map((x) => ({
+    id: x.id,
+    submittedByName: x.submitted_by ? person(x.submitted_by).fullName : "—",
+    templateVersion: x.template_version,
+    status: x.status as SubmissionStatus,
+    submittedAt: x.submitted_at,
+    createdAt: x.created_at,
+  }))
+}
+
+export async function getSubmission(id: string): Promise<SubmissionDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: sub } = await s.supabase
+    .from("form_submissions")
+    .select("id, template_id, template_version, submitted_by, status, submitted_at, created_at")
+    .eq("organization_id", s.org)
+    .eq("id", id)
+    .maybeSingle()
+  if (!sub) return null
+  const [{ data: fields }, { data: vals }, person] = await Promise.all([
+    s.supabase
+      .from("form_fields")
+      .select("id, order_index, type, label, help, required, options, config")
+      .eq("organization_id", s.org)
+      .eq("template_id", sub.template_id)
+      .eq("version", sub.template_version)
+      .eq("is_active", true)
+      .order("order_index", { ascending: true }),
+    s.supabase.from("submission_values").select("field_id, value").eq("organization_id", s.org).eq("submission_id", sub.id),
+    peopleOf(s.org, [sub.submitted_by]),
+  ])
+  const values: Record<string, FieldValue> = {}
+  for (const v of vals ?? []) values[v.field_id] = v.value as FieldValue
+  return {
+    id: sub.id,
+    status: sub.status as SubmissionStatus,
+    submittedByName: sub.submitted_by ? person(sub.submitted_by).fullName : "—",
+    templateVersion: sub.template_version,
+    submittedAt: sub.submitted_at,
+    createdAt: sub.created_at,
+    fields: (fields ?? []).map(toFieldView),
+    values,
+  }
+}
+
+/** Respuestas enviadas con sus valores (para exportar CSV). Una fila por respuesta enviada. */
+export async function listSubmissionsForExport(
+  templateId: string,
+): Promise<{ submittedByName: string; submittedAt: string | null; templateVersion: number; values: Record<string, FieldValue> }[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data: subs } = await s.supabase
+    .from("form_submissions")
+    .select("id, submitted_by, submitted_at, template_version")
+    .eq("organization_id", s.org)
+    .eq("template_id", templateId)
+    .eq("status", "enviada")
+    .order("submitted_at", { ascending: false })
+  if (!subs || subs.length === 0) return []
+  const ids = subs.map((x) => x.id)
+  const { data: vals } = await s.supabase
+    .from("submission_values")
+    .select("submission_id, field_id, value")
+    .eq("organization_id", s.org)
+    .in("submission_id", ids)
+  const bySub = new Map<string, Record<string, FieldValue>>()
+  for (const v of vals ?? []) {
+    const m = bySub.get(v.submission_id) ?? {}
+    m[v.field_id] = v.value as FieldValue
+    bySub.set(v.submission_id, m)
+  }
+  const person = await peopleOf(s.org, subs.map((x) => x.submitted_by))
+  return subs.map((x) => ({
+    submittedByName: x.submitted_by ? person(x.submitted_by).fullName : "—",
+    submittedAt: x.submitted_at,
+    templateVersion: x.template_version,
+    values: bySub.get(x.id) ?? {},
+  }))
 }

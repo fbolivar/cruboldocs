@@ -155,6 +155,22 @@ export function canManageObjectives(user: CurrentUser, processId?: string): bool
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Pantalla Formularios: mismos roles del SIG que los demás módulos. */
+export function canSeeForms(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/publica/versiona/archiva plantillas: Líder SIG o Líder del proceso dueño. */
+export function canManageForms(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
+/** Diligencia un formulario publicado: cualquier miembro activo de la organización
+ *  (un CurrentUser con sesión siempre lo es en su organización activa). */
+export function canFillForms(user: CurrentUser): boolean {
+  return Boolean(user.organization)
+}
+
 /** Puede identificar riesgos y agregar controles o valoraciones. */
 export function canManageRisks(user: CurrentUser, processId?: string): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
