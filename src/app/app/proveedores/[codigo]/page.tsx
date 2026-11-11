@@ -8,6 +8,7 @@ import { CriticalityChip, SupplierKindChip, SupplierStatusBadge } from "@/compon
 import { ScoreMeter } from "@/components/proveedores/score-meter"
 import { SupplierActions } from "@/components/proveedores/supplier-actions"
 import { EvaluateSupplierSheet, EvaluationHistory } from "@/components/proveedores/supplier-evaluations"
+import { SupplierSelfAssessmentPanel } from "@/components/portal/supplier-self-assessment-panel"
 import { Page } from "@/components/shell/page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getCurrentUser, getSupplier } from "@/lib/data/queries"
@@ -81,6 +82,19 @@ export default async function SupplierPage({ params }: { params: Promise<{ codig
         <Card>
           <CardHeader><CardTitle>Historial de evaluaciones</CardTitle></CardHeader>
           <CardContent><EvaluationHistory evaluations={supplier.evaluations} /></CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Autoevaluación del proveedor</CardTitle></CardHeader>
+          <CardContent>
+            <SupplierSelfAssessmentPanel
+              supplierId={supplier.id}
+              token={supplier.selfAssessmentToken}
+              assessments={supplier.selfAssessments}
+              canManage={canManage}
+              baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
+            />
+          </CardContent>
         </Card>
 
         <Card>

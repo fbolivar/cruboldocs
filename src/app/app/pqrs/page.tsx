@@ -5,9 +5,10 @@ import { NewPqrsSheet, ExportPqrsButton } from "@/components/pqrs/new-pqrs-sheet
 import { PqrsBoard } from "@/components/pqrs/pqrs-board"
 import { SatisfactionPanel } from "@/components/pqrs/satisfaction-panel"
 import { PqrsSummaryBar } from "@/components/pqrs/summary"
+import { PublicPqrsSheet } from "@/components/portal/public-pqrs-sheet"
 import { Page, PageHeader } from "@/components/shell/page"
 import { EmptyState } from "@/components/ui/empty-state"
-import { getCurrentUser, getPqrsSummary, listPqrs, listProcesses, listSatisfaction, listSurveys } from "@/lib/data/queries"
+import { getCurrentUser, getPqrsPortal, getPqrsSummary, listPqrs, listProcesses, listSatisfaction, listSurveys } from "@/lib/data/queries"
 import { canManagePqrs, canSeePqrs } from "@/lib/domain/access"
 
 export const metadata: Metadata = { title: "PQRS" }
@@ -27,8 +28,11 @@ export default async function PqrsPage() {
     )
   }
 
-  const [summary, items, satisfaction, surveys, processes] = await Promise.all([getPqrsSummary(), listPqrs(), listSatisfaction(), listSurveys(), listProcesses()])
   const canManage = canManagePqrs(user)
+  const [summary, items, satisfaction, surveys, processes, portal] = await Promise.all([
+    getPqrsSummary(), listPqrs(), listSatisfaction(), listSurveys(), listProcesses(),
+    canManage ? getPqrsPortal() : Promise.resolve(null),
+  ])
   const processOptions = processes.map((p) => ({ id: p.id, name: p.name }))
 
   return (
@@ -38,6 +42,7 @@ export default async function PqrsPage() {
         actions={
           <div className="flex gap-2">
             <ExportPqrsButton />
+            {canManage && portal && <PublicPqrsSheet portal={portal} baseUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""} />}
             {canManage && <NewPqrsSheet processes={processOptions} />}
           </div>
         }
