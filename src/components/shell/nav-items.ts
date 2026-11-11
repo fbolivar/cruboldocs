@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeApprovals, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeForms, canSeeHazards, canSeeIndicators, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "admin"
+export type NavIcon = "inicio" | "tablero" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "solicitudes" | "admin"
 
 export interface NavItem {
   href: string
@@ -40,6 +40,7 @@ export function navItemsFor(user: CurrentUser, nav: Record<NavIcon, string>): Na
   if (canSeeForms(user)) items.push(item("/app/formularios", "formularios"))
   if (canSeeCourses(user)) items.push(item("/app/capacitacion", "capacitacion"))
   if (canSeeKnowledge(user)) items.push(item("/app/conocimiento", "conocimiento"))
+  if (canSeeApprovals(user)) items.push(item("/app/solicitudes", "solicitudes"))
   if (canSeeAdmin(user)) items.push(item("/app/admin", "admin", true))
   return items
 }

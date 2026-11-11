@@ -43,7 +43,7 @@ export const es: Dictionary = {
     competencias: "Competencias", proveedores: "Proveedores", pqrs: "PQRS", actas: "Actas",
     objetivos: "Objetivos", legal: "Requisitos legales", peligros: "Peligros SST", ambiental: "Aspectos ambientales",
     sgsst: "SG-SST (0312)", metrologia: "Metrología", cambios: "Gestión del cambio", formularios: "Formularios",
-    capacitacion: "Capacitación", conocimiento: "Conocimiento", admin: "Administración",
+    capacitacion: "Capacitación", conocimiento: "Conocimiento", solicitudes: "Solicitudes", admin: "Administración",
   },
   common: {
     save: "Guardar", cancel: "Cancelar", close: "Cerrar", remove: "Quitar", edit: "Editar",
@@ -69,7 +69,7 @@ export const en: Dictionary = {
     competencias: "Competencies", proveedores: "Suppliers", pqrs: "Feedback (PQRS)", actas: "Minutes",
     objetivos: "Objectives", legal: "Legal requirements", peligros: "OHS hazards", ambiental: "Environmental aspects",
     sgsst: "OHS (0312)", metrologia: "Metrology", cambios: "Change management", formularios: "Forms",
-    capacitacion: "Training", conocimiento: "Knowledge", admin: "Administration",
+    capacitacion: "Training", conocimiento: "Knowledge", solicitudes: "Requests", admin: "Administration",
   },
   common: {
     save: "Save", cancel: "Cancel", close: "Close", remove: "Remove", edit: "Edit",
