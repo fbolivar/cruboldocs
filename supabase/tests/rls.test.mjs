@@ -1513,5 +1513,60 @@ ok((await as(db, U.beto, `select count(*)::int n from public.api_keys where orga
 await throws(() => as(db, U.juan, `insert into public.api_keys (organization_id, name, key_prefix, key_hash, scopes) values ('${A}', 'x', 'p', '${"0".repeat(64)}', array['read:risks'])`),
   "Nadie inserta claves por REST (046)", "row-level security")
 
+
+// ========== 047 · API de escritura + Webhooks ==========
+// create_api_key acepta scopes de escritura
+const wkey = (await as(db, U.juan, `select public.create_api_key('${A}', 'Escritura', array['write:nonconformities','read:indicators'], 'ck_live_w1…', '${"1".repeat(64)}') as id`)).rows[0].id
+ok(wkey != null, "create_api_key acepta scopes de escritura (047)")
+// Funciones api_* NO ejecutables por un usuario autenticado (solo el cliente de servicio)
+await throws(() => as(db, U.juan, `select public.api_report_nonconformity('${A}', '${U.juan}', 'otro', null, 'x', 'y', 'mayor', current_date)`),
+  "Un usuario no ejecuta api_report_nonconformity (047)", "permission denied")
+// Vía cliente de servicio (como la API): crea NC atribuida al actor
+const apiNc = (await svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'otro', '${P.sigA}', 'Desvío API', 'Detalle', 'mayor', current_date)`)).rows[0]
+ok(apiNc.code && apiNc.code.startsWith("NC-"), "api_report_nonconformity crea una NC (047)")
+ok((await svc(`select created_by from public.nonconformities where id = '${apiNc.id}'`)).rows[0].created_by === U.juan, "La NC por API queda atribuida al creador de la key (047)")
+// Proceso de otra organización se rechaza
+await throws(() => svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'otro', '${P.sigB}', 'x', 'y', 'mayor', current_date)`),
+  "api_report_nonconformity rechaza proceso de otra org (047)", "no pertenece")
+// source/severity inválidos
+await throws(() => svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'inventado', null, 'x', 'y', 'mayor', current_date)`),
+  "source no válido se rechaza (047)", "source no válido")
+await throws(() => svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'otro', null, 'x', 'y', 'altisima', current_date)`),
+  "severity no válido se rechaza (047)", "severity no válido")
+// api_create_pqrs sin PII mínima
+const apiPqrs = (await svc(`select * from public.api_create_pqrs('${A}', '${U.juan}', 'peticion', 'web', null, null, null, 'Solicitud', current_date, 15)`)).rows[0]
+ok(apiPqrs.code && apiPqrs.code.startsWith("PQRS-"), "api_create_pqrs crea una PQRS (047)")
+
+// --- Webhooks ---
+// Líder SIG (can_manage_org) crea un endpoint suscrito a nonconformity.created
+const ep = (await as(db, U.juan, `select public.create_webhook_endpoint('${A}', 'https://cliente.example/hook', array['nonconformity.created'], 'whsec_test') as id`)).rows[0].id
+ok(ep != null, "Se crea un endpoint de webhook (047)")
+// URL http:// se rechaza
+await throws(() => as(db, U.juan, `select public.create_webhook_endpoint('${A}', 'http://inseguro', array['pqrs.created'], 's')`),
+  "URL no https se rechaza (047)", "https")
+// Evento inválido
+await throws(() => as(db, U.juan, `select public.create_webhook_endpoint('${A}', 'https://x.example', array['foo.bar'], 's')`),
+  "Evento inválido se rechaza (047)", "Evento no válido")
+// Crear una NC dispara el encolado hacia el endpoint suscrito
+const trigNc = (await svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'otro', null, 'Dispara webhook', 'x', 'menor', current_date)`)).rows[0]
+ok((await as(db, U.juan, `select count(*)::int n from public.webhook_deliveries where endpoint_id = '${ep}' and event = 'nonconformity.created'`)).rows[0].n >= 1, "Crear NC encola entregas al endpoint suscrito (047)")
+// Una PQRS NO encola a un endpoint que solo escucha NC
+const beforePqrs = (await as(db, U.juan, `select count(*)::int n from public.webhook_deliveries where endpoint_id = '${ep}'`)).rows[0].n
+await svc(`select * from public.api_create_pqrs('${A}', '${U.juan}', 'queja', 'web', null, null, null, 'Otra queja de prueba', current_date, 15)`)
+ok((await as(db, U.juan, `select count(*)::int n from public.webhook_deliveries where endpoint_id = '${ep}'`)).rows[0].n === beforePqrs, "Un evento no suscrito no se encola (047)")
+// Revocar el endpoint: deja de encolar
+await as(db, U.juan, `select public.revoke_webhook_endpoint('${ep}')`)
+const afterRevoke = (await as(db, U.juan, `select count(*)::int n from public.webhook_deliveries where endpoint_id = '${ep}'`)).rows[0].n
+await svc(`select * from public.api_report_nonconformity('${A}', '${U.juan}', 'otro', null, 'Tras revocar', 'x', 'menor', current_date)`)
+ok((await as(db, U.juan, `select count(*)::int n from public.webhook_deliveries where endpoint_id = '${ep}'`)).rows[0].n === afterRevoke, "Un endpoint revocado no recibe más entregas (047)")
+// Consulta no administra webhooks
+await throws(() => as(db, U.sofia, `select public.create_webhook_endpoint('${A}', 'https://x.example', array['pqrs.created'], 's')`),
+  "Sofía (consulta) no crea webhooks (047)", "No puedes administrar")
+// Aislamiento: Beto no ve los webhooks de A
+ok((await as(db, U.beto, `select count(*)::int n from public.webhook_endpoints where organization_id = '${A}'`)).rows[0].n === 0, "Beto (org B) no ve webhooks de A (047)")
+// Idempotencia deny-all
+await throws(() => as(db, U.juan, `insert into public.api_idempotency (organization_id, idem_key, response) values ('${A}', 'k', '{}'::jsonb)`),
+  "api_idempotency es deny-all (047)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
