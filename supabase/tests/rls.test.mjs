@@ -1599,5 +1599,58 @@ await throws(() => as(db, U.juan, `insert into public.knowledge_articles (organi
 await throws(() => as(db, U.juan, `insert into public.kn_counters (organization_id, year, last_seq) values ('${A}', 2026, 9)`),
   "kn_counters es deny-all (048)", "row-level security")
 
+// ========== 049 · Portal externo (PQRS pública + autoevaluación de proveedor) ==========
+// --- Buzón público de PQRS ---
+const portalTok = (await as(db, U.juan, `select public.set_public_pqrs_portal('${A}', true, 'portaltokenA1234567890') t`)).rows[0].t
+ok(portalTok === "portaltokenA1234567890", "El Admin activa el buzón y obtiene el token (049)")
+await throws(() => as(db, U.sofia, `select public.set_public_pqrs_portal('${A}', true, null)`),
+  "Sofía (consulta) no administra el buzón (049)", "No puedes administrar")
+await throws(() => as(db, U.beto, `select public.set_public_pqrs_portal('${A}', true, null)`),
+  "Beto (org B) no administra el buzón de A (049)", "No puedes administrar")
+
+// anon: lectura por token y radicación
+ok((await anon(`select organization from public.get_public_pqrs_portal('${portalTok}')`)).rows[0].organization != null, "anon lee el buzón por token (049)")
+ok((await anon(`select count(*)::int n from public.get_public_pqrs_portal('inexistente')`)).rows[0].n === 0, "Token de buzón inexistente no revela nada (049)")
+await anon(`select public.submit_public_pqrs('${portalTok}', 'queja', 'Cliente Web', 'web@cliente.co', 'El servicio llegó con retraso considerable.')`)
+const webPqrs = (await svc(`select code, channel, type, created_by from public.pqrs_cases where organization_id='${A}' and channel='web' order by created_at desc limit 1`)).rows[0]
+ok(webPqrs && webPqrs.channel === "web" && webPqrs.type === "queja", "anon radica una PQRS por el canal web (049)")
+ok(webPqrs.created_by === U.juan, "La PQRS pública queda a cargo del creador del buzón (049)")
+await throws(() => anon(`select public.submit_public_pqrs('${portalTok}', 'inventado', null, null, 'texto válido')`),
+  "Tipo inválido en PQRS pública rechazado (049)", "no válido")
+await throws(() => anon(`select public.submit_public_pqrs('${portalTok}', 'queja', null, null, 'x')`),
+  "Descripción muy corta rechazada (049)", "Cuéntanos")
+
+// Desactivar el buzón: deja de recibir
+await as(db, U.juan, `select public.set_public_pqrs_portal('${A}', false, null)`)
+ok((await anon(`select count(*)::int n from public.get_public_pqrs_portal('${portalTok}')`)).rows[0].n === 0, "Buzón desactivado no se lee por token (049)")
+await throws(() => anon(`select public.submit_public_pqrs('${portalTok}', 'peticion', null, null, 'Hola, una petición.')`),
+  "Buzón desactivado no acepta PQRS (049)", "no está disponible")
+
+// anon no lee la tabla del buzón por REST
+await throws(() => anon(`select count(*) from public.public_pqrs_portals`), "anon no lee buzones por REST (049)", "permission denied")
+
+// --- Autoevaluación de proveedor (prov es un proveedor activo de A, proceso sigA) ---
+await as(db, U.juan, `select public.issue_supplier_self_assessment('${prov.id}', 'provtoken1234567890ab')`)
+await throws(() => as(db, U.sofia, `select public.issue_supplier_self_assessment('${prov.id}', 'otrotok')`),
+  "Sofía (consulta) no genera el enlace de autoevaluación (049)", "No puedes generar")
+await throws(() => as(db, U.beto, `select public.issue_supplier_self_assessment('${prov.id}', 'betotok')`),
+  "Beto (org B) no genera el enlace de un proveedor de A (049)", "sin acceso")
+
+ok((await anon(`select supplier from public.get_supplier_self_assessment('provtoken1234567890ab')`)).rows[0].supplier != null, "anon lee la autoevaluación por token (049)")
+ok((await anon(`select count(*)::int n from public.get_supplier_self_assessment('inexistente')`)).rows[0].n === 0, "Token de autoevaluación inexistente no revela nada (049)")
+await anon(`select public.submit_supplier_self_assessment('provtoken1234567890ab', 88, 'Cumplimos los requisitos.', null)`)
+const sa = (await svc(`select id, score, status from public.supplier_self_assessments where supplier_id='${prov.id}'`)).rows[0]
+ok(sa && Number(sa.score) === 88 && sa.status === "recibida", "anon envía su autoevaluación (recibida) (049)")
+await throws(() => anon(`select public.submit_supplier_self_assessment('provtoken1234567890ab', 120, null, null)`),
+  "Puntaje de autoevaluación fuera de rango rechazado (049)", "fuera de rango")
+
+// El SIG la revisa
+await as(db, U.juan, `select public.mark_self_assessment_reviewed('${sa.id}')`)
+ok((await as(db, U.juan, `select status from public.supplier_self_assessments where id='${sa.id}'`)).rows[0].status === "revisada", "El SIG marca la autoevaluación como revisada (049)")
+
+// Aislamiento + anon no lee la tabla por REST
+ok((await as(db, U.beto, `select count(*)::int n from public.supplier_self_assessments where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve autoevaluaciones de A (049)")
+await throws(() => anon(`select count(*) from public.supplier_self_assessments`), "anon no lee autoevaluaciones por REST (049)", "permission denied")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)
