@@ -4181,3 +4181,99 @@ export async function exportKnowledgeCsv(): Promise<string> {
     { header: "Estado", value: (r) => r.status },
   ])
 }
+
+// ---------- Portal externo (v1.4-3) ----------
+
+/**
+ * Activa/desactiva el buzón público de PQRS de la organización y, si `regenerate`, rota el
+ * enlace (invalida el anterior). El token se genera en el servidor; la autorización (can_manage_pqrs)
+ * la hace la RPC. Devuelve el token vigente.
+ */
+export async function setPublicPqrsPortal(input: { enabled: boolean; regenerate?: boolean }): Promise<Result<{ token: string }>> {
+  return guard(async () => {
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const token = input.regenerate ? randomBytes(18).toString("hex") : ""
+    const { data, error } = await (await createClient()).rpc("set_public_pqrs_portal", {
+      p_org: user.organization.id, p_enabled: !!input.enabled, p_token: token,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidatePqrs()
+    return ok({ token: (data as string | null) ?? "" })
+  })
+}
+
+/** Genera/rota el enlace de autoevaluación de un proveedor. Devuelve el token. */
+export async function issueSupplierSelfAssessment(supplierId: string): Promise<Result<{ token: string }>> {
+  return guard(async () => {
+    if (!isUuid(supplierId)) return fail(GENERIC)
+    const token = randomBytes(18).toString("hex")
+    const { error } = await (await createClient()).rpc("issue_supplier_self_assessment", { p_supplier: supplierId, p_token: token })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok({ token })
+  })
+}
+
+/** Marca como revisada una autoevaluación recibida. */
+export async function markSelfAssessmentReviewed(assessmentId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(assessmentId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("mark_self_assessment_reviewed", { p_assessment: assessmentId })
+    if (error) return fail(dbMessage(error))
+    revalidateSuppliers()
+    return ok(undefined)
+  })
+}
+
+/** Radicar PQRS pública (sin sesión): CAPTCHA + rate-limit por IP y (token, IP), luego RPC anónimo. */
+export async function submitPublicPqrs(input: {
+  token: string
+  type: string
+  customerName?: string
+  customerContact?: string
+  description: string
+  captchaToken: string
+}): Promise<Result> {
+  return guard(async () => {
+    const token = String(input.token ?? "")
+    if (token.length < 16 || token.length > 128) return fail("Este formulario no está disponible.")
+    if (!PQRS_TYPES.includes(input.type as (typeof PQRS_TYPES)[number])) return fail("Elige un tipo válido.")
+    const description = String(input.description ?? "").trim().slice(0, 4000)
+    if (description.length < 3) return fail("Cuéntanos tu caso.")
+    const name = (input.customerName ?? "").trim().slice(0, 200)
+    const contact = (input.customerContact ?? "").trim().slice(0, 200)
+    const ip = await clientIp()
+    if (!(await verifyTurnstile(input.captchaToken, "pqrs_publica", ip))) return fail(CAPTCHA_FAILED)
+    if (!(await withinLimits([["pqrs_pub:ip", ip], ["pqrs_pub:token_ip", `${token}|${ipKey(ip) ?? "x"}`]]))) return fail(TOO_MANY)
+    const { error } = await (await createClient()).rpc("submit_public_pqrs", {
+      p_token: token, p_type: input.type, p_customer_name: name || "", p_customer_contact: contact || "", p_description: description,
+    })
+    if (error) return fail(dbMessage(error, "Este formulario no está disponible."))
+    return ok(undefined)
+  })
+}
+
+/** Autoevaluación de proveedor pública (sin sesión): CAPTCHA + rate-limit, luego RPC anónimo. */
+export async function submitSupplierSelfAssessment(input: {
+  token: string
+  score: number
+  comment?: string
+  captchaToken: string
+}): Promise<Result> {
+  return guard(async () => {
+    const token = String(input.token ?? "")
+    if (token.length < 16 || token.length > 128) return fail("Este formulario no está disponible.")
+    if (typeof input.score !== "number" || !Number.isFinite(input.score) || input.score < 0 || input.score > 100) return fail("Indica un puntaje de 0 a 100.")
+    const comment = (input.comment ?? "").trim().slice(0, 2000)
+    const ip = await clientIp()
+    if (!(await verifyTurnstile(input.captchaToken, "proveedor", ip))) return fail(CAPTCHA_FAILED)
+    if (!(await withinLimits([["proveedor:ip", ip], ["proveedor:token_ip", `${token}|${ipKey(ip) ?? "x"}`]]))) return fail(TOO_MANY)
+    const ipHash = ip ? sha256Hex(`${ip}|${token}`) : null
+    const { error } = await (await createClient()).rpc("submit_supplier_self_assessment", {
+      p_token: token, p_score: input.score, p_comment: comment || "", p_ip_hash: ipHash ?? "",
+    })
+    if (error) return fail(dbMessage(error, "Este formulario no está disponible."))
+    return ok(undefined)
+  })
+}

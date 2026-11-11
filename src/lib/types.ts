@@ -891,6 +891,26 @@ export interface SupplierDetail {
   timeline: NcTimelineEvent[]
   /** Líder SIG o Líder del proceso del proveedor: registrar/editar/evaluar/baja. */
   canManage: boolean
+  /** Portal externo (v1.4-3): enlace vigente de autoevaluación y respuestas recibidas. */
+  selfAssessmentToken: string | null
+  selfAssessments: SupplierSelfAssessmentView[]
+}
+
+/** Autoevaluación enviada por un proveedor desde el enlace público (para revisión del SIG). */
+export interface SupplierSelfAssessmentView {
+  id: string
+  score: number
+  comment: string | null
+  status: "recibida" | "revisada"
+  submittedAt: string
+}
+
+// ---------- Portal externo (v1.4-3) ----------
+
+/** Estado del buzón público de PQRS de la organización (control en /app/pqrs). */
+export interface PqrsPortalView {
+  enabled: boolean
+  token: string | null
 }
 
 // ---------- PQRS y satisfacción del cliente (ISO 9.1.2) ----------

@@ -117,11 +117,13 @@ import type {
   RiskLevel,
   RiskMatrix,
   RiskSummaryRow,
+  PqrsPortalView,
   Role,
   SetupProgress,
   SupplierDetail,
   SupplierEvaluationView,
   SupplierListItem,
+  SupplierSelfAssessmentView,
   SupplierSummary,
   Task,
   TaskType,
@@ -1858,10 +1860,11 @@ export async function getSupplier(code: string): Promise<SupplierDetail | null> 
   if (!s) return null
   const { data: r } = await s.supabase.from("suppliers").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
   if (!r) return null
-  const [{ data: evals }, { data: proc }, { data: log }] = await Promise.all([
+  const [{ data: evals }, { data: proc }, { data: log }, { data: selfAssess }] = await Promise.all([
     s.supabase.from("supplier_evaluations").select("*").eq("supplier_id", r.id).order("eval_date", { ascending: false }).order("created_at", { ascending: false }),
     r.process_id ? s.supabase.from("processes").select("name").eq("id", r.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
     s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Proveedor").eq("entity_id", r.id).order("at", { ascending: false }),
+    s.supabase.from("supplier_self_assessments").select("id, score, comment, status, submitted_at").eq("organization_id", s.org).eq("supplier_id", r.id).order("submitted_at", { ascending: false }),
   ])
   const person = await peopleOf(s.org, [...(evals ?? []).map((e) => e.evaluated_by), ...(log ?? []).map((x) => x.actor_id)])
   const evaluations: SupplierEvaluationView[] = (evals ?? []).map((e) => ({
@@ -1882,7 +1885,38 @@ export async function getSupplier(code: string): Promise<SupplierDetail | null> 
     nextEvalDate: r.next_eval_date, evaluations,
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: SUPPLIER_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageSuppliers(s.user, r.process_id ?? undefined),
+    selfAssessmentToken: r.self_assessment_token ?? null,
+    selfAssessments: (selfAssess ?? []).map((a) => ({
+      id: a.id, score: Number(a.score), comment: a.comment,
+      status: a.status as SupplierSelfAssessmentView["status"], submittedAt: a.submitted_at,
+    })),
   }
+}
+
+// ---------- Portal externo (v1.4-3) ----------
+
+/** Estado del buzón público de PQRS de la organización activa (RLS: solo can_manage_pqrs). */
+export async function getPqrsPortal(): Promise<PqrsPortalView> {
+  const s = await scope()
+  if (!s) return { enabled: false, token: null }
+  const { data } = await s.supabase.from("public_pqrs_portals").select("enabled, token").eq("organization_id", s.org).maybeSingle()
+  return { enabled: data?.enabled ?? false, token: data?.token ?? null }
+}
+
+/** Lectura pública del buzón por token (cliente anónimo). null si no existe o está desactivado. */
+export async function getPublicPqrsPortal(token: string): Promise<{ organization: string } | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc("get_public_pqrs_portal", { p_token: token })
+  const row = data?.[0]
+  return row ? { organization: row.organization } : null
+}
+
+/** Lectura pública de la autoevaluación por token (proveedor anónimo). null si no existe. */
+export async function getPublicSupplierSelfAssessment(token: string): Promise<{ supplier: string; organization: string } | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc("get_supplier_self_assessment", { p_token: token })
+  const row = data?.[0]
+  return row ? { supplier: row.supplier, organization: row.organization } : null
 }
 
 // ---------- PQRS y satisfacción del cliente (ISO 9.1.2) ----------

@@ -29,6 +29,11 @@ const RULES = {
   "encuesta:token_ip": { limit: 10, window: "1 h" },
   // API pública de solo lectura: tope por clave (control de abuso).
   "api:key": { limit: 120, window: "1 m" },
+  // Portal externo: PQRS pública y autoevaluación de proveedor. Anti-flooding por IP y (token, IP).
+  "pqrs_pub:ip": { limit: 20, window: "10 m" },
+  "pqrs_pub:token_ip": { limit: 8, window: "1 h" },
+  "proveedor:ip": { limit: 20, window: "10 m" },
+  "proveedor:token_ip": { limit: 8, window: "1 h" },
 } satisfies Record<string, Rule>
 
 export type LimitKey = keyof typeof RULES

@@ -4022,6 +4022,41 @@ export type Database = {
           },
         ]
       }
+      public_pqrs_portals: {
+        Row: {
+          created_at: string
+          created_by: string
+          enabled: boolean
+          organization_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          organization_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          organization_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_pqrs_portals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quality_objectives: {
         Row: {
           code: string
@@ -4996,6 +5031,54 @@ export type Database = {
           },
         ]
       }
+      supplier_self_assessments: {
+        Row: {
+          comment: string | null
+          id: string
+          ip_hash: string | null
+          organization_id: string
+          score: number
+          status: string
+          submitted_at: string
+          supplier_id: string
+        }
+        Insert: {
+          comment?: string | null
+          id?: string
+          ip_hash?: string | null
+          organization_id: string
+          score: number
+          status?: string
+          submitted_at?: string
+          supplier_id: string
+        }
+        Update: {
+          comment?: string | null
+          id?: string
+          ip_hash?: string | null
+          organization_id?: string
+          score?: number
+          status?: string
+          submitted_at?: string
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_self_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_self_assessments_supplier_id_organization_id_fkey"
+            columns: ["supplier_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           category: string | null
@@ -5014,6 +5097,7 @@ export type Database = {
           nit: string | null
           organization_id: string
           process_id: string | null
+          self_assessment_token: string | null
           status: string
           updated_at: string
         }
@@ -5034,6 +5118,7 @@ export type Database = {
           nit?: string | null
           organization_id: string
           process_id?: string | null
+          self_assessment_token?: string | null
           status?: string
           updated_at?: string
         }
@@ -5054,6 +5139,7 @@ export type Database = {
           nit?: string | null
           organization_id?: string
           process_id?: string | null
+          self_assessment_token?: string | null
           status?: string
           updated_at?: string
         }
@@ -6582,10 +6668,24 @@ export type Database = {
         Args: { p_code: string; p_org: string }
         Returns: Json
       }
+      get_public_pqrs_portal: {
+        Args: { p_token: string }
+        Returns: {
+          enabled: boolean
+          organization: string
+        }[]
+      }
       get_published_form: { Args: { p_template: string }; Returns: Json }
       get_published_form_by_code: {
         Args: { p_code: string; p_org: string }
         Returns: Json
+      }
+      get_supplier_self_assessment: {
+        Args: { p_token: string }
+        Returns: {
+          organization: string
+          supplier: string
+        }[]
       }
       get_survey_public: {
         Args: { p_token: string }
@@ -6715,6 +6815,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      issue_supplier_self_assessment: {
+        Args: { p_supplier: string; p_token: string }
+        Returns: undefined
+      }
       legal_or_fail: {
         Args: { p_req: string }
         Returns: {
@@ -6761,6 +6865,10 @@ export type Database = {
           p_responsible: string
           p_status: string
         }
+        Returns: undefined
+      }
+      mark_self_assessment_reviewed: {
+        Args: { p_assessment: string }
         Returns: undefined
       }
       mask_email: { Args: { p_email: string }; Returns: string }
@@ -7290,6 +7398,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_public_pqrs_portal: {
+        Args: { p_enabled: boolean; p_org: string; p_token: string }
+        Returns: string
+      }
       set_sst_action_status: {
         Args: { p_action: string; p_status: string }
         Returns: undefined
@@ -7393,8 +7505,27 @@ export type Database = {
         Args: { p_template: string; p_values: Json }
         Returns: string
       }
+      submit_public_pqrs: {
+        Args: {
+          p_customer_contact: string
+          p_customer_name: string
+          p_description: string
+          p_token: string
+          p_type: string
+        }
+        Returns: undefined
+      }
       submit_submission: {
         Args: { p_submission: string; p_values: Json }
+        Returns: undefined
+      }
+      submit_supplier_self_assessment: {
+        Args: {
+          p_comment: string
+          p_ip_hash: string
+          p_score: number
+          p_token: string
+        }
         Returns: undefined
       }
       submit_survey_response: {
@@ -7426,6 +7557,7 @@ export type Database = {
           nit: string | null
           organization_id: string
           process_id: string | null
+          self_assessment_token: string | null
           status: string
           updated_at: string
         }
