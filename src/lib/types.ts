@@ -1669,6 +1669,51 @@ export interface CourseAttemptResult {
   passingScore: number
 }
 
+// ---------- Contexto de la organización (ISO 4.1/4.2) (v1.3-1) ----------
+
+export type Swot = "fortaleza" | "debilidad" | "oportunidad" | "amenaza"
+export type Pestel = "politico" | "economico" | "social" | "tecnologico" | "ecologico" | "legal"
+export type PartyType = "cliente" | "proveedor" | "empleado" | "accionista" | "autoridad" | "comunidad" | "otro"
+export type ContextStatus = "vigente" | "archivada"
+
+export interface ContextIssueView {
+  id: string
+  swot: Swot
+  pestel: Pestel | null
+  description: string
+  implication: string | null
+  processId: string | null
+  processName: string | null
+  riskId: string | null
+  riskCode: string | null
+  objectiveId: string | null
+  objectiveCode: string | null
+  status: ContextStatus
+  canManage: boolean
+}
+
+export interface InterestedPartyView {
+  id: string
+  name: string
+  partyType: PartyType
+  needsExpectations: string | null
+  requirements: string | null
+  monitoring: string | null
+  processId: string | null
+  processName: string | null
+  legalRequirementId: string | null
+  legalRequirementCode: string | null
+  status: ContextStatus
+  canManage: boolean
+}
+
+export interface ContextSummary {
+  total: number
+  internal: number
+  external: number
+  parties: number
+}
+
 // ---------- Resultado de mutaciones ----------
 
 export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string }

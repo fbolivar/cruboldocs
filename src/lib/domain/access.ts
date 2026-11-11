@@ -206,6 +206,16 @@ export function canApproveChange(user: CurrentUser): boolean {
   return hasRole(user, "lider_sig")
 }
 
+/** Pantalla Contexto de la organización (ISO 4.1/4.2): mismos roles del SIG que los demás módulos. */
+export function canSeeContext(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Crea/edita/archiva cuestiones y partes interesadas y genera riesgos: Líder SIG o Líder del proceso. */
+export function canManageContext(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Pantalla Capacitación (LMS, ISO 7.2): mismos roles del SIG que los demás módulos. */
 export function canSeeCourses(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))

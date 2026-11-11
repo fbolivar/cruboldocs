@@ -8,7 +8,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 
 import { currentPeriod, monthlyLimit } from "@/lib/agente/limits"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageForms, canManageHazards, canManageIndicators, canManageLegal, canManageMetrology, canManageMinutes, canManageNonconformities, canManageObjectives, canManagePqrs, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses } from "@/lib/domain/access"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
 import { daysFromToday, todayIsoDate } from "@/lib/format"
@@ -143,6 +143,13 @@ import type {
   CourseEnrollmentView,
   CourseQuestionView,
   CourseOption,
+  ContextIssueView,
+  InterestedPartyView,
+  ContextSummary,
+  Swot,
+  Pestel,
+  PartyType,
+  ContextStatus,
   SstSummary,
   SstEvaluationListItem,
   SstEvaluationDetail,
@@ -3197,4 +3204,92 @@ export async function getCourseToTake(code: string): Promise<CourseToTake | null
       options: (q.options ?? []).map((o) => String(o)),
     })),
   }
+}
+
+// ---------- Contexto de la organización (ISO 4.1/4.2) (v1.3-1) ----------
+
+const EXTERNAL_SWOT = new Set<Swot>(["oportunidad", "amenaza"])
+
+export async function getContextSummary(): Promise<ContextSummary> {
+  const s = await scope()
+  if (!s) return { total: 0, internal: 0, external: 0, parties: 0 }
+  const [{ data: issues }, { count: parties }] = await Promise.all([
+    s.supabase.from("context_issues").select("swot").eq("organization_id", s.org).eq("status", "vigente"),
+    s.supabase
+      .from("interested_parties")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", s.org)
+      .eq("status", "vigente"),
+  ])
+  const list = issues ?? []
+  const external = list.filter((i) => EXTERNAL_SWOT.has(i.swot as Swot)).length
+  return {
+    total: list.length,
+    internal: list.length - external,
+    external,
+    parties: parties ?? 0,
+  }
+}
+
+export async function listContextIssues(): Promise<ContextIssueView[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: issues }, { data: procs }, { data: risks }, { data: objs }] = await Promise.all([
+    s.supabase
+      .from("context_issues")
+      .select("id, swot, pestel, description, implication, process_id, risk_id, objective_id, status")
+      .eq("organization_id", s.org)
+      .order("created_at", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("risks").select("id, code").eq("organization_id", s.org),
+    s.supabase.from("quality_objectives").select("id, code").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const riskMap = new Map((risks ?? []).map((r) => [r.id, r.code]))
+  const objMap = new Map((objs ?? []).map((o) => [o.id, o.code]))
+  return (issues ?? []).map((i) => ({
+    id: i.id,
+    swot: i.swot as Swot,
+    pestel: (i.pestel as Pestel | null) ?? null,
+    description: i.description,
+    implication: i.implication,
+    processId: i.process_id,
+    processName: i.process_id ? procMap.get(i.process_id) ?? null : null,
+    riskId: i.risk_id,
+    riskCode: i.risk_id ? riskMap.get(i.risk_id) ?? null : null,
+    objectiveId: i.objective_id,
+    objectiveCode: i.objective_id ? objMap.get(i.objective_id) ?? null : null,
+    status: i.status as ContextStatus,
+    canManage: canManageContext(s.user, i.process_id ?? undefined),
+  }))
+}
+
+export async function listInterestedParties(): Promise<InterestedPartyView[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: parties }, { data: procs }, { data: legal }] = await Promise.all([
+    s.supabase
+      .from("interested_parties")
+      .select("id, name, party_type, needs_expectations, requirements, monitoring, process_id, legal_requirement_id, status")
+      .eq("organization_id", s.org)
+      .order("created_at", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("legal_requirements").select("id, code").eq("organization_id", s.org),
+  ])
+  const procMap = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  const legalMap = new Map((legal ?? []).map((l) => [l.id, l.code]))
+  return (parties ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    partyType: p.party_type as PartyType,
+    needsExpectations: p.needs_expectations,
+    requirements: p.requirements,
+    monitoring: p.monitoring,
+    processId: p.process_id,
+    processName: p.process_id ? procMap.get(p.process_id) ?? null : null,
+    legalRequirementId: p.legal_requirement_id,
+    legalRequirementCode: p.legal_requirement_id ? legalMap.get(p.legal_requirement_id) ?? null : null,
+    status: p.status as ContextStatus,
+    canManage: canManageContext(s.user, p.process_id ?? undefined),
+  }))
 }

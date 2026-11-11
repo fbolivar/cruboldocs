@@ -16,7 +16,7 @@ import { z } from "zod"
 
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
-import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listEnvAspects, listHazards, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listLegalRequirements, listMinutes, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import {
   createUploadTicket,
   promoteUpload,
@@ -3559,5 +3559,193 @@ export async function exportCourseResultsCsv(code: string): Promise<string> {
     { header: "Fecha", value: (r) => (r.completedAt ? formatDateTime(r.completedAt) : "") },
     { header: "Puntaje", value: (r) => String(r.score) },
     { header: "Resultado", value: (r) => (r.status === "aprobado" ? "Aprobado" : "No aprobado") },
+  ])
+}
+
+// ---------- Contexto de la organización (ISO 4.1/4.2) (v1.3-1) ----------
+
+function revalidateContext() {
+  revalidatePath("/app/contexto", "layout")
+}
+
+const SWOT = z.enum(["fortaleza", "debilidad", "oportunidad", "amenaza"])
+const PESTEL = z.enum(["politico", "economico", "social", "tecnologico", "ecologico", "legal"])
+const PARTY_TYPE = z.enum(["cliente", "proveedor", "empleado", "accionista", "autoridad", "comunidad", "otro"])
+
+const issueSchema = z.object({
+  swot: SWOT,
+  pestel: PESTEL.nullish(),
+  description: z.string().trim().min(3).max(2000),
+  implication: z.string().trim().max(2000).optional(),
+  processId: z.uuid().nullish(),
+  objectiveId: z.uuid().nullish(),
+})
+
+const partySchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  partyType: PARTY_TYPE,
+  needsExpectations: z.string().trim().max(2000).optional(),
+  requirements: z.string().trim().max(2000).optional(),
+  monitoring: z.string().trim().max(2000).optional(),
+  processId: z.uuid().nullish(),
+  legalRequirementId: z.uuid().nullish(),
+})
+
+const genRiskSchema = z.object({
+  processId: z.uuid(),
+  ownerPositionId: z.uuid(),
+  probability: z.number().int().min(1).max(5),
+  impact: z.number().int().min(1).max(5),
+})
+
+export async function createContextIssue(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = issueSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la cuestión.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_context_issue", {
+      p_org: user.organization.id,
+      p_swot: p.data.swot,
+      p_pestel: (p.data.pestel ?? null) as unknown as string,
+      p_description: p.data.description,
+      p_implication: p.data.implication ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_objective: (p.data.objectiveId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateContext()
+    return ok({ id: (data as unknown as string) ?? "" })
+  })
+}
+
+export async function updateContextIssue(issueId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(issueId)) return fail(GENERIC)
+    const p = issueSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la cuestión.")
+    const { error } = await (await createClient()).rpc("update_context_issue", {
+      p_issue: issueId,
+      p_swot: p.data.swot,
+      p_pestel: (p.data.pestel ?? null) as unknown as string,
+      p_description: p.data.description,
+      p_implication: p.data.implication ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_objective: (p.data.objectiveId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateContext()
+    return ok(undefined)
+  })
+}
+
+export async function setIssueArchived(issueId: string, archived: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(issueId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_issue_archived", { p_issue: issueId, p_archived: archived })
+    if (error) return fail(dbMessage(error))
+    revalidateContext()
+    return ok(undefined)
+  })
+}
+
+export async function generateRiskFromIssue(issueId: string, input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(issueId)) return fail(GENERIC)
+    const p = genRiskSchema.safeParse(input)
+    if (!p.success) return fail("Elige el proceso y el responsable del riesgo.")
+    const { data, error } = await (await createClient()).rpc("generate_risk_from_issue", {
+      p_issue: issueId,
+      p_process: p.data.processId,
+      p_owner: p.data.ownerPositionId,
+      p_probability: p.data.probability,
+      p_impact: p.data.impact,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateContext()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function createInterestedParty(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = partySchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la parte interesada.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_interested_party", {
+      p_org: user.organization.id,
+      p_name: p.data.name,
+      p_type: p.data.partyType,
+      p_needs: p.data.needsExpectations ?? "",
+      p_requirements: p.data.requirements ?? "",
+      p_monitoring: p.data.monitoring ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_legal: (p.data.legalRequirementId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateContext()
+    return ok({ id: (data as unknown as string) ?? "" })
+  })
+}
+
+export async function updateInterestedParty(partyId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(partyId)) return fail(GENERIC)
+    const p = partySchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la parte interesada.")
+    const { error } = await (await createClient()).rpc("update_interested_party", {
+      p_party: partyId,
+      p_name: p.data.name,
+      p_type: p.data.partyType,
+      p_needs: p.data.needsExpectations ?? "",
+      p_requirements: p.data.requirements ?? "",
+      p_monitoring: p.data.monitoring ?? "",
+      p_process: (p.data.processId ?? null) as unknown as string,
+      p_legal: (p.data.legalRequirementId ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateContext()
+    return ok(undefined)
+  })
+}
+
+export async function setPartyArchived(partyId: string, archived: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(partyId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_party_archived", { p_party: partyId, p_archived: archived })
+    if (error) return fail(dbMessage(error))
+    revalidateContext()
+    return ok(undefined)
+  })
+}
+
+export async function exportContextIssuesCsv(): Promise<string> {
+  const issues = await listContextIssues()
+  type Row = (typeof issues)[number]
+  return toCsv<Row>(issues, [
+    { header: "Tipo DOFA", value: (r) => r.swot },
+    { header: "PESTEL", value: (r) => r.pestel ?? "" },
+    { header: "Cuestión", value: (r) => r.description },
+    { header: "Implicación", value: (r) => r.implication ?? "" },
+    { header: "Proceso", value: (r) => r.processName ?? "" },
+    { header: "Riesgo", value: (r) => r.riskCode ?? "" },
+    { header: "Objetivo", value: (r) => r.objectiveCode ?? "" },
+    { header: "Estado", value: (r) => r.status },
+  ])
+}
+
+export async function exportInterestedPartiesCsv(): Promise<string> {
+  const parties = await listInterestedParties()
+  type Row = (typeof parties)[number]
+  return toCsv<Row>(parties, [
+    { header: "Parte", value: (r) => r.name },
+    { header: "Tipo", value: (r) => r.partyType },
+    { header: "Necesidades/expectativas", value: (r) => r.needsExpectations ?? "" },
+    { header: "Requisitos", value: (r) => r.requirements ?? "" },
+    { header: "Seguimiento", value: (r) => r.monitoring ?? "" },
+    { header: "Proceso", value: (r) => r.processName ?? "" },
+    { header: "Requisito legal", value: (r) => r.legalRequirementCode ?? "" },
+    { header: "Estado", value: (r) => r.status },
   ])
 }

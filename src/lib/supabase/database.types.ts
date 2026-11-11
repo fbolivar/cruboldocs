@@ -743,6 +743,83 @@ export type Database = {
           },
         ]
       }
+      context_issues: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string
+          id: string
+          implication: string | null
+          objective_id: string | null
+          organization_id: string
+          pestel: string | null
+          process_id: string | null
+          risk_id: string | null
+          status: string
+          swot: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          description: string
+          id?: string
+          implication?: string | null
+          objective_id?: string | null
+          organization_id: string
+          pestel?: string | null
+          process_id?: string | null
+          risk_id?: string | null
+          status?: string
+          swot: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string
+          id?: string
+          implication?: string | null
+          objective_id?: string | null
+          organization_id?: string
+          pestel?: string | null
+          process_id?: string | null
+          risk_id?: string | null
+          status?: string
+          swot?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "context_issues_objective_id_fkey"
+            columns: ["objective_id"]
+            isOneToOne: false
+            referencedRelation: "quality_objectives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "context_issues_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "context_issues_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "context_issues_risk_id_fkey"
+            columns: ["risk_id"]
+            isOneToOne: false
+            referencedRelation: "risks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       control_evidences: {
         Row: {
           control_id: string
@@ -2063,6 +2140,76 @@ export type Database = {
           },
           {
             foreignKeyName: "indicators_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      interested_parties: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          legal_requirement_id: string | null
+          monitoring: string | null
+          name: string
+          needs_expectations: string | null
+          organization_id: string
+          party_type: string
+          process_id: string | null
+          requirements: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          legal_requirement_id?: string | null
+          monitoring?: string | null
+          name: string
+          needs_expectations?: string | null
+          organization_id: string
+          party_type: string
+          process_id?: string | null
+          requirements?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          legal_requirement_id?: string | null
+          monitoring?: string | null
+          name?: string
+          needs_expectations?: string | null
+          organization_id?: string
+          party_type?: string
+          process_id?: string | null
+          requirements?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interested_parties_legal_requirement_id_fkey"
+            columns: ["legal_requirement_id"]
+            isOneToOne: false
+            referencedRelation: "legal_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interested_parties_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interested_parties_process_id_organization_id_fkey"
             columns: ["process_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "processes"
@@ -5035,6 +5182,10 @@ export type Database = {
         Args: { org: string; process?: string }
         Returns: boolean
       }
+      can_manage_context: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_courses: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -5090,6 +5241,7 @@ export type Database = {
       can_see_audits: { Args: { org: string }; Returns: boolean }
       can_see_changes: { Args: { org: string }; Returns: boolean }
       can_see_competencies: { Args: { org: string }; Returns: boolean }
+      can_see_context: { Args: { org: string }; Returns: boolean }
       can_see_courses: { Args: { org: string }; Returns: boolean }
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_forms: { Args: { org: string }; Returns: boolean }
@@ -5277,6 +5429,18 @@ export type Database = {
         }
         Returns: string
       }
+      create_context_issue: {
+        Args: {
+          p_description: string
+          p_implication: string
+          p_objective: string
+          p_org: string
+          p_pestel: string
+          p_process: string
+          p_swot: string
+        }
+        Returns: string
+      }
       create_course: {
         Args: {
           p_description: string
@@ -5376,6 +5540,19 @@ export type Database = {
           code: string
           id: string
         }[]
+      }
+      create_interested_party: {
+        Args: {
+          p_legal: string
+          p_monitoring: string
+          p_name: string
+          p_needs: string
+          p_org: string
+          p_process: string
+          p_requirements: string
+          p_type: string
+        }
+        Returns: string
       }
       create_invitation: {
         Args: {
@@ -5755,6 +5932,19 @@ export type Database = {
           code: string
         }[]
       }
+      generate_risk_from_issue: {
+        Args: {
+          p_impact: number
+          p_issue: string
+          p_owner: string
+          p_probability: number
+          p_process: string
+        }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       get_course_by_code: {
         Args: { p_code: string; p_org: string }
         Returns: string
@@ -5871,6 +6061,30 @@ export type Database = {
       is_safe_object_path: {
         Args: { p_path: string; p_prefix: string }
         Returns: boolean
+      }
+      issue_or_fail: {
+        Args: { p_issue: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          description: string
+          id: string
+          implication: string | null
+          objective_id: string | null
+          organization_id: string
+          pestel: string | null
+          process_id: string | null
+          risk_id: string | null
+          status: string
+          swot: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "context_issues"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       legal_or_fail: {
         Args: { p_req: string }
@@ -6064,6 +6278,30 @@ export type Database = {
           position_name: string
           user_id: string
         }[]
+      }
+      party_or_fail: {
+        Args: { p_party: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          id: string
+          legal_requirement_id: string | null
+          monitoring: string | null
+          name: string
+          needs_expectations: string | null
+          organization_id: string
+          party_type: string
+          process_id: string | null
+          requirements: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "interested_parties"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       plan_audit: {
         Args: {
@@ -6338,6 +6576,10 @@ export type Database = {
         Args: { p_active: boolean; p_hazard: string }
         Returns: undefined
       }
+      set_issue_archived: {
+        Args: { p_archived: boolean; p_issue: string }
+        Returns: undefined
+      }
       set_item_status: {
         Args: { p_item: string; p_justification?: string; p_status: string }
         Returns: undefined
@@ -6352,6 +6594,10 @@ export type Database = {
       }
       set_objective_status: {
         Args: { p_objective: string; p_status: string }
+        Returns: undefined
+      }
+      set_party_archived: {
+        Args: { p_archived: boolean; p_party: string }
         Returns: undefined
       }
       set_position_requirement: {
@@ -6579,6 +6825,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_context_issue: {
+        Args: {
+          p_description: string
+          p_implication: string
+          p_issue: string
+          p_objective: string
+          p_pestel: string
+          p_process: string
+          p_swot: string
+        }
+        Returns: undefined
+      }
       update_course_data: {
         Args: {
           p_content: string
@@ -6649,6 +6907,19 @@ export type Database = {
           p_target_max: number
           p_tolerance: number
           p_unit: string
+        }
+        Returns: undefined
+      }
+      update_interested_party: {
+        Args: {
+          p_legal: string
+          p_monitoring: string
+          p_name: string
+          p_needs: string
+          p_party: string
+          p_process: string
+          p_requirements: string
+          p_type: string
         }
         Returns: undefined
       }
