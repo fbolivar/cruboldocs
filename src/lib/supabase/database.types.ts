@@ -6047,6 +6047,10 @@ export type Database = {
         Args: { p_limit: number; p_org: string; p_period: string }
         Returns: number
       }
+      ai_content_consume: {
+        Args: { p_limit: number; p_org: string; p_period: string }
+        Returns: number
+      }
       api_create_nc_output: {
         Args: {
           p_actor: string

@@ -17,6 +17,7 @@ import { z } from "zod"
 import { toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
 import { deliverChat } from "@/lib/chat/deliver"
+import { generateDraft, type DraftInput } from "@/lib/agente/content"
 import { CHAT_EVENTS, isAllowedChatUrl, sendChat } from "@/lib/chat/providers"
 import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
 import { runConfig, sanitizeConfig, type ReportResult } from "@/lib/bi/compute"
@@ -4579,4 +4580,11 @@ export async function testChatNotifier(id: string): Promise<Result> {
     if (!r.ok) return fail(`No pudimos publicar: ${r.error ?? "revisa la URL"}.`)
     return ok(undefined)
   })
+}
+
+// ---------- IA aplicada (v1.5-1) ----------
+
+/** Genera un borrador con IA (causa/acciones de NC, resumen de auditoría/acta, borrador de documento). */
+export async function suggestWithAi(input: DraftInput): Promise<Result<{ text: string; remaining: number }>> {
+  return guard(() => generateDraft(input))
 }
