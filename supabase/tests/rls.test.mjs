@@ -1882,5 +1882,52 @@ await throws(() => as(db, U.sofia, `insert into public.scars (organization_id, c
 await throws(() => as(db, U.sofia, `insert into public.scar_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "scar_counters es deny-all (056)", "row-level security")
 
+// ========== 057 · Inspecciones / control de calidad ==========
+// Juan = lider_sig gestiona. Plan con una característica numérica (rango) y una pasa/falla.
+const insChars = `[{"name":"Diámetro","type":"numerico","unit":"mm","min":9.8,"max":10.2},{"name":"Limpieza","type":"pasa_falla"}]`
+const insPlan = (await as(db, U.juan, `select id from public.create_inspection_plan('${A}', 'Recepción de materia prima', 'Lotes de proveedor', '${P.sigA}', '${insChars}'::jsonb)`)).rows[0]
+ok((await svc(`select jsonb_array_length(characteristics) n from public.inspection_plans where id='${insPlan.id}'`)).rows[0].n === 2, "Plan guarda 2 características (057)")
+await throws(() => as(db, U.sofia, `select public.create_inspection_plan('${A}', 'x', null, null::uuid, '[]'::jsonb)`),
+  "Sofía (consulta) no crea planes (057)", "No puedes gestionar")
+await throws(() => as(db, U.beto, `select public.create_inspection_plan('${A}', 'x', null, null::uuid, '[]'::jsonb)`),
+  "Beto (org B) no crea planes en A (057)", "No puedes gestionar")
+
+// Inspección aceptada (valores dentro de rango, limpieza pasa).
+const insOk = `[{"name":"Diámetro","value":10.0},{"name":"Limpieza","passed":true}]`
+const i1 = (await as(db, U.juan, `select code from public.create_inspection('${A}', '${insPlan.id}', 'recepcion', '${prov.id}', '${P.sigA}', 'LOTE-1', 100, 8, 0, 0, 'aceptado', '${insOk}'::jsonb)`)).rows[0]
+ok(i1.code === "INS-" + YEAR + "-001", "Numeración INS-AAAA-001 (057)")
+ok((await svc(`select bool_and(ok) a from public.inspection_results r join public.inspections i on i.id=r.inspection_id where i.code='${i1.code}'`)).rows[0].a === true, "Resultados en rango → ok=true (057)")
+
+// Inspección rechazada (diámetro fuera de rango).
+const insBad = `[{"name":"Diámetro","value":12.5},{"name":"Limpieza","passed":false}]`
+const i2 = (await as(db, U.juan, `select code from public.create_inspection('${A}', '${insPlan.id}', 'recepcion', '${prov.id}', '${P.sigA}', 'LOTE-2', 100, 8, 2, 1, 'rechazado', '${insBad}'::jsonb)`)).rows[0]
+const i2id = (await svc(`select id from public.inspections where code='${i2.code}' and organization_id='${A}'`)).rows[0].id
+ok((await svc(`select bool_or(ok) a from public.inspection_results r join public.inspections i on i.id=r.inspection_id where i.code='${i2.code}'`)).rows[0].a === false, "Fuera de rango → ok=false (057)")
+
+// Autorización de registro.
+await throws(() => as(db, U.sofia, `select public.create_inspection('${A}', '${insPlan.id}', 'proceso', null::uuid, '${P.sigA}', null, null, null, null, null, 'aceptado', '[]'::jsonb)`),
+  "Sofía (consulta) no registra inspecciones (057)", "No puedes registrar")
+await throws(() => as(db, U.beto, `select public.create_inspection('${A}', '${insPlan.id}', 'proceso', null::uuid, '${P.sigA}', null, null, null, null, null, 'aceptado', '[]'::jsonb)`),
+  "Beto (org B) no registra en A (057)", "No puedes registrar")
+
+// Rechazo genera NC (producto_servicio) — idempotente — y salida no conforme.
+const insNc = (await as(db, U.juan, `select code from public.generate_nc_from_inspection('${i2id}')`)).rows[0].code
+ok((await svc(`select source from public.nonconformities where code='${insNc}' and organization_id='${A}'`)).rows[0].source === "producto_servicio", "NC de inspección con source producto_servicio (057)")
+await throws(() => as(db, U.juan, `select public.generate_nc_from_inspection('${i2id}')`),
+  "No duplica la NC de una inspección (057)", "ya tiene una no conformidad")
+await throws(() => as(db, U.juan, `select public.generate_nc_from_inspection((select id from public.inspections where code='${i1.code}'))`),
+  "Una inspección aceptada no genera NC (057)", "rechazada genera NC")
+const insOut = (await as(db, U.juan, `select code from public.generate_nc_output_from_inspection('${i2id}')`)).rows[0].code
+ok(insOut.length > 0, "Rechazo genera salida no conforme (057)")
+await throws(() => as(db, U.juan, `select public.generate_nc_output_from_inspection('${i2id}')`),
+  "No duplica la salida no conforme (057)", "ya tiene una salida")
+
+// Aislamiento + REST + contador deny-all.
+ok((await as(db, U.beto, `select count(*)::int n from public.inspections where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve inspecciones de A (057)")
+await throws(() => as(db, U.sofia, `insert into public.inspections (organization_id, code, plan_id, type, defects, disposition) values ('${A}', 'X', '${insPlan.id}', 'proceso', 0, 'pendiente')`),
+  "Nadie inserta inspecciones por REST (057)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.ins_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "ins_counters es deny-all (057)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

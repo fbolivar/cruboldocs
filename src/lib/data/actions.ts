@@ -21,7 +21,7 @@ import { generateDraft, type DraftInput } from "@/lib/agente/content"
 import { CHAT_EVENTS, isAllowedChatUrl, sendChat } from "@/lib/chat/providers"
 import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
 import { runConfig, sanitizeConfig, type ReportResult } from "@/lib/bi/compute"
-import { getChatNotifierTarget, getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, loadDataset, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getChatNotifierTarget, getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, loadDataset, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInspections, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import { generateApiToken } from "@/lib/api/keys"
 import {
@@ -4695,4 +4695,130 @@ export async function submitScarResponse(input: {
     if (error) return fail(dbMessage(error, "Este formulario no está disponible."))
     return ok(undefined)
   })
+}
+
+// ---------- Inspecciones / Control de calidad (v1.6-1) ----------
+
+const characteristicSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  type: z.enum(["numerico", "pasa_falla"]),
+  unit: z.string().trim().max(24).optional().nullable(),
+  min: z.number().finite().optional().nullable(),
+  max: z.number().finite().optional().nullable(),
+})
+const characteristicsSchema = z.array(characteristicSchema).max(40)
+
+const planSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(2000).optional().nullable(),
+  processId: z.string().uuid().optional().nullable(),
+  characteristics: characteristicsSchema,
+})
+
+const inspectionSchema = z.object({
+  planId: z.string().uuid(),
+  type: z.enum(["recepcion", "proceso", "final"]),
+  supplierId: z.string().uuid().optional().nullable(),
+  processId: z.string().uuid().optional().nullable(),
+  lotRef: z.string().trim().max(120).optional().nullable(),
+  lotSize: z.number().int().min(0).max(100000000).optional().nullable(),
+  sampleSize: z.number().int().min(0).max(100000000).optional().nullable(),
+  acceptanceNumber: z.number().int().min(0).max(100000000).optional().nullable(),
+  defects: z.number().int().min(0).max(100000000).optional().nullable(),
+  disposition: z.enum(["pendiente", "aceptado", "rechazado", "concesion"]),
+  results: z.array(z.object({
+    name: z.string().trim().min(1).max(120),
+    value: z.number().finite().optional().nullable(),
+    passed: z.boolean().optional().nullable(),
+  })).max(40),
+})
+
+const revalidateInspections = () => revalidatePath("/app/inspecciones", "layout")
+
+export async function createInspectionPlan(input: unknown): Promise<Result<{ id: string }>> {
+  return guard(async () => {
+    const p = planSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del plan.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_inspection_plan", {
+      p_org: user.organization.id, p_name: p.data.name, p_description: (p.data.description ?? "").trim(),
+      p_process: (p.data.processId ?? null) as unknown as string, p_characteristics: p.data.characteristics as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateInspections()
+    return ok({ id: data?.[0]?.id ?? "" })
+  })
+}
+
+export async function updateInspectionPlan(planId: string, input: unknown, active: boolean): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(planId)) return fail(GENERIC)
+    const p = planSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del plan.")
+    const { error } = await (await createClient()).rpc("update_inspection_plan", {
+      p_plan: planId, p_name: p.data.name, p_description: (p.data.description ?? "").trim(),
+      p_active: !!active, p_characteristics: p.data.characteristics as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateInspections()
+    return ok(undefined)
+  })
+}
+
+export async function createInspection(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = inspectionSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos de la inspección.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("create_inspection", {
+      p_org: user.organization.id, p_plan: p.data.planId, p_type: p.data.type,
+      p_supplier: (p.data.supplierId ?? null) as unknown as string, p_process: (p.data.processId ?? null) as unknown as string,
+      p_lot_ref: (p.data.lotRef ?? "").trim(), p_lot_size: (p.data.lotSize ?? null) as unknown as number,
+      p_sample_size: (p.data.sampleSize ?? null) as unknown as number, p_acceptance: (p.data.acceptanceNumber ?? null) as unknown as number,
+      p_defects: (p.data.defects ?? null) as unknown as number, p_disposition: p.data.disposition,
+      p_results: p.data.results as unknown as Json,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateInspections()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function generateNcFromInspection(inspectionId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(inspectionId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_from_inspection", { p_inspection: inspectionId })
+    if (error) return fail(dbMessage(error))
+    revalidateInspections()
+    revalidatePath("/app/no-conformidades", "layout")
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function generateNcOutputFromInspection(inspectionId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(inspectionId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_output_from_inspection", { p_inspection: inspectionId })
+    if (error) return fail(dbMessage(error))
+    revalidateInspections()
+    revalidatePath("/app/salidas-no-conformes", "layout")
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function exportInspectionsCsv(): Promise<string> {
+  const rows = await listInspections()
+  const TYPE: Record<string, string> = { recepcion: "Recepción", proceso: "Proceso", final: "Final" }
+  const DISP: Record<string, string> = { pendiente: "Pendiente", aceptado: "Aceptado", rechazado: "Rechazado", concesion: "Concesión" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Tipo", value: (r) => TYPE[r.type] },
+    { header: "Plan", value: (r) => r.planName },
+    { header: "Proveedor", value: (r) => r.supplierName ?? "" },
+    { header: "Proceso", value: (r) => r.processName ?? "" },
+    { header: "Disposición", value: (r) => DISP[r.disposition] },
+    { header: "Fecha", value: (r) => formatDate(r.inspectedAt) },
+  ])
 }

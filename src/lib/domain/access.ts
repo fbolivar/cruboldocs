@@ -324,6 +324,14 @@ export function canSeeFocos(user: CurrentUser): boolean {
   return RISK_ROLES.some((r) => hasRole(user, r))
 }
 
+/** Inspecciones (v1.6-1): ver = roles SIG; gestionar = Líder SIG o Líder del proceso. */
+export function canSeeInspections(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+export function canManageInspections(user: CurrentUser, processId?: string): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
+}
+
 /** Comparte/gestiona informes compartidos: Admin de organización o Líder SIG (igual que can_manage_reports). */
 export function canManageReports(user: CurrentUser): boolean {
   return user.isOrgAdmin || hasRole(user, "lider_sig")

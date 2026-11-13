@@ -935,6 +935,88 @@ export interface SupplierDetail {
   scars: ScarView[]
 }
 
+// ---------- Inspecciones / Control de calidad (v1.6-1) ----------
+
+export type InspectionType = "recepcion" | "proceso" | "final"
+export type InspectionDisposition = "pendiente" | "aceptado" | "rechazado" | "concesion"
+export type CharacteristicType = "numerico" | "pasa_falla"
+
+export interface InspectionCharacteristic {
+  name: string
+  type: CharacteristicType
+  unit?: string | null
+  min?: number | null
+  max?: number | null
+}
+
+export interface InspectionPlanView {
+  id: string
+  name: string
+  description: string | null
+  processName: string | null
+  processId: string | null
+  isActive: boolean
+  characteristics: InspectionCharacteristic[]
+}
+
+export interface InspectionPlanOption {
+  id: string
+  name: string
+  processId: string | null
+  characteristics: InspectionCharacteristic[]
+}
+
+export interface InspectionSummary {
+  pending: number
+  rejected: number
+  /** % de aceptación (aceptadas+concesión / con disposición); null si no hay cerradas. */
+  acceptanceRate: number | null
+}
+
+export interface InspectionListItem {
+  id: string
+  code: string
+  type: InspectionType
+  disposition: InspectionDisposition
+  planName: string
+  supplierName: string | null
+  processName: string | null
+  inspectedAt: string
+}
+
+export interface InspectionResultView {
+  name: string
+  type: CharacteristicType
+  unit: string | null
+  min: number | null
+  max: number | null
+  value: number | null
+  passed: boolean | null
+  ok: boolean
+}
+
+export interface InspectionDetail {
+  id: string
+  code: string
+  type: InspectionType
+  disposition: InspectionDisposition
+  planName: string
+  supplierName: string | null
+  processName: string | null
+  lotRef: string | null
+  lotSize: number | null
+  sampleSize: number | null
+  defects: number
+  acceptanceNumber: number | null
+  note: string | null
+  inspectedAt: string
+  results: InspectionResultView[]
+  ncCode: string | null
+  ncOutputCode: string | null
+  timeline: NcTimelineEvent[]
+  canManage: boolean
+}
+
 // ---------- SCAR: solicitud de acción correctiva a proveedor (v1.5-3) ----------
 
 export type ScarStatus = "enviada" | "respondida" | "aceptada" | "rechazada" | "anulada"

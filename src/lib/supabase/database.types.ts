@@ -2568,6 +2568,252 @@ export type Database = {
           },
         ]
       }
+      ins_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ins_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_plans: {
+        Row: {
+          characteristics: Json
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          process_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          characteristics?: Json
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          process_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          characteristics?: Json
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          process_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_plans_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
+      inspection_results: {
+        Row: {
+          id: string
+          inspection_id: string
+          max_val: number | null
+          min_val: number | null
+          name: string
+          ok: boolean
+          organization_id: string
+          passed: boolean | null
+          type: string
+          unit: string | null
+          value: number | null
+        }
+        Insert: {
+          id?: string
+          inspection_id: string
+          max_val?: number | null
+          min_val?: number | null
+          name: string
+          ok?: boolean
+          organization_id: string
+          passed?: boolean | null
+          type: string
+          unit?: string | null
+          value?: number | null
+        }
+        Update: {
+          id?: string
+          inspection_id?: string
+          max_val?: number | null
+          min_val?: number | null
+          name?: string
+          ok?: boolean
+          organization_id?: string
+          passed?: boolean | null
+          type?: string
+          unit?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_results_inspection_id_organization_id_fkey"
+            columns: ["inspection_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "inspection_results_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspections: {
+        Row: {
+          acceptance_number: number | null
+          code: string
+          created_at: string
+          created_by: string
+          defects: number
+          disposition: string
+          id: string
+          inspected_at: string
+          lot_ref: string | null
+          lot_size: number | null
+          nc_output_id: string | null
+          nonconformity_id: string | null
+          note: string | null
+          organization_id: string
+          plan_id: string
+          process_id: string | null
+          sample_size: number | null
+          supplier_id: string | null
+          type: string
+        }
+        Insert: {
+          acceptance_number?: number | null
+          code: string
+          created_at?: string
+          created_by?: string
+          defects?: number
+          disposition?: string
+          id?: string
+          inspected_at?: string
+          lot_ref?: string | null
+          lot_size?: number | null
+          nc_output_id?: string | null
+          nonconformity_id?: string | null
+          note?: string | null
+          organization_id: string
+          plan_id: string
+          process_id?: string | null
+          sample_size?: number | null
+          supplier_id?: string | null
+          type: string
+        }
+        Update: {
+          acceptance_number?: number | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          defects?: number
+          disposition?: string
+          id?: string
+          inspected_at?: string
+          lot_ref?: string | null
+          lot_size?: number | null
+          nc_output_id?: string | null
+          nonconformity_id?: string | null
+          note?: string | null
+          organization_id?: string
+          plan_id?: string
+          process_id?: string | null
+          sample_size?: number | null
+          supplier_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspections_nc_output_id_organization_id_fkey"
+            columns: ["nc_output_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconforming_outputs"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "inspections_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "inspections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspections_plan_id_organization_id_fkey"
+            columns: ["plan_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_plans"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "inspections_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "inspections_supplier_id_organization_id_fkey"
+            columns: ["supplier_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       interested_parties: {
         Row: {
           created_at: string
@@ -6392,6 +6638,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_indicators: { Args: { org: string }; Returns: boolean }
+      can_manage_inspections: {
+        Args: { org: string; process?: string }
+        Returns: boolean
+      }
       can_manage_knowledge: {
         Args: { org: string; process?: string }
         Returns: boolean
@@ -6456,6 +6706,7 @@ export type Database = {
       can_see_document: { Args: { p_doc: string }; Returns: boolean }
       can_see_forms: { Args: { org: string }; Returns: boolean }
       can_see_indicators: { Args: { org: string }; Returns: boolean }
+      can_see_inspections: { Args: { org: string }; Returns: boolean }
       can_see_legal: { Args: { org: string }; Returns: boolean }
       can_see_metrology: { Args: { org: string }; Returns: boolean }
       can_see_minutes: { Args: { org: string }; Returns: boolean }
@@ -6819,6 +7070,37 @@ export type Database = {
         }
         Returns: {
           code: string
+          id: string
+        }[]
+      }
+      create_inspection: {
+        Args: {
+          p_acceptance: number
+          p_defects: number
+          p_disposition: string
+          p_lot_ref: string
+          p_lot_size: number
+          p_org: string
+          p_plan: string
+          p_process: string
+          p_results: Json
+          p_sample_size: number
+          p_supplier: string
+          p_type: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
+      create_inspection_plan: {
+        Args: {
+          p_characteristics: Json
+          p_description: string
+          p_name: string
+          p_org: string
+          p_process: string
+        }
+        Returns: {
           id: string
         }[]
       }
@@ -7279,6 +7561,12 @@ export type Database = {
           code: string
         }[]
       }
+      generate_nc_from_inspection: {
+        Args: { p_inspection: string }
+        Returns: {
+          code: string
+        }[]
+      }
       generate_nc_from_measurement: {
         Args: { p_measurement: string }
         Returns: {
@@ -7302,6 +7590,12 @@ export type Database = {
         Returns: {
           code: string
           id: string
+        }[]
+      }
+      generate_nc_output_from_inspection: {
+        Args: { p_inspection: string }
+        Returns: {
+          code: string
         }[]
       }
       generate_risk_from_issue: {
@@ -8447,6 +8741,16 @@ export type Database = {
           p_target_max: number
           p_tolerance: number
           p_unit: string
+        }
+        Returns: undefined
+      }
+      update_inspection_plan: {
+        Args: {
+          p_active: boolean
+          p_characteristics: Json
+          p_description: string
+          p_name: string
+          p_plan: string
         }
         Returns: undefined
       }

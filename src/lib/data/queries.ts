@@ -13,7 +13,7 @@ import { sanitizeConfig } from "@/lib/bi/compute"
 import { maskChatUrl } from "@/lib/chat/providers"
 import { SEVERITY_ORDER, type RiskSignal } from "@/lib/focos/types"
 import { daysBetween, indicatorSeverity, isDescending, overdueSeverity, recurrenceSeverity, supplierSeverity } from "@/lib/focos/rules"
-import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageFlows, canManageForms, canManageReports, canManageHazards, canManageIndicators, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
+import { canAddFindings, canApproveChange, canFillForms, canManageAudits, canManageChanges, canManageCompetencies, canManageContext, canManageCourses, canManageEnv, canManageFlows, canManageForms, canManageReports, canManageHazards, canManageIndicators, canManageInspections, canManageKnowledge, canManageLegal, canManageMetrology, canManageMinutes, canManageNcOutputs, canManageNonconformities, canManageObjectives, canManagePqrs, canManageProcess, canManageReviews, canManageSst, canManageSuppliers, canMeasureIndicator, canSeeSignatureIp, canTakeCourses, canTranslateDocument } from "@/lib/domain/access"
 import { mergeLayout } from "@/lib/domain/dashboard-blocks"
 import { isMetadataOnly } from "@/lib/domain/documents"
 import { CONTROL_FREQUENCY_LABELS, RISK_LEVELS } from "@/lib/domain/risk"
@@ -34,6 +34,13 @@ import type {
   FindingSeverity,
   FindingType,
   ChatNotifierView,
+  InspectionCharacteristic,
+  InspectionPlanView,
+  InspectionPlanOption,
+  InspectionSummary,
+  InspectionListItem,
+  InspectionResultView,
+  InspectionDetail,
   RcaAnalysisView,
   SavedReportView,
   ApprovalFlowView,
@@ -3993,4 +4000,115 @@ export async function computeFocos(): Promise<RiskSignal[]> {
   }
 
   return out.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
+}
+
+// ---------- Inspecciones / Control de calidad (v1.6-1) ----------
+
+const INSPECTION_EVENT_TEXT: Record<string, string> = {
+  crear_inspeccion: "Registró la inspección.",
+  generar_nc_inspeccion: "Generó una no conformidad.",
+  generar_salida_inspeccion: "Generó una salida no conforme.",
+}
+
+type CharRaw = { name?: unknown; type?: unknown; unit?: unknown; min?: unknown; max?: unknown }
+function parseChars(raw: unknown): InspectionCharacteristic[] {
+  return (Array.isArray(raw) ? (raw as CharRaw[]) : []).map((c) => ({
+    name: String(c?.name ?? ""), type: c?.type === "numerico" ? "numerico" : "pasa_falla",
+    unit: c?.unit != null ? String(c.unit) : null,
+    min: c?.min != null && c.min !== "" ? Number(c.min) : null,
+    max: c?.max != null && c.max !== "" ? Number(c.max) : null,
+  }))
+}
+
+export async function listInspectionPlans(): Promise<InspectionPlanView[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: plans }, { data: procs }] = await Promise.all([
+    s.supabase.from("inspection_plans").select("id, name, description, process_id, is_active, characteristics").eq("organization_id", s.org).order("created_at", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procName = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (plans ?? []).map((p) => ({
+    id: p.id, name: p.name, description: p.description, processId: p.process_id,
+    processName: p.process_id ? procName.get(p.process_id) ?? null : null,
+    isActive: p.is_active, characteristics: parseChars(p.characteristics),
+  }))
+}
+
+export async function listActiveInspectionPlanOptions(): Promise<InspectionPlanOption[]> {
+  const s = await scope()
+  if (!s) return []
+  const { data } = await s.supabase.from("inspection_plans").select("id, name, process_id, characteristics").eq("organization_id", s.org).eq("is_active", true).order("name")
+  return (data ?? []).map((p) => ({ id: p.id, name: p.name, processId: p.process_id, characteristics: parseChars(p.characteristics) }))
+}
+
+async function inspectionContext(s: NonNullable<Awaited<ReturnType<typeof scope>>>) {
+  const [{ data: rows }, { data: plans }, { data: sups }, { data: procs }] = await Promise.all([
+    s.supabase.from("inspections").select("id, code, type, disposition, plan_id, supplier_id, process_id, inspected_at").eq("organization_id", s.org).order("inspected_at", { ascending: false }).order("created_at", { ascending: false }),
+    s.supabase.from("inspection_plans").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("suppliers").select("id, name").eq("organization_id", s.org),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  return {
+    rows: rows ?? [],
+    planName: new Map((plans ?? []).map((p) => [p.id, p.name])),
+    supName: new Map((sups ?? []).map((x) => [x.id, x.name])),
+    procName: new Map((procs ?? []).map((p) => [p.id, p.name])),
+  }
+}
+
+export async function listInspections(): Promise<InspectionListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const ctx = await inspectionContext(s)
+  return ctx.rows.map((r) => ({
+    id: r.id, code: r.code, type: r.type as InspectionListItem["type"], disposition: r.disposition as InspectionListItem["disposition"],
+    planName: ctx.planName.get(r.plan_id) ?? "", supplierName: r.supplier_id ? ctx.supName.get(r.supplier_id) ?? null : null,
+    processName: r.process_id ? ctx.procName.get(r.process_id) ?? null : null, inspectedAt: r.inspected_at,
+  }))
+}
+
+export async function getInspectionSummary(): Promise<InspectionSummary> {
+  const s = await scope()
+  if (!s) return { pending: 0, rejected: 0, acceptanceRate: null }
+  const { data } = await s.supabase.from("inspections").select("disposition").eq("organization_id", s.org)
+  const rows = data ?? []
+  const closed = rows.filter((r) => r.disposition !== "pendiente")
+  const accepted = closed.filter((r) => r.disposition === "aceptado" || r.disposition === "concesion").length
+  return {
+    pending: rows.filter((r) => r.disposition === "pendiente").length,
+    rejected: rows.filter((r) => r.disposition === "rechazado").length,
+    acceptanceRate: closed.length ? Math.round((accepted / closed.length) * 100) : null,
+  }
+}
+
+export async function getInspection(code: string): Promise<InspectionDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: i } = await s.supabase.from("inspections").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!i) return null
+  const [{ data: results }, { data: plan }, { data: sup }, { data: proc }, { data: log }, { data: nc }, { data: out }] = await Promise.all([
+    s.supabase.from("inspection_results").select("name, type, unit, min_val, max_val, value, passed, ok").eq("inspection_id", i.id).order("name"),
+    s.supabase.from("inspection_plans").select("name").eq("id", i.plan_id).maybeSingle(),
+    i.supplier_id ? s.supabase.from("suppliers").select("name").eq("id", i.supplier_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    i.process_id ? s.supabase.from("processes").select("name").eq("id", i.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Inspeccion").eq("entity_id", i.id).order("at", { ascending: false }),
+    i.nonconformity_id ? s.supabase.from("nonconformities").select("code").eq("id", i.nonconformity_id).maybeSingle() : Promise.resolve({ data: null as { code: string } | null }),
+    i.nc_output_id ? s.supabase.from("nonconforming_outputs").select("code").eq("id", i.nc_output_id).maybeSingle() : Promise.resolve({ data: null as { code: string } | null }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: i.id, code: i.code, type: i.type as InspectionDetail["type"], disposition: i.disposition as InspectionDetail["disposition"],
+    planName: plan?.name ?? "", supplierName: sup?.name ?? null, processName: proc?.name ?? null,
+    lotRef: i.lot_ref, lotSize: i.lot_size, sampleSize: i.sample_size, defects: i.defects, acceptanceNumber: i.acceptance_number,
+    note: i.note, inspectedAt: i.inspected_at,
+    results: (results ?? []).map((r) => ({
+      name: r.name, type: r.type as InspectionResultView["type"], unit: r.unit,
+      min: r.min_val === null ? null : Number(r.min_val), max: r.max_val === null ? null : Number(r.max_val),
+      value: r.value === null ? null : Number(r.value), passed: r.passed, ok: r.ok,
+    })),
+    ncCode: nc?.code ?? null, ncOutputCode: out?.code ?? null,
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: INSPECTION_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageInspections(s.user, i.process_id ?? undefined),
+  }
 }
