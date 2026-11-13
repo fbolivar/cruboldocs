@@ -342,6 +342,11 @@ export function canManageIncidents(user: CurrentUser): boolean {
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso")
 }
 
+/** Ver SPC / gráficas de control (solo lectura): roles del SIG. */
+export function canSeeSpc(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
 /** Comparte/gestiona informes compartidos: Admin de organización o Líder SIG (igual que can_manage_reports). */
 export function canManageReports(user: CurrentUser): boolean {
   return user.isOrgAdmin || hasRole(user, "lider_sig")

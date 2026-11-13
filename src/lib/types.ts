@@ -1076,6 +1076,26 @@ export interface IncidentDetail {
   canManage: boolean
 }
 
+// ---------- SPC / gráficas de control (v1.6-3) ----------
+
+export interface SpcPoint {
+  value: number
+  at: string
+  code: string
+}
+
+export interface SpcSeries {
+  /** Clave única: planId + "::" + nombre de la característica. */
+  key: string
+  planName: string
+  name: string
+  unit: string | null
+  /** Límites de especificación = rango del plan (min/max). */
+  lsl: number | null
+  usl: number | null
+  points: SpcPoint[]
+}
+
 // ---------- SCAR: solicitud de acción correctiva a proveedor (v1.5-3) ----------
 
 export type ScarStatus = "enviada" | "respondida" | "aceptada" | "rechazada" | "anulada"

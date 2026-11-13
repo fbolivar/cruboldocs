@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeApprovals, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeFocos, canSeeForms, canSeeHazards, canSeeIncidents, canSeeIndicators, canSeeInspections, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReports, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeApprovals, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeFocos, canSeeForms, canSeeHazards, canSeeIncidents, canSeeIndicators, canSeeInspections, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReports, canSeeReviews, canSeeRisks, canSeeSpc, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "focos" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "inspecciones" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "incidentes" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "solicitudes" | "informes" | "admin"
+export type NavIcon = "inicio" | "tablero" | "focos" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "inspecciones" | "spc" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "incidentes" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "solicitudes" | "informes" | "admin"
 
 export interface NavItem {
   href: string
@@ -31,6 +31,7 @@ export function navItemsFor(user: CurrentUser, nav: Record<NavIcon, string>): Na
   if (canSeeSuppliers(user)) items.push(item("/app/proveedores", "proveedores"))
   if (canSeePqrs(user)) items.push(item("/app/pqrs", "pqrs"))
   if (canSeeInspections(user)) items.push(item("/app/inspecciones", "inspecciones"))
+  if (canSeeSpc(user)) items.push(item("/app/spc", "spc"))
   if (canSeeMinutes(user)) items.push(item("/app/actas", "actas"))
   if (canSeeObjectives(user)) items.push(item("/app/objetivos", "objetivos"))
   if (canSeeLegal(user)) items.push(item("/app/requisitos-legales", "legal"))

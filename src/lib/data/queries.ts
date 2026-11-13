@@ -47,6 +47,7 @@ import type {
   IncidentSummary,
   IncidentListItem,
   IncidentDetail,
+  SpcSeries,
   RcaAnalysisView,
   SavedReportView,
   ApprovalFlowView,
@@ -4189,4 +4190,51 @@ export async function getIncident(code: string): Promise<IncidentDetail | null> 
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: INCIDENT_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageSst(s.user),
   }
+}
+
+// ---------- SPC / gráficas de control (v1.6-3) ----------
+
+/**
+ * Series SPC: agrupa los resultados numéricos de inspección (RLS por organización) por
+ * característica (plan + nombre). Compute-only sobre `inspection_results`, sin tablas nuevas.
+ * Solo series con ≥ 2 puntos. lsl/usl y unidad del punto más reciente.
+ */
+export async function listSpcSeries(): Promise<SpcSeries[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: results }, { data: insp }, { data: plans }] = await Promise.all([
+    s.supabase.from("inspection_results").select("inspection_id, name, unit, min_val, max_val, value").eq("organization_id", s.org).eq("type", "numerico").not("value", "is", null),
+    s.supabase.from("inspections").select("id, code, plan_id, inspected_at, created_at").eq("organization_id", s.org),
+    s.supabase.from("inspection_plans").select("id, name").eq("organization_id", s.org),
+  ])
+  const insById = new Map((insp ?? []).map((i) => [i.id, i]))
+  const planName = new Map((plans ?? []).map((p) => [p.id, p.name]))
+
+  type Row = { value: number; at: string; created: string; code: string; unit: string | null; lsl: number | null; usl: number | null }
+  type Acc = { planId: string; name: string; rows: Row[] }
+  const groups = new Map<string, Acc>()
+  for (const r of results ?? []) {
+    const i = insById.get(r.inspection_id)
+    if (!i) continue
+    const key = `${i.plan_id}::${r.name}`
+    let g = groups.get(key)
+    if (!g) { g = { planId: i.plan_id, name: r.name, rows: [] }; groups.set(key, g) }
+    g.rows.push({
+      value: Number(r.value), at: i.inspected_at, created: i.created_at, code: i.code, unit: r.unit,
+      lsl: r.min_val === null ? null : Number(r.min_val), usl: r.max_val === null ? null : Number(r.max_val),
+    })
+  }
+
+  return [...groups.entries()]
+    .map(([key, g]) => {
+      const rows = g.rows.sort((a, b) => a.at.localeCompare(b.at) || a.created.localeCompare(b.created))
+      const last = rows[rows.length - 1]
+      return {
+        key, planName: planName.get(g.planId) ?? "", name: g.name,
+        unit: last.unit, lsl: last.lsl, usl: last.usl,
+        points: rows.map((x) => ({ value: x.value, at: x.at, code: x.code })),
+      }
+    })
+    .filter((x) => x.points.length >= 2)
+    .sort((a, b) => a.planName.localeCompare(b.planName) || a.name.localeCompare(b.name))
 }
