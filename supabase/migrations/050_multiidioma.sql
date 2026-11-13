@@ -6,6 +6,9 @@
 alter table public.profiles add column if not exists locale text not null default 'es';
 alter table public.profiles drop constraint if exists profiles_locale_chk;
 alter table public.profiles add constraint profiles_locale_chk check (locale in ('es', 'en'));
+-- IMPORTANTE: profiles usa permisos de lectura POR COLUMNA; una columna nueva NO hereda el SELECT.
+-- Sin este grant, getCurrentUser (que lee `locale`) recibe 403 → profile nulo → /sin-acceso para todos.
+grant select (locale) on public.profiles to authenticated;
 
 create or replace function public.set_user_locale(p_locale text)
 returns void language plpgsql security definer set search_path = '' as $$
