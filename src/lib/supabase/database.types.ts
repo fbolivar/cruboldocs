@@ -2390,6 +2390,162 @@ export type Database = {
           },
         ]
       }
+      inc_counters: {
+        Row: {
+          last_seq: number
+          organization_id: string
+          year: number
+        }
+        Insert: {
+          last_seq?: number
+          organization_id: string
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          organization_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inc_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incidents: {
+        Row: {
+          affected_document: string | null
+          affected_name: string | null
+          affected_position_id: string | null
+          body_part: string | null
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          hazard_id: string | null
+          id: string
+          immediate_action: string | null
+          injury: string | null
+          investigated_at: string | null
+          investigated_by_position_id: string | null
+          investigation_due: string | null
+          kind: string
+          location: string | null
+          lost_days: number | null
+          nonconformity_id: string | null
+          occurred_at: string
+          organization_id: string
+          process_id: string | null
+          severity: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          affected_document?: string | null
+          affected_name?: string | null
+          affected_position_id?: string | null
+          body_part?: string | null
+          closed_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string
+          description: string
+          hazard_id?: string | null
+          id?: string
+          immediate_action?: string | null
+          injury?: string | null
+          investigated_at?: string | null
+          investigated_by_position_id?: string | null
+          investigation_due?: string | null
+          kind: string
+          location?: string | null
+          lost_days?: number | null
+          nonconformity_id?: string | null
+          occurred_at?: string
+          organization_id: string
+          process_id?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          affected_document?: string | null
+          affected_name?: string | null
+          affected_position_id?: string | null
+          body_part?: string | null
+          closed_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          hazard_id?: string | null
+          id?: string
+          immediate_action?: string | null
+          injury?: string | null
+          investigated_at?: string | null
+          investigated_by_position_id?: string | null
+          investigation_due?: string | null
+          kind?: string
+          location?: string | null
+          lost_days?: number | null
+          nonconformity_id?: string | null
+          occurred_at?: string
+          organization_id?: string
+          process_id?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidents_affected_position_id_organization_id_fkey"
+            columns: ["affected_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "incidents_hazard_id_organization_id_fkey"
+            columns: ["hazard_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "hazards"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "incidents_investigated_by_position_id_organization_id_fkey"
+            columns: ["investigated_by_position_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "positions"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "incidents_nonconformity_id_organization_id_fkey"
+            columns: ["nonconformity_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "nonconformities"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "incidents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_process_id_organization_id_fkey"
+            columns: ["process_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id", "organization_id"]
+          },
+        ]
+      }
       indicator_counters: {
         Row: {
           last_seq: number
@@ -6733,6 +6889,10 @@ export type Database = {
         Args: { p_audit: string; p_reason: string }
         Returns: undefined
       }
+      cancel_incident: {
+        Args: { p_incident: string; p_reason: string }
+        Returns: undefined
+      }
       cancel_nc: {
         Args: { p_nc: string; p_reason: string }
         Returns: undefined
@@ -6788,6 +6948,7 @@ export type Database = {
         Returns: undefined
       }
       close_evaluation: { Args: { p_eval: string }; Returns: undefined }
+      close_incident: { Args: { p_incident: string }; Returns: undefined }
       close_minute: { Args: { p_minute: string }; Returns: undefined }
       close_output: { Args: { p_output: string }; Returns: undefined }
       close_pqrs: {
@@ -7561,6 +7722,12 @@ export type Database = {
           code: string
         }[]
       }
+      generate_nc_from_incident: {
+        Args: { p_incident: string }
+        Returns: {
+          code: string
+        }[]
+      }
       generate_nc_from_inspection: {
         Args: { p_inspection: string }
         Returns: {
@@ -7697,6 +7864,43 @@ export type Database = {
       implement_change: {
         Args: { p_change: string; p_notes: string }
         Returns: undefined
+      }
+      incident_or_fail: {
+        Args: { p_incident: string }
+        Returns: {
+          affected_document: string | null
+          affected_name: string | null
+          affected_position_id: string | null
+          body_part: string | null
+          closed_at: string | null
+          code: string
+          created_at: string
+          created_by: string
+          description: string
+          hazard_id: string | null
+          id: string
+          immediate_action: string | null
+          injury: string | null
+          investigated_at: string | null
+          investigated_by_position_id: string | null
+          investigation_due: string | null
+          kind: string
+          location: string | null
+          lost_days: number | null
+          nonconformity_id: string | null
+          occurred_at: string
+          organization_id: string
+          process_id: string | null
+          severity: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "incidents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       indicator_compliance: {
         Args: {
@@ -8177,6 +8381,28 @@ export type Database = {
         Args: { p_req: string }
         Returns: undefined
       }
+      report_incident: {
+        Args: {
+          p_affected_document: string
+          p_affected_name: string
+          p_affected_position: string
+          p_body_part: string
+          p_description: string
+          p_hazard: string
+          p_immediate_action: string
+          p_injury: string
+          p_kind: string
+          p_location: string
+          p_lost_days: number
+          p_occurred_at: string
+          p_org: string
+          p_process: string
+          p_severity: string
+        }
+        Returns: {
+          code: string
+        }[]
+      }
       report_nonconformity: {
         Args: {
           p_description: string
@@ -8340,6 +8566,14 @@ export type Database = {
       }
       set_hazard_active: {
         Args: { p_active: boolean; p_hazard: string }
+        Returns: undefined
+      }
+      set_incident_investigation: {
+        Args: {
+          p_incident: string
+          p_investigated_at: string
+          p_investigator: string
+        }
         Returns: undefined
       }
       set_issue_archived: {
@@ -8725,6 +8959,26 @@ export type Database = {
           p_next_review: string
           p_process: string
           p_responsible: string
+        }
+        Returns: undefined
+      }
+      update_incident: {
+        Args: {
+          p_affected_document: string
+          p_affected_name: string
+          p_affected_position: string
+          p_body_part: string
+          p_description: string
+          p_hazard: string
+          p_immediate_action: string
+          p_incident: string
+          p_injury: string
+          p_kind: string
+          p_location: string
+          p_lost_days: number
+          p_occurred_at: string
+          p_process: string
+          p_severity: string
         }
         Returns: undefined
       }

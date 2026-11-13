@@ -1929,5 +1929,56 @@ await throws(() => as(db, U.sofia, `insert into public.inspections (organization
 await throws(() => as(db, U.sofia, `insert into public.ins_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
   "ins_counters es deny-all (057)", "row-level security")
 
+// ========== 058 · Incidentes/accidentes SST ==========
+// Reportar está abierto a cualquier miembro activo (ADR-119); gestionar/investigar/cerrar exige SST.
+// Sofía (consulta, miembro activo de A) puede reportar aunque no gestione.
+const inc1 = (await as(db, U.sofia, `select code from public.report_incident('${A}', 'casi_accidente', now(), 'Bodega', '${P.sigA}', null::uuid, 'Resbalón en piso húmedo sin lesión', null, 'sin_lesion', null, null, null::uuid, null, null, null::int)`)).rows[0]
+ok(inc1.code === "INC-" + YEAR + "-001", "Numeración INC-AAAA-001 y Sofía (consulta) puede reportar (058)")
+const inc1id = (await svc(`select id from public.incidents where code='${inc1.code}' and organization_id='${A}'`)).rows[0].id
+await throws(() => as(db, U.beto, `select public.report_incident('${A}', 'incidente', now(), null, null::uuid, null::uuid, 'Intruso', null, 'leve', null, null, null::uuid, null, null, null::int)`),
+  "Beto (org B) no reporta incidentes en A (058)", "No perteneces")
+// Sofía no gestiona (no es SST).
+await throws(() => as(db, U.sofia, `select public.set_incident_investigation('${inc1id}', null::uuid, now())`),
+  "Sofía (consulta) no investiga (058)", "No puedes gestionar")
+// Juan (lider_sig) investiga y cierra el casi-accidente (sin NC obligatoria).
+await as(db, U.juan, `select public.set_incident_investigation('${inc1id}', '${POS.calidad}', now())`)
+ok((await svc(`select status from public.incidents where id='${inc1id}'`)).rows[0].status === "en_investigacion", "Investigar pasa a en_investigacion (058)")
+await as(db, U.juan, `select public.close_incident('${inc1id}')`)
+ok((await svc(`select status from public.incidents where id='${inc1id}'`)).rows[0].status === "cerrado", "Casi-accidente cierra sin NC tras investigación (058)")
+
+// Accidente: plazo de 15 días, exige investigación y NC para cerrar.
+const acc = (await as(db, U.juan, `select code from public.report_incident('${A}', 'accidente', now(), 'Planta', '${P.sigA}', null::uuid, 'Caída de altura', 'Primeros auxilios', 'grave', 'Trabajador X', '123', '${POS.ti}', 'Fractura', 'Brazo', 3)`)).rows[0]
+const accId = (await svc(`select id from public.incidents where code='${acc.code}' and organization_id='${A}'`)).rows[0].id
+ok((await svc(`select investigation_due = (occurred_at::date + 15) d from public.incidents where id='${accId}'`)).rows[0].d === true, "Accidente fija investigación a 15 días (058)")
+await throws(() => as(db, U.juan, `select public.close_incident('${accId}')`),
+  "Un accidente no cierra sin investigación (058)", "Registra la investigación")
+await as(db, U.juan, `select public.set_incident_investigation('${accId}', '${POS.calidad}', now())`)
+await throws(() => as(db, U.juan, `select public.close_incident('${accId}')`),
+  "Un accidente no cierra sin NC de investigación (058)", "exige generar la no conformidad")
+const accNc = (await as(db, U.juan, `select code from public.generate_nc_from_incident('${accId}')`)).rows[0].code
+ok((await svc(`select source from public.nonconformities where code='${accNc}' and organization_id='${A}'`)).rows[0].source === "incidente_sst", "NC de incidente con source incidente_sst (058)")
+await throws(() => as(db, U.juan, `select public.generate_nc_from_incident('${accId}')`),
+  "No duplica la NC de un incidente (058)", "ya tiene una no conformidad")
+await throws(() => as(db, U.beto, `select public.generate_nc_from_incident('${accId}')`),
+  "Beto (org B) no genera NC de un incidente de A (058)", "sin acceso")
+await as(db, U.juan, `select public.close_incident('${accId}')`)
+ok((await svc(`select status from public.incidents where id='${accId}'`)).rows[0].status === "cerrado", "Accidente cierra con investigación + NC (058)")
+
+// Anular (baja lógica) y bloqueos.
+const inc3 = (await as(db, U.juan, `select code from public.report_incident('${A}', 'incidente', now(), null, null::uuid, null::uuid, 'Casi se cae una caja', null, 'sin_lesion', null, null, null::uuid, null, null, null::int)`)).rows[0]
+const inc3id = (await svc(`select id from public.incidents where code='${inc3.code}' and organization_id='${A}'`)).rows[0].id
+await as(db, U.juan, `select public.cancel_incident('${inc3id}', 'Duplicado')`)
+ok((await svc(`select status from public.incidents where id='${inc3id}'`)).rows[0].status === "anulado", "Anular deja el incidente en anulado (058)")
+await throws(() => as(db, U.juan, `select public.close_incident('${inc3id}')`),
+  "Un incidente anulado no se cierra (058)", "ya está cerrado")
+
+// Aislamiento + REST + contador deny-all.
+ok((await as(db, U.beto, `select count(*)::int n from public.incidents where organization_id='${A}'`)).rows[0].n === 0, "Beto (org B) no ve incidentes de A (058)")
+await throws(() => anon(`select count(*) from public.incidents`), "anon no lee incidentes por REST (058)", "permission denied")
+await throws(() => as(db, U.sofia, `insert into public.incidents (organization_id, code, kind, description) values ('${A}', 'X', 'incidente', 'hack')`),
+  "Nadie inserta incidentes por REST (058)", "row-level security")
+await throws(() => as(db, U.sofia, `insert into public.inc_counters (organization_id, year, last_seq) values ('${A}', ${YEAR}, 9)`),
+  "inc_counters es deny-all (058)", "row-level security")
+
 console.log(`\n${pass} pasaron · ${fail} fallaron`)
 process.exit(fail ? 1 : 0)

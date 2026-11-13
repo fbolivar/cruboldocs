@@ -42,7 +42,7 @@ export const es: Dictionary = {
     auditorias: "Auditorías", indicadores: "Indicadores", revisiones: "Revisión por la dirección",
     competencias: "Competencias", proveedores: "Proveedores", pqrs: "PQRS", inspecciones: "Inspecciones", actas: "Actas",
     objetivos: "Objetivos", legal: "Requisitos legales", peligros: "Peligros SST", ambiental: "Aspectos ambientales",
-    sgsst: "SG-SST (0312)", metrologia: "Metrología", cambios: "Gestión del cambio", formularios: "Formularios",
+    sgsst: "SG-SST (0312)", incidentes: "Incidentes SST", metrologia: "Metrología", cambios: "Gestión del cambio", formularios: "Formularios",
     capacitacion: "Capacitación", conocimiento: "Conocimiento", solicitudes: "Solicitudes", informes: "Informes", admin: "Administración",
   },
   common: {
@@ -68,7 +68,7 @@ export const en: Dictionary = {
     auditorias: "Audits", indicadores: "Indicators", revisiones: "Management review",
     competencias: "Competencies", proveedores: "Suppliers", pqrs: "Feedback (PQRS)", inspecciones: "Inspections", actas: "Minutes",
     objetivos: "Objectives", legal: "Legal requirements", peligros: "OHS hazards", ambiental: "Environmental aspects",
-    sgsst: "OHS (0312)", metrologia: "Metrology", cambios: "Change management", formularios: "Forms",
+    sgsst: "OHS (0312)", incidentes: "OHS incidents", metrologia: "Metrology", cambios: "Change management", formularios: "Forms",
     capacitacion: "Training", conocimiento: "Knowledge", solicitudes: "Requests", informes: "Reports", admin: "Administration",
   },
   common: {

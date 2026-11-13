@@ -1,7 +1,7 @@
-import { canSeeAdmin, canSeeApprovals, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeFocos, canSeeForms, canSeeHazards, canSeeIndicators, canSeeInspections, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReports, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
+import { canSeeAdmin, canSeeApprovals, canSeeAudits, canSeeChanges, canSeeCompetencies, canSeeContext, canSeeCourses, canSeeDashboard, canSeeEnv, canSeeFocos, canSeeForms, canSeeHazards, canSeeIncidents, canSeeIndicators, canSeeInspections, canSeeKnowledge, canSeeLegal, canSeeMetrology, canSeeMinutes, canSeeNcOutputs, canSeeNonconformities, canSeeObjectives, canSeePqrs, canSeeProcessMap, canSeeReports, canSeeReviews, canSeeRisks, canSeeSst, canSeeSuppliers } from "@/lib/domain/access"
 import type { CurrentUser } from "@/lib/types"
 
-export type NavIcon = "inicio" | "tablero" | "focos" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "inspecciones" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "solicitudes" | "informes" | "admin"
+export type NavIcon = "inicio" | "tablero" | "focos" | "documentos" | "contexto" | "procesos" | "riesgos" | "noconf" | "salidas" | "auditorias" | "indicadores" | "revisiones" | "competencias" | "proveedores" | "pqrs" | "inspecciones" | "actas" | "objetivos" | "legal" | "peligros" | "ambiental" | "sgsst" | "incidentes" | "metrologia" | "cambios" | "formularios" | "capacitacion" | "conocimiento" | "solicitudes" | "informes" | "admin"
 
 export interface NavItem {
   href: string
@@ -36,6 +36,7 @@ export function navItemsFor(user: CurrentUser, nav: Record<NavIcon, string>): Na
   if (canSeeLegal(user)) items.push(item("/app/requisitos-legales", "legal"))
   if (canSeeHazards(user)) items.push(item("/app/peligros", "peligros"))
   if (canSeeSst(user)) items.push(item("/app/sg-sst", "sgsst"))
+  if (canSeeIncidents(user)) items.push(item("/app/incidentes", "incidentes"))
   if (canSeeEnv(user)) items.push(item("/app/aspectos-ambientales", "ambiental"))
   if (canSeeMetrology(user)) items.push(item("/app/metrologia", "metrologia"))
   if (canSeeChanges(user)) items.push(item("/app/cambios", "cambios"))

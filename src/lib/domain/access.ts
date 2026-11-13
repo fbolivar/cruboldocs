@@ -332,6 +332,16 @@ export function canManageInspections(user: CurrentUser, processId?: string): boo
   return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso", processId)
 }
 
+/** Ver incidentes/accidentes SST: roles del SIG (igual que SG-SST). */
+export function canSeeIncidents(user: CurrentUser): boolean {
+  return RISK_ROLES.some((r) => hasRole(user, r))
+}
+
+/** Gestionar/investigar/cerrar incidentes SST: Líder SIG o Líder de proceso. Reportar queda abierto a cualquier miembro. */
+export function canManageIncidents(user: CurrentUser): boolean {
+  return hasRole(user, "lider_sig") || hasRole(user, "lider_proceso")
+}
+
 /** Comparte/gestiona informes compartidos: Admin de organización o Líder SIG (igual que can_manage_reports). */
 export function canManageReports(user: CurrentUser): boolean {
   return user.isOrgAdmin || hasRole(user, "lider_sig")

@@ -21,7 +21,7 @@ import { generateDraft, type DraftInput } from "@/lib/agente/content"
 import { CHAT_EVENTS, isAllowedChatUrl, sendChat } from "@/lib/chat/providers"
 import { DATASET_KEYS, type DatasetKey, type ReportConfig, type ReportRow } from "@/lib/bi/datasets"
 import { runConfig, sanitizeConfig, type ReportResult } from "@/lib/bi/compute"
-import { getChatNotifierTarget, getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, loadDataset, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listInspections, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
+import { getChatNotifierTarget, getCourse, getCurrentUser, getDashboard, getEquipment, getFormTemplate, getProcessMap, getSstEvaluation, getSubmission, isUuid, listAllDocuments, listAllRisks, loadDataset, listApprovalRequests, listAuditLog, listContextIssues, listEnvAspects, listHazards, listIncidents, listInspections, listInterestedParties, listKnowledge, listLegalRequirements, listMinutes, listNcOutputs, listObjectives, listPqrs, listSubmissionsForExport, listSuppliers, listSurveyResponses, searchDocuments } from "@/lib/data/queries"
 import { toStoredLayout } from "@/lib/domain/dashboard-blocks"
 import { generateApiToken } from "@/lib/api/keys"
 import {
@@ -4820,5 +4820,125 @@ export async function exportInspectionsCsv(): Promise<string> {
     { header: "Proceso", value: (r) => r.processName ?? "" },
     { header: "Disposición", value: (r) => DISP[r.disposition] },
     { header: "Fecha", value: (r) => formatDate(r.inspectedAt) },
+  ])
+}
+
+// ---------- Incidentes/accidentes SST (v1.6-2) ----------
+
+const incidentSchema = z.object({
+  kind: z.enum(["accidente", "incidente", "casi_accidente"]),
+  occurredAt: z.string().trim().min(1),
+  location: z.string().trim().max(200).optional().nullable(),
+  processId: z.string().uuid().optional().nullable(),
+  hazardId: z.string().uuid().optional().nullable(),
+  description: z.string().trim().min(3).max(4000),
+  immediateAction: z.string().trim().max(2000).optional().nullable(),
+  severity: z.enum(["sin_lesion", "leve", "grave", "mortal"]),
+  affectedName: z.string().trim().max(160).optional().nullable(),
+  affectedDocument: z.string().trim().max(40).optional().nullable(),
+  affectedPositionId: z.string().uuid().optional().nullable(),
+  injury: z.string().trim().max(200).optional().nullable(),
+  bodyPart: z.string().trim().max(120).optional().nullable(),
+  lostDays: z.number().int().min(0).max(100000).optional().nullable(),
+})
+
+const revalidateIncidents = () => revalidatePath("/app/incidentes", "layout")
+
+function incidentRpcArgs(d: z.infer<typeof incidentSchema>) {
+  return {
+    p_kind: d.kind, p_occurred_at: d.occurredAt, p_location: (d.location ?? "").trim(),
+    p_process: (d.processId ?? null) as unknown as string, p_hazard: (d.hazardId ?? null) as unknown as string,
+    p_description: d.description, p_immediate_action: (d.immediateAction ?? "").trim(), p_severity: d.severity,
+    p_affected_name: (d.affectedName ?? "").trim(), p_affected_document: (d.affectedDocument ?? "").trim(),
+    p_affected_position: (d.affectedPositionId ?? null) as unknown as string,
+    p_injury: (d.injury ?? "").trim(), p_body_part: (d.bodyPart ?? "").trim(),
+    p_lost_days: (d.lostDays ?? null) as unknown as number,
+  }
+}
+
+export async function reportIncident(input: unknown): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    const p = incidentSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del incidente.")
+    const user = await getCurrentUser()
+    if (!user.organization.id) return fail("Sin organización activa.")
+    const { data, error } = await (await createClient()).rpc("report_incident", { p_org: user.organization.id, ...incidentRpcArgs(p.data) })
+    if (error) return fail(dbMessage(error))
+    revalidateIncidents()
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function updateIncident(incidentId: string, input: unknown): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(incidentId)) return fail(GENERIC)
+    const p = incidentSchema.safeParse(input)
+    if (!p.success) return fail("Revisa los datos del incidente.")
+    const { error } = await (await createClient()).rpc("update_incident", { p_incident: incidentId, ...incidentRpcArgs(p.data) })
+    if (error) return fail(dbMessage(error))
+    revalidateIncidents()
+    return ok(undefined)
+  })
+}
+
+export async function setIncidentInvestigation(incidentId: string, investigatorPositionId: string | null, investigatedAt: string | null): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(incidentId)) return fail(GENERIC)
+    if (investigatorPositionId && !isUuid(investigatorPositionId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("set_incident_investigation", {
+      p_incident: incidentId, p_investigator: (investigatorPositionId ?? null) as unknown as string,
+      p_investigated_at: (investigatedAt ?? null) as unknown as string,
+    })
+    if (error) return fail(dbMessage(error))
+    revalidateIncidents()
+    return ok(undefined)
+  })
+}
+
+export async function generateNcFromIncident(incidentId: string): Promise<Result<{ code: string }>> {
+  return guard(async () => {
+    if (!isUuid(incidentId)) return fail(GENERIC)
+    const { data, error } = await (await createClient()).rpc("generate_nc_from_incident", { p_incident: incidentId })
+    if (error) return fail(dbMessage(error))
+    revalidateIncidents()
+    revalidatePath("/app/no-conformidades", "layout")
+    return ok({ code: data?.[0]?.code ?? "" })
+  })
+}
+
+export async function closeIncident(incidentId: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(incidentId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("close_incident", { p_incident: incidentId })
+    if (error) return fail(dbMessage(error))
+    revalidateIncidents()
+    return ok(undefined)
+  })
+}
+
+export async function cancelIncident(incidentId: string, reason: string): Promise<Result> {
+  return guard(async () => {
+    if (!isUuid(incidentId)) return fail(GENERIC)
+    const { error } = await (await createClient()).rpc("cancel_incident", { p_incident: incidentId, p_reason: (reason ?? "").trim() })
+    if (error) return fail(dbMessage(error))
+    revalidateIncidents()
+    return ok(undefined)
+  })
+}
+
+export async function exportIncidentsCsv(): Promise<string> {
+  const rows = await listIncidents()
+  const KIND: Record<string, string> = { accidente: "Accidente", incidente: "Incidente", casi_accidente: "Casi-accidente" }
+  const SEV: Record<string, string> = { sin_lesion: "Sin lesión", leve: "Leve", grave: "Grave", mortal: "Mortal" }
+  const STATUS: Record<string, string> = { reportado: "Reportado", en_investigacion: "En investigación", cerrado: "Cerrado", anulado: "Anulado" }
+  return toCsv(rows, [
+    { header: "Código", value: (r) => r.code },
+    { header: "Tipo", value: (r) => KIND[r.kind] },
+    { header: "Severidad", value: (r) => SEV[r.severity] },
+    { header: "Estado", value: (r) => STATUS[r.status] },
+    { header: "Proceso", value: (r) => r.processName ?? "" },
+    { header: "Lugar", value: (r) => r.location ?? "" },
+    { header: "Ocurrió", value: (r) => formatDate(r.occurredAt) },
+    { header: "Investigación vence", value: (r) => (r.investigationDue ? formatDate(r.investigationDue) : "") },
   ])
 }

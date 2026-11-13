@@ -41,6 +41,12 @@ import type {
   InspectionListItem,
   InspectionResultView,
   InspectionDetail,
+  IncidentKind,
+  IncidentSeverity,
+  IncidentStatus,
+  IncidentSummary,
+  IncidentListItem,
+  IncidentDetail,
   RcaAnalysisView,
   SavedReportView,
   ApprovalFlowView,
@@ -4110,5 +4116,77 @@ export async function getInspection(code: string): Promise<InspectionDetail | nu
     ncCode: nc?.code ?? null, ncOutputCode: out?.code ?? null,
     timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: INSPECTION_EVENT_TEXT[x.action] ?? x.action })),
     canManage: canManageInspections(s.user, i.process_id ?? undefined),
+  }
+}
+
+// ---------- Incidentes/accidentes SST (v1.6-2) ----------
+
+const INCIDENT_EVENT_TEXT: Record<string, string> = {
+  reportar_incidente: "Reportó el incidente.",
+  editar_incidente: "Editó los datos del incidente.",
+  investigar_incidente: "Asignó la investigación.",
+  generar_nc_incidente: "Generó la no conformidad de investigación.",
+  cerrar_incidente: "Cerró el incidente.",
+  anular_incidente: "Anuló el incidente.",
+}
+
+function isIncidentOverdue(kind: string, status: string, due: string | null): boolean {
+  return kind === "accidente" && (status === "reportado" || status === "en_investigacion") && !!due && due <= todayIsoDate()
+}
+
+export async function getIncidentSummary(): Promise<IncidentSummary> {
+  const s = await scope()
+  if (!s) return { open: 0, accidents: 0, overdueInvestigations: 0 }
+  const { data } = await s.supabase.from("incidents").select("kind, status, investigation_due").eq("organization_id", s.org)
+  const rows = data ?? []
+  return {
+    open: rows.filter((r) => r.status === "reportado" || r.status === "en_investigacion").length,
+    accidents: rows.filter((r) => r.kind === "accidente").length,
+    overdueInvestigations: rows.filter((r) => isIncidentOverdue(r.kind, r.status, r.investigation_due)).length,
+  }
+}
+
+export async function listIncidents(): Promise<IncidentListItem[]> {
+  const s = await scope()
+  if (!s) return []
+  const [{ data: rows }, { data: procs }] = await Promise.all([
+    s.supabase.from("incidents").select("id, code, kind, severity, status, process_id, location, occurred_at, investigation_due").eq("organization_id", s.org).order("occurred_at", { ascending: false }),
+    s.supabase.from("processes").select("id, name").eq("organization_id", s.org),
+  ])
+  const procName = new Map((procs ?? []).map((p) => [p.id, p.name]))
+  return (rows ?? []).map((r) => ({
+    id: r.id, code: r.code, kind: r.kind as IncidentKind, severity: r.severity as IncidentSeverity, status: r.status as IncidentStatus,
+    processName: r.process_id ? procName.get(r.process_id) ?? null : null, location: r.location,
+    occurredAt: r.occurred_at, investigationDue: r.investigation_due,
+    overdue: isIncidentOverdue(r.kind, r.status, r.investigation_due),
+  }))
+}
+
+export async function getIncident(code: string): Promise<IncidentDetail | null> {
+  const s = await scope()
+  if (!s) return null
+  const { data: i } = await s.supabase.from("incidents").select("*").eq("organization_id", s.org).eq("code", code).maybeSingle()
+  if (!i) return null
+  const [{ data: proc }, { data: haz }, { data: posAff }, { data: posInv }, { data: nc }, { data: log }] = await Promise.all([
+    i.process_id ? s.supabase.from("processes").select("name").eq("id", i.process_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    i.hazard_id ? s.supabase.from("hazards").select("hazard").eq("id", i.hazard_id).maybeSingle() : Promise.resolve({ data: null as { hazard: string } | null }),
+    i.affected_position_id ? s.supabase.from("positions").select("name").eq("id", i.affected_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    i.investigated_by_position_id ? s.supabase.from("positions").select("name").eq("id", i.investigated_by_position_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    i.nonconformity_id ? s.supabase.from("nonconformities").select("code, status").eq("id", i.nonconformity_id).maybeSingle() : Promise.resolve({ data: null as { code: string; status: string } | null }),
+    s.supabase.from("audit_log").select("at, actor_id, action").eq("organization_id", s.org).eq("entity_type", "Incidente").eq("entity_id", i.id).order("at", { ascending: false }),
+  ])
+  const person = await peopleOf(s.org, (log ?? []).map((x) => x.actor_id))
+  return {
+    id: i.id, code: i.code, kind: i.kind as IncidentKind, severity: i.severity as IncidentSeverity, status: i.status as IncidentStatus,
+    occurredAt: i.occurred_at, location: i.location, processId: i.process_id, processName: proc?.name ?? null,
+    hazardId: i.hazard_id, hazardName: haz?.hazard ?? null, description: i.description, immediateAction: i.immediate_action,
+    affectedName: i.affected_name, affectedDocument: i.affected_document, affectedPositionId: i.affected_position_id,
+    affectedPositionName: posAff?.name ?? null, injury: i.injury, bodyPart: i.body_part, lostDays: i.lost_days,
+    investigatedByPositionId: i.investigated_by_position_id, investigatedByPositionName: posInv?.name ?? null,
+    investigationDue: i.investigation_due, investigatedAt: i.investigated_at,
+    ncCode: nc?.code ?? null, ncStatus: nc?.status ?? null,
+    overdue: isIncidentOverdue(i.kind, i.status, i.investigation_due),
+    timeline: (log ?? []).map((x) => ({ at: x.at, actor: x.actor_id ? person(x.actor_id).fullName : "Sistema", text: INCIDENT_EVENT_TEXT[x.action] ?? x.action })),
+    canManage: canManageSst(s.user),
   }
 }

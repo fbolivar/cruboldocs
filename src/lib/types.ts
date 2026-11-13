@@ -1017,6 +1017,65 @@ export interface InspectionDetail {
   canManage: boolean
 }
 
+// ---------- Incidentes/accidentes SST (v1.6-2) ----------
+
+export type IncidentKind = "accidente" | "incidente" | "casi_accidente"
+export type IncidentSeverity = "sin_lesion" | "leve" | "grave" | "mortal"
+export type IncidentStatus = "reportado" | "en_investigacion" | "cerrado" | "anulado"
+
+export interface IncidentSummary {
+  open: number
+  accidents: number
+  /** Accidentes con investigación vencida (investigation_due pasada y sin cerrar). */
+  overdueInvestigations: number
+}
+
+export interface IncidentListItem {
+  id: string
+  code: string
+  kind: IncidentKind
+  severity: IncidentSeverity
+  status: IncidentStatus
+  processName: string | null
+  location: string | null
+  occurredAt: string
+  investigationDue: string | null
+  /** Accidente abierto con investigación vencida. */
+  overdue: boolean
+}
+
+export interface IncidentDetail {
+  id: string
+  code: string
+  kind: IncidentKind
+  severity: IncidentSeverity
+  status: IncidentStatus
+  occurredAt: string
+  location: string | null
+  processId: string | null
+  processName: string | null
+  hazardId: string | null
+  hazardName: string | null
+  description: string
+  immediateAction: string | null
+  affectedName: string | null
+  affectedDocument: string | null
+  affectedPositionId: string | null
+  affectedPositionName: string | null
+  injury: string | null
+  bodyPart: string | null
+  lostDays: number | null
+  investigatedByPositionId: string | null
+  investigatedByPositionName: string | null
+  investigationDue: string | null
+  investigatedAt: string | null
+  ncCode: string | null
+  ncStatus: string | null
+  overdue: boolean
+  timeline: NcTimelineEvent[]
+  canManage: boolean
+}
+
 // ---------- SCAR: solicitud de acción correctiva a proveedor (v1.5-3) ----------
 
 export type ScarStatus = "enviada" | "respondida" | "aceptada" | "rechazada" | "anulada"
