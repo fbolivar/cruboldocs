@@ -295,6 +295,7 @@ export type AdminTab =
   | "recertificacion"
   | "auditoria"
   | "api"
+  | "importar"
   | "flujos"
   | "notificaciones"
   | "organizaciones"
@@ -357,7 +358,7 @@ export function adminTabsFor(user: CurrentUser): AdminTab[] {
   // El Superadmin solo administra organizaciones; el resto, solo si además es miembro con ese rol.
   const platform: AdminTab[] = user.isPlatformAdmin ? ["organizaciones"] : []
   if (user.isOrgAdmin || hasRole(user, "lider_sig")) {
-    return [...platform, "usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria", "api", "flujos", "notificaciones"]
+    return [...platform, "usuarios", "cargos", "procesos", "tipos", "normas", "recertificacion", "auditoria", "api", "importar", "flujos", "notificaciones"]
   }
   if (hasRole(user, "auditor")) return [...platform, "auditoria"]
   return platform

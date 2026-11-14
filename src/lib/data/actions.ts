@@ -14,7 +14,7 @@ import { redirect } from "next/navigation"
 import { after } from "next/server"
 import { z } from "zod"
 
-import { toCsv } from "@/lib/csv"
+import { parseCsv, toCsv } from "@/lib/csv"
 import { newToken, sha256Hex } from "@/lib/data/hash"
 import { deliverChat } from "@/lib/chat/deliver"
 import { generateDraft, type DraftInput } from "@/lib/agente/content"
@@ -34,7 +34,8 @@ import {
   UploadError,
   type UploadTicket,
 } from "@/lib/data/storage"
-import { canManageNonconformities } from "@/lib/domain/access"
+import { canManageCatalog, canManageNonconformities } from "@/lib/domain/access"
+import { IMPORT_ENTITIES, isImportEntity, type ImportEntity } from "@/lib/import/schema"
 import { DOCUMENT_STATUS_META, SIGNATURE_MEANING, segregationError } from "@/lib/domain/documents"
 import { downloadName, EVIDENCE_EXT, isEvidenceName, isPdfName, isSourceName, SOURCE_EXT } from "@/lib/domain/files"
 import { RISK_LEVEL_LABELS } from "@/lib/domain/risk"
@@ -48,6 +49,8 @@ import type { Json } from "@/lib/supabase/database.types"
 import type {
   AuditFilters,
   ApiKeyCreated,
+  ImportPreviewRow,
+  ImportResult,
   WebhookCreated,
   ControlType,
   CourseAttemptResult,
@@ -4941,4 +4944,165 @@ export async function exportIncidentsCsv(): Promise<string> {
     { header: "Ocurrió", value: (r) => formatDate(r.occurredAt) },
     { header: "Investigación vence", value: (r) => (r.investigationDue ? formatDate(r.investigationDue) : "") },
   ])
+}
+
+// ---------- Importación CSV (v1.6-4) ----------
+
+const PROC_TYPES = ["estrategico", "misional", "apoyo", "evaluacion"]
+const SUP_KINDS = ["bien", "servicio", "ambos"]
+const CRITICALITIES = ["alta", "media", "baja"]
+const SOURCE_TYPES = ["ley", "decreto", "resolucion", "norma_iso", "contractual", "otro"]
+const FREQUENCIES = ["semestral", "anual", "bienal"]
+
+type SupaClient = Awaited<ReturnType<typeof createClient>>
+/** Validación por fila: error, o resumen + creador (devuelve mensaje de error o null). */
+type RowOutcome = { error: string } | { summary: string; create: (sb: SupaClient) => Promise<string | null> }
+
+/**
+ * Importa un CSV reutilizando las reglas de creación de la app (RLS/autorización/contadores/log).
+ * `commit=false` solo previsualiza (no escribe); `commit=true` crea las filas válidas.
+ */
+async function runImport(entity: string, csvText: string, commit: boolean): Promise<Result<ImportResult>> {
+  return guard(async () => {
+    if (!isImportEntity(entity)) return fail("Entidad no válida.")
+    const user = await getCurrentUser()
+    const org = user.organization.id
+    if (!org) return fail("Sin organización activa.")
+    if (!canManageCatalog(user)) return fail("No tienes permiso para importar.")
+
+    let parsed
+    try { parsed = parseCsv(csvText) } catch (e) { return fail(e instanceof Error ? e.message : "No pudimos leer el CSV.") }
+
+    const supabase = await createClient()
+    const [{ data: procs }, { data: positions }] = await Promise.all([
+      supabase.from("processes").select("id, code, name").eq("organization_id", org),
+      supabase.from("positions").select("id, name").eq("organization_id", org),
+    ])
+    const procByCode = new Map((procs ?? []).map((p) => [p.code.toUpperCase(), p.id]))
+    const procByName = new Map((procs ?? []).map((p) => [p.name.toLowerCase(), p.id]))
+    const posByName = new Map((positions ?? []).map((p) => [p.name.toLowerCase(), p.id]))
+    const seenProcCode = new Set((procs ?? []).map((p) => p.code.toUpperCase()))
+    const seenPosName = new Set((positions ?? []).map((p) => p.name.toLowerCase()))
+
+    const field = (row: Record<string, string>, k: string) => (row[k] ?? "").trim()
+    const resolveProc = (ref: string): { id: string | null } | { error: string } => {
+      const v = ref.trim()
+      if (!v) return { id: null }
+      const id = procByCode.get(v.toUpperCase()) ?? procByName.get(v.toLowerCase())
+      return id !== undefined ? { id } : { error: `proceso «${v}» no encontrado` }
+    }
+
+    function validate(row: Record<string, string>): RowOutcome {
+      if (entity === "procesos") {
+        const codigo = field(row, "codigo").toUpperCase(), nombre = field(row, "nombre"), tipo = field(row, "tipo").toLowerCase()
+        if (!codigo || !nombre) return { error: "faltan codigo o nombre" }
+        if (!/^[A-Z0-9]{2,6}$/.test(codigo)) return { error: "código inválido (2–6 letras/números)" }
+        if (!PROC_TYPES.includes(tipo)) return { error: "tipo inválido" }
+        let leader: string | null = null
+        const lc = field(row, "lider_cargo")
+        if (lc) { const id = posByName.get(lc.toLowerCase()); if (!id) return { error: `cargo líder «${lc}» no encontrado` }; leader = id }
+        if (seenProcCode.has(codigo)) return { error: `ya existe un proceso ${codigo}` }
+        seenProcCode.add(codigo)
+        return {
+          summary: `${codigo} · ${nombre}`,
+          create: async (sb) => {
+            const { error } = await sb.from("processes").insert({ organization_id: org, code: codigo, name: nombre, type: tipo, leader_position_id: leader }).select("id")
+            return error ? (error.code === "23505" ? `ya existe ${codigo}` : dbMessage(error)) : null
+          },
+        }
+      }
+      if (entity === "cargos") {
+        const nombre = field(row, "nombre")
+        if (nombre.length < 2 || nombre.length > 120) return { error: "nombre de 2 a 120 caracteres" }
+        const pr = resolveProc(field(row, "proceso"))
+        if ("error" in pr) return pr
+        if (seenPosName.has(nombre.toLowerCase())) return { error: `ya existe el cargo «${nombre}»` }
+        seenPosName.add(nombre.toLowerCase())
+        return {
+          summary: nombre,
+          create: async (sb) => {
+            const { error } = await sb.from("positions").insert({ organization_id: org, name: nombre, process_id: pr.id }).select("id")
+            return error ? (error.code === "23505" ? `ya existe «${nombre}»` : dbMessage(error)) : null
+          },
+        }
+      }
+      if (entity === "proveedores") {
+        const nombre = field(row, "nombre"), tipo = field(row, "tipo").toLowerCase(), crit = field(row, "criticidad").toLowerCase()
+        if (!nombre) return { error: "falta nombre" }
+        if (!SUP_KINDS.includes(tipo)) return { error: "tipo inválido (bien/servicio/ambos)" }
+        if (!CRITICALITIES.includes(crit)) return { error: "criticidad inválida (alta/media/baja)" }
+        const pr = resolveProc(field(row, "proceso"))
+        if ("error" in pr) return pr
+        return {
+          summary: nombre,
+          create: async (sb) => {
+            const { error } = await sb.rpc("create_supplier", {
+              p_org: org, p_name: nombre, p_nit: field(row, "nit"), p_kind: tipo, p_category: field(row, "categoria"),
+              p_criticality: crit, p_process: (pr.id ?? null) as unknown as string,
+              p_contact_name: field(row, "contacto_nombre"), p_contact_email: field(row, "contacto_email"), p_contact_phone: field(row, "contacto_telefono"),
+            })
+            return error ? dbMessage(error) : null
+          },
+        }
+      }
+      // requisitos
+      const titulo = field(row, "titulo"), src = field(row, "tipo_fuente").toLowerCase(), ref = field(row, "referencia"), desc = field(row, "descripcion")
+      const freqRaw = field(row, "frecuencia").toLowerCase(), freq = freqRaw || "anual"
+      if (!titulo || !ref || !desc) return { error: "faltan titulo, referencia o descripcion" }
+      if (!SOURCE_TYPES.includes(src)) return { error: "tipo_fuente inválido" }
+      if (freqRaw && !FREQUENCIES.includes(freq)) return { error: "frecuencia inválida" }
+      const pr = resolveProc(field(row, "proceso"))
+      if ("error" in pr) return pr
+      return {
+        summary: `${ref} · ${titulo}`,
+        create: async (sb) => {
+          const { error } = await sb.rpc("create_requirement", {
+            p_org: org, p_title: titulo, p_source: src, p_reference: ref, p_issuer: field(row, "emisor"),
+            p_description: desc, p_process: (pr.id ?? null) as unknown as string, p_url: field(row, "url"), p_frequency: freq,
+          })
+          return error ? dbMessage(error) : null
+        },
+      }
+    }
+
+    const outRows: ImportPreviewRow[] = []
+    let valid = 0, errors = 0, created = 0
+    for (let i = 0; i < parsed.rows.length; i++) {
+      const line = i + 1
+      const res = validate(parsed.rows[i])
+      if ("error" in res) { outRows.push({ line, summary: "", ok: false, error: res.error }); errors++; continue }
+      valid++
+      if (commit) {
+        const err = await res.create(supabase)
+        if (err) { outRows.push({ line, summary: res.summary, ok: false, error: err }); errors++; valid--; continue }
+        created++
+      }
+      outRows.push({ line, summary: res.summary, ok: true, error: null })
+    }
+
+    if (commit) {
+      revalidatePath("/app/admin", "layout")
+      await logImport(entity, created, errors)
+    }
+    return ok({ rows: outRows, valid, errors, committed: commit, created })
+  })
+}
+
+async function logImport(entity: string, created: number, errors: number): Promise<void> {
+  try {
+    const user = await getCurrentUser()
+    if (!user.organization.id) return
+    await (await createClient()).rpc("log_event", {
+      org: user.organization.id, p_action: "importar_csv", p_entity_type: "Importacion", p_entity_id: null as unknown as string,
+      p_label: IMPORT_ENTITIES[entity as ImportEntity].label, p_diff: { creadas: created, errores: errors } as unknown as Json,
+    })
+  } catch { /* el log no bloquea la importación */ }
+}
+
+export async function previewImport(entity: string, csvText: string): Promise<Result<ImportResult>> {
+  return runImport(entity, csvText, false)
+}
+
+export async function commitImport(entity: string, csvText: string): Promise<Result<ImportResult>> {
+  return runImport(entity, csvText, true)
 }

@@ -1096,6 +1096,25 @@ export interface SpcSeries {
   points: SpcPoint[]
 }
 
+// ---------- Importación CSV (v1.6-4) ----------
+
+export interface ImportPreviewRow {
+  /** Número de fila del CSV (1 = primera fila de datos, sin contar la cabecera). */
+  line: number
+  summary: string
+  ok: boolean
+  error: string | null
+}
+
+export interface ImportResult {
+  rows: ImportPreviewRow[]
+  valid: number
+  errors: number
+  /** true si fue un commit (se crearon las válidas); false si fue solo previsualización. */
+  committed: boolean
+  created: number
+}
+
 // ---------- SCAR: solicitud de acción correctiva a proveedor (v1.5-3) ----------
 
 export type ScarStatus = "enviada" | "respondida" | "aceptada" | "rechazada" | "anulada"

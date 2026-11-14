@@ -10,6 +10,7 @@ export const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   recertificacion: "Recertificación",
   auditoria: "Auditoría",
   api: "API",
+  importar: "Importar",
   flujos: "Flujos",
   notificaciones: "Notificaciones",
   organizaciones: "Organizaciones",

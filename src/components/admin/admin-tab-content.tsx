@@ -1,6 +1,7 @@
 import { ApiKeysTab } from "@/components/admin/api-keys-tab"
 import { AuditTab } from "@/components/admin/audit-tab"
 import { FlowsTab } from "@/components/admin/flows-tab"
+import { ImportTab } from "@/components/admin/import-tab"
 import { NotifiersTab } from "@/components/admin/notifiers-tab"
 import { DocTypesTab } from "@/components/admin/doc-types-tab"
 import { NormasTab } from "@/components/admin/normas-tab"
@@ -31,6 +32,8 @@ export function AdminTabContent({ tab, sp }: { tab: AdminTab; sp: SearchParams }
       return <AuditTab sp={sp} />
     case "api":
       return <ApiKeysTab />
+    case "importar":
+      return <ImportTab />
     case "flujos":
       return <FlowsTab />
     case "notificaciones":
